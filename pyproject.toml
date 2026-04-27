@@ -1,0 +1,36 @@
+[project]
+name = "npo-agent"
+version = "0.1.0"
+description = "Multi-tenant agent platform for nonprofits — Grant writing, Policy navigation, Donor concierge, and Bookkeeping for NPOs."
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic>=0.92.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.4",
+    "python-multipart>=0.0.9",
+    "scikit-learn>=1.4",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+npo-agent = "npo_agent.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
