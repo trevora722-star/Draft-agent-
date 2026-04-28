@@ -53,17 +53,65 @@ client in `ca-central-1` or the Vertex client in `northamerica-northeast1`.
 | Donor Concierge      | TBD    | Plugs into the same Agent base class |
 | Automated Bookkeeper | TBD    | Plugs into the same Agent base class |
 
-## Quick start
+## Demo mode (BCSS walkthrough)
+
+There's a built-in demo mode that auto-seeds a `BCSS Demo` tenant with realistic
+program + policy docs and serves a clean HTML page at `/` for a non-technical
+walkthrough. Two ways to run it:
+
+### Option A — Render (one-link deploy, share the URL)
+
+The repo ships with a `render.yaml` blueprint. Free tier; the service sleeps
+after ~15 min idle and wakes in ~10s.
+
+1. Push the branch to GitHub.
+2. In Render: **New + → Blueprint** → point at this repo.
+3. Set `ANTHROPIC_API_KEY` in the dashboard. Everything else is auto-set
+   by the blueprint.
+4. Render gives you a URL like `npoagent-bcss-demo.onrender.com`. Send that link.
+
+### Option B — Laptop + ngrok (sit-on-the-couch walkthrough)
 
 ```bash
-# 1. install
+# install
 pip install -e ".[dev]"
 
-# 2. set credentials
+# minimal env — only ANTHROPIC_API_KEY is required
+export ANTHROPIC_API_KEY=sk-ant-...
+export NPO_DEMO_MODE=1
+
+# boot
+npo-agent init-db
+npo-agent serve --port 8000
+# → open http://localhost:8000 in your browser. Demo seeds itself on first hit.
+
+# in another shell, expose it publicly
+ngrok http 8000
+# → ngrok prints a public https URL. Send that to her.
+```
+
+The demo UI has three tabs:
+
+1. **Grant Drafter** — pre-filled BC Gaming brief; "Preview what gets sent"
+   shows the PII-scrubbed payload before "Draft application" runs the agent.
+2. **Policy Navigator** — quick-ask buttons for WHMIS, director changes,
+   privacy breach, plus an off-policy question to show the agent refusing.
+3. **Privacy filter** — paste any intake-style text (names, BC PHN, SIN,
+   addresses, DOBs) and see exactly what does and doesn't leave the server.
+   This is the tab to land on for a board-level discussion about PIPA / FOIPPA
+   exposure.
+
+## Production / multi-tenant quick start
+
+For real multi-tenant operation (creating tenants, ingesting their docs,
+issuing API keys), demo mode is irrelevant — use the admin endpoints:
+
+```bash
+pip install -e ".[dev]"
+
 export ANTHROPIC_API_KEY=sk-ant-...
 export NPO_ADMIN_TOKEN=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
 
-# 3. boot
 npo-agent init-db
 npo-agent serve --port 8000
 ```

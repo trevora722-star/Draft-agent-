@@ -1,0 +1,38 @@
+# Render Blueprint — one-click deploy of the BCSS demo.
+#
+# Usage:
+#   1. Push this branch to GitHub.
+#   2. In Render: New + > Blueprint > point at this repo.
+#   3. Set ANTHROPIC_API_KEY in the dashboard (the only secret you must set).
+#   4. Render gives you a URL like npoagent-bcss-demo.onrender.com — share with her.
+#
+# Free-tier note: the service sleeps after ~15 min idle and takes ~10s to wake.
+# The persistent disk keeps the seeded tenant + any drafts she generates across
+# restarts; SQLite resets only if you destroy and recreate the service.
+
+services:
+  - type: web
+    name: npoagent-bcss-demo
+    runtime: python
+    region: oregon  # closest free-tier region; for paid prod, switch to a CA region
+    plan: free
+    buildCommand: pip install -e .
+    startCommand: uvicorn npo_agent.api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false  # must be set in the Render dashboard
+      - key: NPO_DEMO_MODE
+        value: "1"
+      - key: NPO_DB_PATH
+        value: /var/data/npo.sqlite
+      - key: NPO_DATA_RESIDENCY
+        value: ca-central
+      - key: NPO_ADMIN_TOKEN
+        generateValue: true  # random per-deploy; not used by the demo UI
+      - key: PYTHON_VERSION
+        value: "3.11"
+    disk:
+      name: npo-data
+      mountPath: /var/data
+      sizeGB: 1

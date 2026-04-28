@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NPOAgent — BCSS demo</title>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --surface: #ffffff;
+    --ink: #1d2731;
+    --ink-soft: #4a5764;
+    --line: #e3e1d9;
+    --accent: #2d6a76;        /* clinical teal */
+    --accent-soft: #e6f0f1;
+    --warn: #b45309;          /* PII flag */
+    --warn-soft: #fef3c7;
+    --good: #15803d;
+    --good-soft: #dcfce7;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    padding: 18px 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  header .meta {
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  header .meta strong { color: var(--ink); font-weight: 500; }
+  main {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 28px 80px;
+  }
+  .intro {
+    color: var(--ink-soft);
+    margin: 0 0 24px;
+    max-width: 680px;
+    font-size: 15px;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 24px;
+  }
+  .tab {
+    background: none;
+    border: none;
+    padding: 10px 18px;
+    font: inherit;
+    color: var(--ink-soft);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 500;
+  }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px 22px;
+  }
+  .card h2 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  .card .hint {
+    color: var(--ink-soft);
+    font-size: 13px;
+    margin: 0 0 14px;
+  }
+  label { font-size: 13px; color: var(--ink-soft); display: block; margin-bottom: 4px; }
+  input[type=text], textarea {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    background: #fdfdfb;
+  }
+  input[type=text]:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  textarea { min-height: 120px; resize: vertical; font-family: inherit; }
+  .row { display: flex; gap: 12px; margin-bottom: 12px; }
+  .row > div { flex: 1; }
+  button.primary {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 18px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  button.primary:hover { background: #245862; }
+  button.primary:disabled { background: #9aa6ab; cursor: progress; }
+  button.secondary {
+    background: white;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    margin-right: 8px;
+  }
+  button.secondary:hover { background: var(--bg); }
+
+  .preview {
+    background: #fafaf7;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-top: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-soft);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .preview .placeholder {
+    background: var(--warn-soft);
+    color: var(--warn);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+  .badges { margin-top: 10px; font-size: 12px; }
+  .badge {
+    display: inline-block;
+    background: var(--warn-soft);
+    color: var(--warn);
+    padding: 2px 8px;
+    border-radius: 100px;
+    margin-right: 6px;
+    margin-bottom: 4px;
+  }
+  .badge.good { background: var(--good-soft); color: var(--good); }
+
+  .output {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 24px 28px;
+    min-height: 200px;
+    line-height: 1.6;
+    font-size: 14px;
+  }
+  .output h1, .output h2, .output h3 { letter-spacing: -0.01em; }
+  .output h1 { font-size: 20px; margin: 24px 0 8px; }
+  .output h2 { font-size: 17px; margin: 22px 0 8px; color: var(--accent); }
+  .output h3 { font-size: 15px; margin: 18px 0 6px; }
+  .output p { margin: 8px 0; }
+  .output ul, .output ol { margin: 8px 0 8px 22px; padding: 0; }
+  .output li { margin: 3px 0; }
+  .output code { font-family: var(--mono); font-size: 12.5px; background: var(--bg); padding: 1px 4px; border-radius: 3px; }
+  .output .ed-confirm {
+    background: var(--warn-soft);
+    color: var(--warn);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-style: italic;
+  }
+  .empty {
+    color: var(--ink-soft);
+    font-style: italic;
+    text-align: center;
+    padding: 60px 20px;
+  }
+  .status-bar {
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-family: var(--mono);
+  }
+  .status-bar .ok { color: var(--good); }
+
+  .stages {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--ink-soft);
+    font-size: 13px;
+    margin-top: 16px;
+  }
+  .stage { display: flex; align-items: center; gap: 8px; opacity: 0.4; transition: opacity 0.2s; }
+  .stage.active { opacity: 1; color: var(--ink); }
+  .stage.done { opacity: 1; color: var(--good); }
+  .stage .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: currentColor;
+  }
+  .stage.active .dot { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.6; }
+  }
+
+  .answer {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px 24px;
+    line-height: 1.6;
+    font-size: 14px;
+    margin-top: 16px;
+  }
+  .citations {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+  .citations strong { color: var(--ink); font-weight: 500; }
+
+  footer {
+    text-align: center;
+    color: var(--ink-soft);
+    font-size: 12px;
+    padding: 24px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>NPOAgent <span style="color:var(--accent-soft);">·</span> BCSS demo</h1>
+    <div class="meta" id="meta">Loading tenant info…</div>
+  </div>
+  <div class="meta">
+    Privacy filter <strong>enabled</strong> · Data residency <strong id="residency">…</strong>
+  </div>
+</header>
+
+<main>
+  <p class="intro">
+    A pre-seeded demo tenant for BC Schizophrenia Society — same multi-tenant
+    engine that would serve any nonprofit, with a per-org knowledge vault, a
+    persona-tuned tone of voice, and a Canadian PII filter that scrubs every
+    inbound payload before any text reaches Claude.
+  </p>
+
+  <div class="tabs">
+    <button class="tab active" data-panel="grant">1 · Grant Drafter</button>
+    <button class="tab" data-panel="policy">2 · Policy Navigator</button>
+    <button class="tab" data-panel="privacy">3 · Privacy filter</button>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- GRANT DRAFTER                                                -->
+  <!-- ============================================================ -->
+  <div class="panel active" id="panel-grant">
+    <div class="grid">
+      <div class="card">
+        <h2>Funder brief</h2>
+        <p class="hint">Paste a real funder brief or use the BC Gaming sample below. Names, emails, and phones are stripped before the brief leaves this server.</p>
+        <div class="row">
+          <div>
+            <label>Funder</label>
+            <input type="text" id="funder" value="BC Gaming Community Grants">
+          </div>
+          <div>
+            <label>Ask amount</label>
+            <input type="text" id="ask" value="$75,000">
+          </div>
+        </div>
+        <label>Opportunity title</label>
+        <input type="text" id="opportunity" value="Community Gaming Grant 2025 — Mental Health">
+        <label style="margin-top:12px;">Funder brief</label>
+        <textarea id="brief">The BC Gaming Community Grants program supports BC nonprofits delivering programs that improve mental health and reduce harms from substance use among vulnerable populations. Priority is given to organizations with measurable outcomes and service to underserved regions of BC. Submit applications by March 1, 2025. Direct questions to program.officer@gov.bc.ca or call 250-555-0142.</textarea>
+        <div style="margin-top:14px; display: flex; align-items: center; gap: 12px;">
+          <button class="primary" id="btn-draft">Draft application</button>
+          <button class="secondary" id="btn-preview">Preview what gets sent</button>
+        </div>
+        <div id="scrub-preview" style="display:none;">
+          <div class="badges" id="scrub-badges"></div>
+          <div class="preview" id="scrub-text"></div>
+        </div>
+        <div class="stages" id="stages" style="display:none;">
+          <div class="stage" data-stage="scrub"><span class="dot"></span><span>Scrubbing PII</span></div>
+          <div class="stage" data-stage="retrieve"><span class="dot"></span><span>Retrieving BCSS program context</span></div>
+          <div class="stage" data-stage="draft"><span class="dot"></span><span>Drafting (Opus 4.7 · adaptive thinking · clinical-empathetic persona)</span></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="output" id="draft-output">
+          <div class="empty">Draft will appear here.<br>Typical first run: 30–90 seconds.</div>
+        </div>
+        <div class="status-bar" id="draft-status"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- POLICY NAVIGATOR                                             -->
+  <!-- ============================================================ -->
+  <div class="panel" id="panel-policy">
+    <div class="card" style="max-width: 760px;">
+      <h2>Ask the policy binder</h2>
+      <p class="hint">Internal Q&amp;A over BCSS's pre-loaded policies (volunteer onboarding, PIPA, Societies Act, conflict of interest). Refuses to answer outside the source documents.</p>
+      <input type="text" id="question" value="When do new volunteers need to complete WHMIS training?" style="margin-bottom:12px;">
+      <div style="display:flex; gap:8px; flex-wrap: wrap; margin-bottom:14px;">
+        <button class="secondary" data-q="When do new volunteers need to complete WHMIS training?">WHMIS deadline</button>
+        <button class="secondary" data-q="What's the deadline to file director changes with the BC Registrar?">Director changes</button>
+        <button class="secondary" data-q="How quickly must a privacy breach be reported?">Privacy breach</button>
+        <button class="secondary" data-q="What's our policy on hiring my niece?">(off-policy)</button>
+      </div>
+      <button class="primary" id="btn-ask">Ask</button>
+      <div id="answer-wrap" style="display:none;">
+        <div class="answer" id="answer"></div>
+        <div class="citations" id="citations"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- PRIVACY FILTER                                               -->
+  <!-- ============================================================ -->
+  <div class="panel" id="panel-privacy">
+    <div class="grid">
+      <div class="card">
+        <h2>Paste anything that might contain PII</h2>
+        <p class="hint">Server-side preview of what the privacy filter would replace before any text reaches Claude. Useful for board-level discussions about PIPA / FOIPPA exposure.</p>
+        <textarea id="pii-input" style="min-height: 220px;">Intake note for client Sarah Mitchell (DOB 03/15/1985), BC PHN 9123456789. She lives at 1450 Robson Street and her contact is sarah.m@example.com or 604-555-0142. Discussed her brother Henry Patel and SIN 123-456-789 was provided for tax receipt.</textarea>
+        <div style="margin-top:12px;">
+          <button class="primary" id="btn-scrub">Scrub preview</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>What Claude would see</h2>
+        <p class="hint">Placeholder count and types are reported back so you can audit coverage.</p>
+        <div class="badges" id="pii-badges"></div>
+        <div class="preview" id="pii-output"><span class="empty" style="display:block; padding:40px 0;">Click "Scrub preview" to see the result.</span></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Demo only · Data resets when the server restarts · Multi-tenant SaaS · Powered by Anthropic Claude
+</footer>
+
+<script>
+const API = "";  // same-origin
+
+// ---- tab switching ---------------------------------------------------
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("panel-" + tab.dataset.panel).classList.add("active");
+  });
+});
+
+// ---- markdown-ish render ---------------------------------------------
+function renderMarkdown(text) {
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return escaped
+    .replace(/\[ED to confirm:([^\]]+)\]/g, '<span class="ed-confirm">[ED to confirm:$1]</span>')
+    .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.*)$/gm, "<h1>$1</h1>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/^- (.*)$/gm, "<li>$1</li>")
+    .replace(/(<li>.*<\/li>\n?)+/gs, m => "<ul>" + m + "</ul>")
+    .replace(/\n\n/g, "</p><p>")
+    .replace(/^(.+)$/gm, line => /^<(h\d|ul|ol|li|p|strong|span)/.test(line.trim()) ? line : "<p>" + line + "</p>")
+    .replace(/<p><\/p>/g, "")
+    .replace(/<p>(<h\d>.*<\/h\d>)<\/p>/g, "$1")
+    .replace(/<p>(<ul>.*<\/ul>)<\/p>/gs, "$1");
+}
+
+function renderScrubbed(text, mapping) {
+  // Highlight placeholder tokens in the preview.
+  return text
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/\[(EMAIL|PHONE|SIN|PHN|POSTAL|DOB|ADDRESS|NAME)_\d+\]/g,
+             m => `<span class="placeholder">${m}</span>`);
+}
+
+// ---- bootstrap info --------------------------------------------------
+async function loadInfo() {
+  try {
+    const r = await fetch(API + "/demo/info");
+    const j = await r.json();
+    document.getElementById("meta").textContent =
+      `Tenant: ${j.tenant_name} · ${j.persona} · ${j.program_doc_count} program docs · ${j.policy_doc_count} policies · ${j.model_default}`;
+    document.getElementById("residency").textContent = j.data_residency;
+  } catch (e) {
+    document.getElementById("meta").textContent = "Could not reach API.";
+  }
+}
+loadInfo();
+
+// ---- preview scrub before draft -------------------------------------
+async function scrubText(text) {
+  const r = await fetch(API + "/demo/preview-scrub", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text })
+  });
+  return r.json();
+}
+
+document.getElementById("btn-preview").addEventListener("click", async () => {
+  const brief = document.getElementById("brief").value;
+  const result = await scrubText(brief);
+  const wrap = document.getElementById("scrub-preview");
+  wrap.style.display = "block";
+  document.getElementById("scrub-text").innerHTML = renderScrubbed(result.scrubbed);
+  const badgeBox = document.getElementById("scrub-badges");
+  if (result.placeholder_count === 0) {
+    badgeBox.innerHTML = '<span class="badge good">No PII detected</span>';
+  } else {
+    badgeBox.innerHTML = `<span class="badge">${result.placeholder_count} item(s) scrubbed</span>` +
+      result.placeholder_types.map(t => `<span class="badge">${t}</span>`).join("");
+  }
+});
+
+// ---- privacy panel ---------------------------------------------------
+document.getElementById("btn-scrub").addEventListener("click", async () => {
+  const text = document.getElementById("pii-input").value;
+  const result = await scrubText(text);
+  document.getElementById("pii-output").innerHTML = renderScrubbed(result.scrubbed);
+  const badgeBox = document.getElementById("pii-badges");
+  if (result.placeholder_count === 0) {
+    badgeBox.innerHTML = '<span class="badge good">No PII detected</span>';
+  } else {
+    badgeBox.innerHTML = `<span class="badge">${result.placeholder_count} item(s) scrubbed</span>` +
+      result.placeholder_types.map(t => `<span class="badge">${t}</span>`).join("");
+  }
+});
+
+// ---- draft -----------------------------------------------------------
+function setStage(name, state) {
+  const el = document.querySelector(`.stage[data-stage="${name}"]`);
+  if (!el) return;
+  el.classList.remove("active", "done");
+  if (state) el.classList.add(state);
+}
+
+document.getElementById("btn-draft").addEventListener("click", async () => {
+  const btn = document.getElementById("btn-draft");
+  const out = document.getElementById("draft-output");
+  const status = document.getElementById("draft-status");
+  const stages = document.getElementById("stages");
+  btn.disabled = true;
+  out.innerHTML = '<div class="empty">Drafting…</div>';
+  status.textContent = "";
+  stages.style.display = "flex";
+  setStage("scrub", "active");
+  setStage("retrieve", null);
+  setStage("draft", null);
+
+  // Cosmetic: walk through the stages while the server works. The real work
+  // happens in the single POST below — these are visual milestones.
+  setTimeout(() => { setStage("scrub", "done"); setStage("retrieve", "active"); }, 800);
+  setTimeout(() => { setStage("retrieve", "done"); setStage("draft", "active"); }, 1800);
+
+  try {
+    const r = await fetch(API + "/demo/draft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        funder: document.getElementById("funder").value,
+        opportunity_title: document.getElementById("opportunity").value,
+        funder_brief: document.getElementById("brief").value,
+        ask_amount: document.getElementById("ask").value
+      })
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ detail: r.statusText }));
+      throw new Error(err.detail || "Request failed");
+    }
+    const j = await r.json();
+    setStage("draft", "done");
+    out.innerHTML = renderMarkdown(j.body);
+    status.innerHTML = `<span class="ok">✓</span> Drafted in ${j.elapsed_seconds}s · ${j.input_tokens} input + ${j.output_tokens} output tokens · draft id ${j.draft_id.slice(0, 8)}`;
+  } catch (e) {
+    out.innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+    status.textContent = "";
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => { stages.style.display = "none"; }, 2000);
+  }
+});
+
+// ---- policy ask ------------------------------------------------------
+document.querySelectorAll("[data-q]").forEach(b => {
+  b.addEventListener("click", () => {
+    document.getElementById("question").value = b.dataset.q;
+  });
+});
+
+document.getElementById("btn-ask").addEventListener("click", async () => {
+  const btn = document.getElementById("btn-ask");
+  const wrap = document.getElementById("answer-wrap");
+  const ans = document.getElementById("answer");
+  const cite = document.getElementById("citations");
+  btn.disabled = true;
+  wrap.style.display = "block";
+  ans.innerHTML = "<em>Searching policy binder…</em>";
+  cite.innerHTML = "";
+  try {
+    const r = await fetch(API + "/demo/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: document.getElementById("question").value })
+    });
+    const j = await r.json();
+    ans.innerHTML = renderMarkdown(j.answer);
+    if (j.citations && j.citations.length) {
+      cite.innerHTML = "<strong>Sources:</strong> " + j.citations.join(" · ");
+    }
+  } catch (e) {
+    ans.innerHTML = `<em>Error: ${e.message}</em>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

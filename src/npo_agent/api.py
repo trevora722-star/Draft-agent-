@@ -11,9 +11,12 @@ Routes:
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .agents import GrantWriter, PolicyNavigator
@@ -22,6 +25,8 @@ from .db import init_db
 from .personas import DEFAULT_PERSONA, PERSONAS
 from .tenancy import Tenant, authenticate, create_tenant
 from .vault import Vault
+
+_STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(
     title="NPOAgent",
@@ -33,9 +38,41 @@ app = FastAPI(
 )
 
 
+if get_settings().demo_mode:
+    # Demo mode wires up the BCSS-themed CEO walkthrough UI + endpoints.
+    # Off by default; enable with NPO_DEMO_MODE=1.
+    from . import demo as demo_module
+
+    app.include_router(demo_module.router)
+    if _STATIC_DIR.exists():
+        app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+
+
 @app.on_event("startup")
 def _startup() -> None:
     init_db()
+    if get_settings().demo_mode:
+        from . import demo as demo_module
+
+        demo_module.ensure_demo_tenant()
+
+
+@app.get("/", include_in_schema=False)
+def root():
+    """In demo mode, redirect to the demo UI; otherwise to the OpenAPI docs."""
+    if get_settings().demo_mode:
+        return RedirectResponse(url="/demo-ui")
+    return RedirectResponse(url="/docs")
+
+
+@app.get("/demo-ui", include_in_schema=False)
+def demo_ui():
+    if not get_settings().demo_mode:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Demo mode disabled. Set NPO_DEMO_MODE=1 to enable.",
+        )
+    return FileResponse(_STATIC_DIR / "demo.html")
 
 
 # ---- auth dependencies ----------------------------------------------------

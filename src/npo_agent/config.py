@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     # Haiku is cheaper for high-volume RAG answering; Opus is the default for grant drafting.
     model_fast: str = "claude-haiku-4-5"
 
+    # Demo mode. When enabled, the API exposes /demo routes backed by a
+    # pre-seeded BCSS tenant. Off by default — production deployments
+    # should leave this off.
+    demo_mode: bool = False
+    demo_tenant_name: str = "BCSS Demo"
+
 
 @lru_cache
 def get_settings() -> Settings:
