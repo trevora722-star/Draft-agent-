@@ -60,6 +60,9 @@ class GrantWriter(Agent):
         ask_amount: str | None = None,
         program_focus: str | None = None,
         max_tokens: int = 16_000,
+        model: str | None = None,
+        use_thinking: bool = True,
+        effort: str = "high",
     ) -> GrantDraft:
         """Draft a full grant application from a funder brief + tenant program data.
 
@@ -112,9 +115,10 @@ class GrantWriter(Agent):
             system_prompt=GRANT_WRITER_SYSTEM,
             persona=self.context.persona,
             user_content=user_payload,
+            model=model,
             max_tokens=max_tokens,
-            use_thinking=True,
-            effort="high",
+            use_thinking=use_thinking,
+            effort=effort,
         )
 
         body = self._rehydrate(response.text, mapping)

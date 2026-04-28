@@ -1,0 +1,72 @@
+# Netlify deploy config — multi-tenant NPO agent demo.
+#
+# Usage:
+#   1. Push this branch to GitHub.
+#   2. In Netlify: Add new site → Import an existing project → pick the repo.
+#   3. Set ANTHROPIC_API_KEY in Site settings → Environment variables.
+#   4. Trigger a deploy. Done.
+#
+# The static site is the demo.html page in `public/`. The four /api/demo/*
+# endpoints are Python Netlify Functions backed by Claude Haiku 4.5 (chosen
+# so a full grant draft fits inside the 10s sync function timeout).
+
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  # Each function bundle ships with the npo_agent source tree alongside it.
+  # _shared.py prepends the bundled path to sys.path on cold start.
+  included_files = ["src/npo_agent/**"]
+
+[functions."demo_info"]
+  # Light: just SQL lookups + JSON serialization.
+  timeout = 10
+
+[functions."demo_scrub"]
+  # No LLM call — pure regex scrub.
+  timeout = 10
+
+[functions."demo_draft"]
+  # Heaviest endpoint. Haiku 4.5 + max_tokens=4000 + no thinking
+  # typically returns in 3–6s; 10s ceiling gives headroom for cold-start
+  # SDK init.
+  timeout = 10
+
+[functions."demo_ask"]
+  # Short RAG answer; ~2–4s.
+  timeout = 10
+
+# ---- routing ---------------------------------------------------------------
+# Pretty URLs: the demo.html page calls /api/demo/info, /api/demo/draft, etc.
+# These rewrites map them onto the underlying function names.
+
+[[redirects]]
+  from = "/api/demo/info"
+  to = "/.netlify/functions/demo_info"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/demo/preview-scrub"
+  to = "/.netlify/functions/demo_scrub"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/demo/draft"
+  to = "/.netlify/functions/demo_draft"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/demo/ask"
+  to = "/.netlify/functions/demo_ask"
+  status = 200
+  force = true
+
+# Root → demo UI.
+[[redirects]]
+  from = "/"
+  to = "/demo.html"
+  status = 200

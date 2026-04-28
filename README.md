@@ -57,20 +57,41 @@ client in `ca-central-1` or the Vertex client in `northamerica-northeast1`.
 
 There's a built-in demo mode that auto-seeds a `BCSS Demo` tenant with realistic
 program + policy docs and serves a clean HTML page at `/` for a non-technical
-walkthrough. Two ways to run it:
+walkthrough. Three ways to run it:
 
-### Option A — Render (one-link deploy, share the URL)
+### Option A — Netlify (paid plan; one-link deploy)
 
-The repo ships with a `render.yaml` blueprint. Free tier; the service sleeps
-after ~15 min idle and wakes in ~10s.
+The repo ships with `netlify.toml`, a `public/` static directory, and four
+Python Netlify Functions in `netlify/functions/`. The static site serves
+`demo.html`; the functions back the `/api/demo/*` endpoints.
+
+Constraints baked into this deploy: the grant drafter runs on **Claude Haiku
+4.5** with thinking disabled and `max_tokens=4000` so a full draft fits inside
+the 10s sync function timeout. Tenants and any drafts she generates live in
+Lambda's `/tmp` — they survive warm starts but reset on cold start (the BCSS
+demo tenant re-seeds idempotently on first hit).
+
+1. Push this branch to GitHub.
+2. In Netlify: **Add new site → Import an existing project** → pick the repo.
+3. **Site settings → Environment variables** → add `ANTHROPIC_API_KEY`.
+4. Trigger a deploy. Netlify gives you a `*.netlify.app` URL — send that link.
+
+If you want to test the functions locally before deploying, install the
+Netlify CLI and run `netlify dev` from the repo root.
+
+### Option B — Render (free tier; one-link deploy with full Opus 4.7)
+
+For the same UI but Opus 4.7 + adaptive thinking on the grant drafter
+(higher quality, ~30–90s per draft, doesn't fit a serverless timeout). The
+repo ships with a `render.yaml` blueprint. Free tier sleeps after ~15 min
+idle and wakes in ~10s.
 
 1. Push the branch to GitHub.
 2. In Render: **New + → Blueprint** → point at this repo.
-3. Set `ANTHROPIC_API_KEY` in the dashboard. Everything else is auto-set
-   by the blueprint.
+3. Set `ANTHROPIC_API_KEY` in the dashboard. Everything else is auto-set.
 4. Render gives you a URL like `npoagent-bcss-demo.onrender.com`. Send that link.
 
-### Option B — Laptop + ngrok (sit-on-the-couch walkthrough)
+### Option C — Laptop + ngrok (sit-on-the-couch walkthrough)
 
 ```bash
 # install

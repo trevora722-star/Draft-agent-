@@ -1,0 +1,8 @@
+# Dependencies installed into every Netlify Function bundle.
+# Deliberately omits scikit-learn / numpy — the no-dep keyword retriever
+# in npo_agent/vault.py kicks in automatically when sklearn isn't present.
+anthropic>=0.92.0
+pydantic>=2.7
+pydantic-settings>=2.4
+# Pull npo_agent itself in via the sibling src/ tree. Netlify's Python
+# runtime adds the function dir to sys.path; we extend that in netlify.toml.

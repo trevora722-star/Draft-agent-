@@ -232,15 +232,22 @@ def demo_preview_scrub(req: ScrubRequest) -> ScrubResponse:
 def demo_draft(req: DraftRequest) -> DraftResponse:
     import time
 
+    settings = get_settings()
     tenant = _demo_tenant()
     agent = GrantWriter(tenant)
     started = time.monotonic()
+    # Demo uses Haiku 4.5 (fast model, no thinking) so a full draft
+    # finishes inside Netlify's 10s sync function timeout. For real
+    # production deploys the GrantWriter defaults to Opus 4.7 with
+    # adaptive thinking; this is a demo-only override.
     draft = agent.draft(
         funder=req.funder,
         opportunity_title=req.opportunity_title,
         funder_brief=req.funder_brief,
         ask_amount=req.ask_amount,
-        max_tokens=8_000,  # demo-tuned: faster turnaround, still produces full sections
+        model=settings.model_fast,
+        use_thinking=False,
+        max_tokens=4_000,
     )
     elapsed = time.monotonic() - started
     return DraftResponse(

@@ -10,15 +10,22 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.4",
     "python-multipart>=0.0.9",
-    "scikit-learn>=1.4",
-    "numpy>=1.26",
 ]
 
 [project.optional-dependencies]
+# Higher-quality retriever for self-hosted deploys. Skip in serverless
+# environments where the ~200MB sklearn bundle blows past function-size
+# limits — the no-dep keyword retriever in vault.py kicks in automatically.
+retrieval = [
+    "scikit-learn>=1.4",
+    "numpy>=1.26",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "httpx>=0.27",
+    "scikit-learn>=1.4",
+    "numpy>=1.26",
 ]
 
 [project.scripts]
