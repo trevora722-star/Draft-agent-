@@ -1,191 +1,117 @@
-# NPOAgent — multi-tenant SaaS for nonprofits
+# Sea-to-Sky ATV Co. — AI Ops Team
 
-A multi-tenant agent platform for Canadian nonprofits. One shared engine,
-isolated tenant vaults, custom personas. The MVP ships with a **Grant
-Scout & Drafter** module (the easiest agent to clear with a Board of
-Directors) and a **Policy Navigator** module (RAG Q&A over the org's
-own HR / Safety / compliance binder). Donor Concierge and Bookkeeper
-plug into the same harness — see `src/npo_agent/agents/`.
+A working sketch of a five-agent AI system that runs the back-of-house
+of a small ATV rental shop in Squamish, BC. Built to show what an
+"AI agentic system" actually looks like for a hands-on outdoor business
+— not a chatbot bolted onto a website, but a coordinated team of
+specialists, each with their own job.
 
-## Architecture
+**Live demo:** open `public/demo.html` in a browser, or deploy the repo
+to Netlify (config below) and share the URL.
+
+## The team
+
+| Agent | Role | What it does |
+|-------|------|--------------|
+| **Cascade** | Booking Concierge | 24/7 replies on Instagram DMs, website chat, SMS, email. Checks availability, sends quotes, collects deposits, sends waivers. |
+| **Granite** | Reviews & Reputation | Texts customers post-ride for Google reviews. Drafts owner replies in your voice. Flags 1–3★ reviews fast. |
+| **Alder** | Marketing | Weather-aware Instagram posts, Google Ads copy for shoulder seasons, SEO blog posts targeting Squamish-search traffic. |
+| **Mamquam** | Operations | Fleet health, engine-hour tracking, maintenance scheduling, guide rostering, 5am daily ops briefing. |
+| **Tantalus** | Partnerships | Squamish/Whistler hotel & retreat-planner pipeline. Drafts personalized outreach. Tracks who replied. |
+
+## How they work together
 
 ```
-┌──────────────────────── shared core ────────────────────────┐
-│  Anthropic SDK · prompt caching · adaptive thinking         │
-│  PII anonymizer (email, phone, SIN, PHN, postal, DOB, names)│
-│  Per-tenant Knowledge Vault (TF-IDF; swap to voyage-3 prod) │
-│  Tenant + persona + API-key authentication                  │
-└──────────────────────────────────────────────────────────────┘
-       │                                       │
-       ▼                                       ▼
-┌──── BCSS ────┐                     ┌── Food Bank ──┐
-│ namespace:   │                     │ namespace:    │
-│ tenant:abc   │                     │ tenant:def    │
-│ persona:     │                     │ persona:      │
-│ clinical-    │                     │ warm-         │
-│ empathetic   │                     │ grassroots    │
-└──────────────┘                     └───────────────┘
+┌──────────────── Inputs ────────────────┐
+│  Instagram DMs · Website chat · SMS    │
+│  Email · Booking system · Google Biz   │
+│  Weather + trail conditions            │
+└─────────────────────┬──────────────────┘
+                      ▼
+┌──────────────── Agents ────────────────┐
+│  Cascade   Granite   Alder             │
+│  Mamquam   Tantalus                    │
+│       (shared business state)          │
+└─────────────────────┬──────────────────┘
+                      ▼
+┌──────────────── Outputs ───────────────┐
+│  Confirmed bookings · Posted social    │
+│  Replied reviews · Sent partner intros │
+│  Daily ops brief · Human escalations   │
+└────────────────────────────────────────┘
 ```
 
-Tenant isolation is enforced at two layers:
+The agents share a common picture of the business — bookings, fleet,
+customers, partners. When **Cascade** books a ride, **Granite** is
+queued to follow up for a review, **Mamquam** assigns a guide and
+ATV, and **Alder** has another happy customer to feature. Each agent
+escalates to a human when something falls outside its playbook
+(unusual weather, a complaint, a corporate request).
 
-1. **SQL boundary** — every query filters by `tenant_id`. There is no
-   accessor that looks across tenants.
-2. **Vault namespace** — the retriever is constructed per request from
-   the tenant's documents only; it never sees another tenant's corpus.
+## What's in this repo
 
-The PII anonymizer scrubs Canadian-relevant identifiers (BC PHNs, SINs,
-postal codes, phones, emails, addresses, DOBs, person names) before any
-text reaches the LLM. Where the agent must produce personalized output
-(e.g., a donor letter), placeholders are rehydrated from a per-call
-mapping that is held only in memory.
+```
+public/demo.html        ← the interactive showcase (open in any browser)
+netlify.toml            ← static deploy config
+```
 
-Data residency is set via `NPO_DATA_RESIDENCY` (default `ca-central`).
-For production deployments, point the Anthropic SDK at the Bedrock
-client in `ca-central-1` or the Vertex client in `northamerica-northeast1`.
+The demo page is fully self-contained — every interaction
+(chat, post generation, review re-drafting, partner-email rewrite)
+runs offline with realistic canned responses, so you can demo it
+on a laptop with no Wi-Fi or hand it to the owners as a link.
 
-## Modules
+## Deploying it for your friends
 
-| Module               | Status | Notes |
-|----------------------|--------|-------|
-| Grant Writer         | MVP    | Opus 4.7 + adaptive thinking; ~16K max output; cached system+persona prefix |
-| Policy Navigator     | MVP    | Haiku 4.5; cheap RAG; cites source doc by title |
-| Donor Concierge      | TBD    | Plugs into the same Agent base class |
-| Automated Bookkeeper | TBD    | Plugs into the same Agent base class |
-
-## Demo mode (BCSS walkthrough)
-
-There's a built-in demo mode that auto-seeds a `BCSS Demo` tenant with realistic
-program + policy docs and serves a clean HTML page at `/` for a non-technical
-walkthrough. Three ways to run it:
-
-### Option A — Netlify (paid plan; one-link deploy)
-
-The repo ships with `netlify.toml`, a `public/` static directory, and four
-Python Netlify Functions in `netlify/functions/`. The static site serves
-`demo.html`; the functions back the `/api/demo/*` endpoints.
-
-Constraints baked into this deploy: the grant drafter runs on **Claude Haiku
-4.5** with thinking disabled and `max_tokens=4000` so a full draft fits inside
-the 10s sync function timeout. Tenants and any drafts she generates live in
-Lambda's `/tmp` — they survive warm starts but reset on cold start (the BCSS
-demo tenant re-seeds idempotently on first hit).
+### Option A — Netlify (recommended; free, one click)
 
 1. Push this branch to GitHub.
 2. In Netlify: **Add new site → Import an existing project** → pick the repo.
-3. **Site settings → Environment variables** → add `ANTHROPIC_API_KEY`.
-4. Trigger a deploy. Netlify gives you a `*.netlify.app` URL — send that link.
+3. Click deploy. You'll get a `*.netlify.app` URL. Send that to them.
 
-If you want to test the functions locally before deploying, install the
-Netlify CLI and run `netlify dev` from the repo root.
+There's no API key needed, no build step, no environment variables.
 
-### Option B — Render (free tier; one-link deploy with full Opus 4.7)
-
-For the same UI but Opus 4.7 + adaptive thinking on the grant drafter
-(higher quality, ~30–90s per draft, doesn't fit a serverless timeout). The
-repo ships with a `render.yaml` blueprint. Free tier sleeps after ~15 min
-idle and wakes in ~10s.
-
-1. Push the branch to GitHub.
-2. In Render: **New + → Blueprint** → point at this repo.
-3. Set `ANTHROPIC_API_KEY` in the dashboard. Everything else is auto-set.
-4. Render gives you a URL like `npoagent-bcss-demo.onrender.com`. Send that link.
-
-### Option C — Laptop + ngrok (sit-on-the-couch walkthrough)
+### Option B — Just open the file
 
 ```bash
-# install
-pip install -e ".[dev]"
-
-# minimal env — only ANTHROPIC_API_KEY is required
-export ANTHROPIC_API_KEY=sk-ant-...
-export NPO_DEMO_MODE=1
-
-# boot
-npo-agent init-db
-npo-agent serve --port 8000
-# → open http://localhost:8000 in your browser. Demo seeds itself on first hit.
-
-# in another shell, expose it publicly
-ngrok http 8000
-# → ngrok prints a public https URL. Send that to her.
+open public/demo.html        # macOS
+xdg-open public/demo.html    # Linux
+start public/demo.html       # Windows
 ```
 
-The demo UI has three tabs:
+### Option C — GitHub Pages
 
-1. **Grant Drafter** — pre-filled BC Gaming brief; "Preview what gets sent"
-   shows the PII-scrubbed payload before "Draft application" runs the agent.
-2. **Policy Navigator** — quick-ask buttons for WHMIS, director changes,
-   privacy breach, plus an off-policy question to show the agent refusing.
-3. **Privacy filter** — paste any intake-style text (names, BC PHN, SIN,
-   addresses, DOBs) and see exactly what does and doesn't leave the server.
-   This is the tab to land on for a board-level discussion about PIPA / FOIPPA
-   exposure.
+Push to `main`, enable Pages on the `public/` folder, point at `demo.html`. Done.
 
-## Production / multi-tenant quick start
+## What the demo is (and isn't)
 
-For real multi-tenant operation (creating tenants, ingesting their docs,
-issuing API keys), demo mode is irrelevant — use the admin endpoints:
+**It is:** a working, clickable sketch that shows the owners exactly
+what the system would look like, what each agent does, and what they'd
+see day-to-day. The data is made up but realistic — Squamish trail
+names, real-feeling bookings, real Squamish-Whistler hotel partners,
+weather-aware social copy.
 
-```bash
-pip install -e ".[dev]"
+**It isn't:** wired to a real Claude API or their real booking system
+— yet. Every canned response in the demo maps cleanly to a real prompt
+to a real agent. The path to "live" is well-defined:
 
-export ANTHROPIC_API_KEY=sk-ant-...
-export NPO_ADMIN_TOKEN=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
+| Demo response | Live equivalent |
+|---|---|
+| Cascade's chat replies | Anthropic SDK + tool use against Checkfront/FareHarbor availability |
+| Granite's review drafts | Claude reading the review, given owner-voice few-shot examples |
+| Alder's social posts | Claude + a weather API + the shop's content guidelines |
+| Mamquam's fleet status | Claude reading from a maintenance log + Google Calendar |
+| Tantalus's emails | Claude + a partner CRM (Airtable / HubSpot free) |
 
-npo-agent init-db
-npo-agent serve --port 8000
-```
+## Next steps if the friends say yes
 
-In another shell:
+1. **Pick the highest-leverage agent first** — almost always Cascade
+   (after-hours bookings = recovered revenue). Wire it to their booking
+   system and Instagram DMs. Two-week build.
+2. **Add Granite** once Cascade is shipping bookings, because then
+   there's a fresh stream of happy customers to ask for reviews.
+3. **Alder, Mamquam, Tantalus** layer on over the following month —
+   each agent's value compounds with the previous ones.
 
-```bash
-# create a tenant
-curl -s -X POST http://localhost:8000/admin/tenants \
-  -H "X-Admin-Token: $NPO_ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"BCSS","persona":"clinical-empathetic"}'
-# → returns a tenant_id and api_key (api_key is shown once)
-
-# ingest a program description
-curl -s -X POST http://localhost:8000/v1/documents \
-  -H "X-API-Key: $TENANT_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Crisis Line","body":"Our 24/7 crisis line...","namespace":"programs"}'
-
-# draft a grant application
-curl -s -X POST http://localhost:8000/v1/agents/grant-writer/draft \
-  -H "X-API-Key: $TENANT_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"funder":"BC Gaming","opportunity_title":"Community Gaming Grant 2025","funder_brief":"Supports mental health programs..."}'
-```
-
-## Pricing model
-
-| Tier                | Implementation              | Notes |
-|---------------------|-----------------------------|-------|
-| Seat replacement    | Flat monthly fee per agent  | Price ≈ 10% of equivalent human hire |
-| Implementation fee  | One-time setup + ingestion  | Often paid via tech grants |
-| Usage-based         | Per draft / per family      | For provincial-scale orgs (BCSS) |
-
-## Tests
-
-```bash
-pytest -q
-```
-
-Tests do not call Anthropic. Agent tests monkey-patch `llm.complete()`
-so isolation, persona threading, PII rehydration, and namespace filtering
-are all verified offline.
-
-## Production hardening checklist
-
-The MVP is small on purpose. Before serving real NPOs:
-
-- [ ] Swap TF-IDF for `voyage-3` embeddings (interface stays the same)
-- [ ] Move SQLite to Postgres with row-level security on `tenant_id`
-- [ ] Add per-tenant rate limits (Anthropic API calls + ingest)
-- [ ] Add structured audit logging (who saw what document when)
-- [ ] Pin Anthropic SDK to a tested version in `pyproject.toml`
-- [ ] Per-tenant Bedrock/Vertex routing if a tenant requires data residency
-      in a region other than `ca-central`
+A polished single agent ships value on day one. Five half-working
+agents ship nothing. The demo shows the destination; the build order
+matters more than the destination.
