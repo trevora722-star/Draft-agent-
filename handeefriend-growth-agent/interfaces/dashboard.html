@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>HandeeFriend Growth Commander</title>
+<style>
+  :root { --bg:#0a0a0a; --panel:#141414; --border:#222; --text:#eee; --muted:#888; --accent:#f97316; --green:#16a34a; --red:#dc2626; --warn:#f59e0b; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:20px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  header h1 { margin:0; font-size:20px; color:var(--accent); }
+  header .meta { color:var(--muted); font-size:13px; }
+  main { padding:24px; max-width:1200px; margin:0 auto; }
+  section { margin-bottom:32px; }
+  h2 { font-size:14px; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin:0 0 12px; }
+  .grid { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; }
+  .card .label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:0.08em; }
+  .card .value { font-size:30px; font-weight:600; margin:4px 0; }
+  .card .sub { color:var(--muted); font-size:13px; }
+  .progress-bar { background:#222; height:8px; border-radius:4px; overflow:hidden; margin-top:8px; }
+  .progress-bar-fill { background:var(--accent); height:100%; transition:width 0.3s; }
+  .agent-grid { display:grid; gap:8px; grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); }
+  .agent { background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:8px; font-size:12px; cursor:pointer; transition:border-color 0.15s; }
+  .agent:hover { border-color:var(--accent); }
+  .agent .agent-id { color:var(--muted); font-size:10px; }
+  .agent .agent-name { font-weight:600; margin-bottom:4px; word-break:break-word; }
+  .agent .agent-status { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+  .status-ok { background:var(--green); }
+  .status-warn { background:var(--warn); }
+  .status-fail { background:var(--red); }
+  .status-idle { background:#444; }
+  pre.brief { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; white-space:pre-wrap; max-height:400px; overflow:auto; font-size:13px; }
+  button.run { background:var(--accent); color:#000; border:none; border-radius:6px; padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; margin-top:6px; }
+  button.run:hover { background:#fb923c; }
+  button.run:disabled { background:#444; cursor:not-allowed; }
+  .config { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:24px; }
+  .config label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .config input { width:100%; background:#000; color:var(--text); border:1px solid var(--border); border-radius:4px; padding:8px; font-family:monospace; font-size:13px; }
+  .config-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .alert { background:#3a1a1a; border-left:3px solid var(--red); padding:12px; border-radius:4px; color:#fbb; font-size:13px; }
+  .empty { color:var(--muted); font-style:italic; padding:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛠 Growth Commander · handeefriend.com</h1>
+  <span class="meta" id="last-updated">—</span>
+</header>
+<main>
+  <div class="config">
+    <div class="config-row">
+      <div>
+        <label>NocoDB Base URL</label>
+        <input id="cfg-base" placeholder="https://nocodb.example.com" />
+      </div>
+      <div>
+        <label>NocoDB API Key (xc-token)</label>
+        <input id="cfg-token" type="password" />
+      </div>
+      <div>
+        <label>NocoDB Base ID</label>
+        <input id="cfg-baseid" />
+      </div>
+    </div>
+    <div class="config-row" style="margin-top:8px">
+      <div>
+        <label>Runner URL</label>
+        <input id="cfg-runner" placeholder="http://localhost:3001" />
+      </div>
+      <div>
+        <label>Runner Secret</label>
+        <input id="cfg-secret" type="password" />
+      </div>
+      <div style="display:flex; align-items:flex-end">
+        <button class="run" id="save-cfg">Save & Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Subscribers vs target</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="label">Total subscribers</div>
+        <div class="value" id="m-subs">—</div>
+        <div class="sub">Goal: 1,000 in 6 months</div>
+        <div class="progress-bar"><div class="progress-bar-fill" id="m-progress" style="width:0%"></div></div>
+      </div>
+      <div class="card">
+        <div class="label">Paying customers</div>
+        <div class="value" id="m-paid">—</div>
+        <div class="sub" id="m-paid-sub">—</div>
+      </div>
+      <div class="card">
+        <div class="label">MRR (CAD)</div>
+        <div class="value" id="m-mrr">—</div>
+      </div>
+      <div class="card">
+        <div class="label">New this week</div>
+        <div class="value" id="m-new">—</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Agent status grid</h2>
+    <div class="agent-grid" id="agent-grid"></div>
+  </section>
+
+  <section>
+    <h2>Latest Growth Commander brief</h2>
+    <pre class="brief" id="brief">No briefs found yet. Run Agent 26 to generate.</pre>
+  </section>
+</main>
+
+<script>
+const AGENTS = [
+  { id: 1, name: 'TikTok Script' }, { id: 2, name: 'Blog Content' },
+  { id: 3, name: 'Email Sequence' }, { id: 4, name: 'YouTube Repurpose' },
+  { id: 5, name: 'Ad Copy' }, { id: 6, name: 'Case Study' },
+  { id: 7, name: 'Realtor Outreach' }, { id: 8, name: 'Inspector Outreach' },
+  { id: 9, name: 'Trades Outreach' }, { id: 10, name: 'Community Monitor' },
+  { id: 11, name: 'Follow-Up' }, { id: 12, name: 'Keyword Research' },
+  { id: 13, name: 'On-Page Audit' }, { id: 14, name: 'Content Brief' },
+  { id: 15, name: 'Backlink Prospect' }, { id: 16, name: 'Lead Scoring' },
+  { id: 17, name: 'Upgrade Trigger' }, { id: 18, name: 'Churn Detection' },
+  { id: 19, name: 'Re-engagement' }, { id: 20, name: 'Weekly Metrics' },
+  { id: 21, name: 'Content Performance' }, { id: 22, name: 'Funnel Analysis' },
+  { id: 23, name: 'Referral Program' }, { id: 24, name: 'Partner Dashboard' },
+  { id: 25, name: 'Compliance' }, { id: 26, name: 'Growth Commander' },
+];
+
+const cfg = {
+  load() {
+    try { return JSON.parse(localStorage.getItem('hf-dashboard-cfg') || '{}'); }
+    catch { return {}; }
+  },
+  save(v) { localStorage.setItem('hf-dashboard-cfg', JSON.stringify(v)); }
+};
+
+function applyCfgToInputs() {
+  const c = cfg.load();
+  document.getElementById('cfg-base').value = c.base || '';
+  document.getElementById('cfg-token').value = c.token || '';
+  document.getElementById('cfg-baseid').value = c.baseId || '';
+  document.getElementById('cfg-runner').value = c.runner || 'http://localhost:3001';
+  document.getElementById('cfg-secret').value = c.secret || '';
+}
+function readCfg() {
+  return {
+    base: document.getElementById('cfg-base').value.trim(),
+    token: document.getElementById('cfg-token').value.trim(),
+    baseId: document.getElementById('cfg-baseid').value.trim(),
+    runner: document.getElementById('cfg-runner').value.trim(),
+    secret: document.getElementById('cfg-secret').value.trim(),
+  };
+}
+
+async function nc(table, params = '') {
+  const c = cfg.load();
+  if (!c.base || !c.token || !c.baseId) return null;
+  try {
+    const res = await fetch(`${c.base}/api/v2/db/data/noco/${c.baseId}/${table}${params ? '?' + params : ''}`, {
+      headers: { 'xc-token': c.token },
+    });
+    if (!res.ok) throw new Error(`NC ${table}: ${res.status}`);
+    return res.json();
+  } catch (e) {
+    console.warn('NocoDB error:', e);
+    return null;
+  }
+}
+
+async function refresh() {
+  const users = await nc('users', 'limit=1000');
+  if (!users) {
+    document.getElementById('m-subs').textContent = '—';
+    return;
+  }
+  const list = users.list || users.records || [];
+  const total = list.length;
+  const paid = list.filter(u => ['starter','pro','annual'].includes(u.plan_tier)).length;
+  const target = 1000;
+  document.getElementById('m-subs').textContent = total;
+  document.getElementById('m-progress').style.width = `${Math.min(100, (total/target)*100)}%`;
+  document.getElementById('m-paid').textContent = paid;
+  document.getElementById('m-paid-sub').textContent = `${total - paid} free`;
+
+  const weekAgo = new Date(Date.now() - 7*86400000).toISOString();
+  const newThisWeek = list.filter(u => u.signup_date && u.signup_date >= weekAgo).length;
+  document.getElementById('m-new').textContent = newThisWeek;
+
+  // Latest weekly_metrics for MRR
+  const wm = await nc('weekly_metrics', 'limit=1&sort=-week_date');
+  const wmRows = wm?.list || wm?.records || [];
+  document.getElementById('m-mrr').textContent = wmRows[0]?.mrr_cad ? `$${wmRows[0].mrr_cad}` : '—';
+
+  // Agent health from agent_logs (last 24h)
+  const dayAgo = new Date(Date.now() - 86400000).toISOString();
+  const logs = await nc('agent_logs', `where=${encodeURIComponent(`(run_date,ge,${dayAgo})`)}&limit=200`);
+  const logList = logs?.list || logs?.records || [];
+  const agentStatus = {};
+  for (const l of logList) {
+    if (!agentStatus[l.agent_id]) agentStatus[l.agent_id] = { ok:0, partial:0, failed:0 };
+    agentStatus[l.agent_id][l.status === 'success' ? 'ok' : l.status]++;
+  }
+
+  const grid = document.getElementById('agent-grid');
+  grid.innerHTML = AGENTS.map(a => {
+    const s = agentStatus[a.id];
+    let cls = 'status-idle', label = 'idle';
+    if (s) {
+      if (s.failed > 0) { cls = 'status-fail'; label = `${s.failed} failed`; }
+      else if (s.partial > 0) { cls = 'status-warn'; label = `${s.partial} partial`; }
+      else if (s.ok > 0) { cls = 'status-ok'; label = `${s.ok} ok`; }
+    }
+    return `<div class="agent">
+      <div class="agent-id">#${String(a.id).padStart(2,'0')}</div>
+      <div class="agent-name">${a.name}</div>
+      <div><span class="agent-status ${cls}"></span>${label}</div>
+      <button class="run" data-agent="${String(a.id).padStart(2,'0')}">Run</button>
+    </div>`;
+  }).join('');
+
+  grid.querySelectorAll('button.run').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; btn.textContent = '…';
+      const c = cfg.load();
+      try {
+        const res = await fetch(`${c.runner}/run/${btn.dataset.agent}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${c.secret}`, 'Content-Type':'application/json' },
+          body: '{}',
+        });
+        btn.textContent = res.ok ? '✓ started' : `err ${res.status}`;
+      } catch (e) {
+        btn.textContent = 'err';
+      }
+      setTimeout(() => { btn.disabled = false; btn.textContent = 'Run'; }, 3000);
+    });
+  });
+
+  document.getElementById('last-updated').textContent = `updated ${new Date().toLocaleTimeString()}`;
+}
+
+document.getElementById('save-cfg').addEventListener('click', () => {
+  cfg.save(readCfg());
+  refresh();
+});
+
+applyCfgToInputs();
+refresh();
+setInterval(refresh, 60000);
+</script>
+</body>
+</html>

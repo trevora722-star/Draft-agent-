@@ -1,0 +1,49 @@
+{
+  "name": "handeefriend-growth-agent",
+  "version": "0.1.0",
+  "description": "Autonomous 26-agent growth system for handeefriend.com — 1,000 subscribers in 6 months",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "setup": "node schema/setup.js",
+    "runner": "node runner/index.js",
+    "01": "node agents/content/01-tiktok-script.js",
+    "02": "node agents/content/02-blog-content.js",
+    "03": "node agents/content/03-email-sequence.js",
+    "04": "node agents/content/04-youtube-repurpose.js",
+    "05": "node agents/content/05-ad-copy.js",
+    "06": "node agents/content/06-case-study.js",
+    "07": "node agents/outreach/07-realtor-outreach.js",
+    "08": "node agents/outreach/08-inspector-outreach.js",
+    "09": "node agents/outreach/09-trades-outreach.js",
+    "10": "node agents/outreach/10-community-monitor.js",
+    "11": "node agents/outreach/11-followup.js",
+    "12": "node agents/seo/12-keyword-research.js",
+    "13": "node agents/seo/13-onpage-audit.js",
+    "14": "node agents/seo/14-content-brief.js",
+    "15": "node agents/seo/15-backlink-prospect.js",
+    "16": "node agents/crm/16-lead-scoring.js",
+    "17": "node agents/crm/17-upgrade-trigger.js",
+    "18": "node agents/crm/18-churn-detection.js",
+    "19": "node agents/crm/19-reengagement.js",
+    "20": "node agents/analytics/20-weekly-metrics.js",
+    "21": "node agents/analytics/21-content-performance.js",
+    "22": "node agents/analytics/22-funnel-analysis.js",
+    "23": "node agents/retention/23-referral-program.js",
+    "24": "node agents/retention/24-partner-dashboard.js",
+    "25": "node agents/retention/25-compliance.js",
+    "26": "node agents/command/26-growth-commander.js",
+    "commander": "node agents/command/26-growth-commander.js",
+    "dry-run-all": "node scripts/dry-run-all.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "resend": "latest",
+    "stripe": "latest"
+  }
+}
