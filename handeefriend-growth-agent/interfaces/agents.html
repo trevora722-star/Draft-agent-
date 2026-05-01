@@ -458,25 +458,97 @@ async function runBackground(a) {
   }
 }
 
+// Fallback registry — embedded so the page works WITHOUT a running backend.
+// Mirrors lib/agent-registry.js. Whenever the runner is reachable, we replace
+// this with the live response.
+const FALLBACK_REGISTRY = {
+  depts: {
+    content:   { label: 'Content',   color: '#f97316' },
+    outreach:  { label: 'Outreach',  color: '#3b82f6' },
+    seo:       { label: 'SEO',       color: '#10b981' },
+    crm:       { label: 'CRM',       color: '#8b5cf6' },
+    analytics: { label: 'Analytics', color: '#eab308' },
+    retention: { label: 'Retention', color: '#ec4899' },
+    command:   { label: 'Command',   color: '#dc2626' },
+  },
+  agents: [
+    { id: 1, code:'01', name:'TikTok Script', dept:'content', file:'content/01-tiktok-script.js', cadence:'Weekly (Mon)', description:'5 TikTok script variants per week. Pulls top performers + target pillar from content_calendar, generates hook/body/CTA/shot-notes.' },
+    { id: 2, code:'02', name:'Blog Content', dept:'content', file:'content/02-blog-content.js', cadence:'Per-brief (auto from Agent 14)', description:'Writes a 900-word SEO blog post from a content brief.' },
+    { id: 3, code:'03', name:'Email Sequence', dept:'content', file:'content/03-email-sequence.js', cadence:'On-demand', description:'8 named sequences: welcome, upgrade_nudge, realtor_onboard, inspector_onboard, reengagement, win_back, monthly_digest, referral_confirmation.', options:[{ name:'sequence', default:'welcome' }] },
+    { id: 4, code:'04', name:'YouTube Repurpose', dept:'content', file:'content/04-youtube-repurpose.js', cadence:'On approve (Make.com)', description:'Turns an approved TikTok script into YouTube Shorts metadata.', options:[{ name:'content_calendar_id', required:true }] },
+    { id: 5, code:'05', name:'Ad Copy', dept:'content', file:'content/05-ad-copy.js', cadence:'Monthly (M4+)', description:'Facebook/Instagram ad creative deck. 3 campaigns × 3 headlines × 3 primary text variants.' },
+    { id: 6, code:'06', name:'Case Study', dept:'content', file:'content/06-case-study.js', cadence:'Monthly (1st)', description:'Drafts case studies for power users. Queues for human approval — never auto-publishes.', safety:'Drafts only — review queue required.' },
+    { id: 7, code:'07', name:'Realtor Outreach', dept:'outreach', file:'outreach/07-realtor-outreach.js', cadence:'Weekly', description:'Pulls 50 BC realtors from Apollo, generates personalized 3-email sequence.', deps:['APOLLO_API_KEY'] },
+    { id: 8, code:'08', name:'Inspector Outreach', dept:'outreach', file:'outreach/08-inspector-outreach.js', cadence:'Bi-weekly', description:'25 BC inspectors per run. 2-email sequence centered on the Forensic Condition Report.' },
+    { id: 9, code:'09', name:'Trades Outreach', dept:'outreach', file:'outreach/09-trades-outreach.js', cadence:'Monthly', description:'40 BC contractors per run. Pre-qualified leads pitch.' },
+    { id:10, code:'10', name:'Community Monitor', dept:'outreach', file:'outreach/10-community-monitor.js', cadence:'Daily 08:00', description:'Searches Reddit for relevant posts. Drafts replies (max 10/day) for human approval.', safety:'Drafts only — review queue required.', deps:['REDDIT_*'] },
+    { id:11, code:'11', name:'Follow-Up', dept:'outreach', file:'outreach/11-followup.js', cadence:'Daily', description:'Walks outreach_pipeline through email1 → email2 → email3 → cold → 90-day re-touch.' },
+    { id:12, code:'12', name:'Keyword Research', dept:'seo', file:'seo/12-keyword-research.js', cadence:'Weekly Mon 06:00', description:'Generates 10 new keyword ideas + 3 quick-wins. Pulls GSC when configured.' },
+    { id:13, code:'13', name:'On-Page Audit', dept:'seo', file:'seo/13-onpage-audit.js', cadence:'Monthly (1st)', description:'Audits 6 key pages: title, meta, headings, internal links, image alts.' },
+    { id:14, code:'14', name:'Content Brief', dept:'seo', file:'seo/14-content-brief.js', cadence:'Weekly', description:'Generates blog content brief from top P1 keyword. Auto-triggers Agent 02.' },
+    { id:15, code:'15', name:'Backlink Prospect', dept:'seo', file:'seo/15-backlink-prospect.js', cadence:'Monthly', description:'20 BC/Canadian site prospects + 5 ready-to-send drafts.' },
+    { id:16, code:'16', name:'Lead Scoring', dept:'crm', file:'crm/16-lead-scoring.js', cadence:'Daily 07:00', description:'Scores all free users 0–100. Triggers Agent 17 on upgrade_ready.' },
+    { id:17, code:'17', name:'Upgrade Trigger', dept:'crm', file:'crm/17-upgrade-trigger.js', cadence:'Event (from Agent 16)', description:'Generates a Stripe promo (20% off, 72h) + personalized upgrade email.', options:[{ name:'user_id', required:true }] },
+    { id:18, code:'18', name:'Churn Detection', dept:'crm', file:'crm/18-churn-detection.js', cadence:'Daily 09:00', description:'Scans paid users for at-risk signals. Sends save-sequence emails.' },
+    { id:19, code:'19', name:'Re-engagement', dept:'crm', file:'crm/19-reengagement.js', cadence:'Weekly Sun', description:'signup_ghost, one_and_done, cancelled_60 segments.' },
+    { id:20, code:'20', name:'Weekly Metrics', dept:'analytics', file:'analytics/20-weekly-metrics.js', cadence:'Mon 06:00', description:'Aggregates users + outreach + Stripe. Claude analyzes for wins/concerns.' },
+    { id:21, code:'21', name:'Content Performance', dept:'analytics', file:'analytics/21-content-performance.js', cadence:'Wed weekly', description:'Ranks last 14d content by trial_starts_attributed.' },
+    { id:22, code:'22', name:'Funnel Analysis', dept:'analytics', file:'analytics/22-funnel-analysis.js', cadence:'Monthly (1st)', description:'Identifies the single biggest funnel drop-off + a testable fix.' },
+    { id:23, code:'23', name:'Referral Program', dept:'retention', file:'retention/23-referral-program.js', cadence:'Event + Monthly leaderboard', description:'Logs referral_events. Free month at 3 referrals.' },
+    { id:24, code:'24', name:'Partner Dashboard', dept:'retention', file:'retention/24-partner-dashboard.js', cadence:'Monthly (1st)', description:'Calculates monthly partner commissions, applies Stripe credit.' },
+    { id:25, code:'25', name:'Compliance', dept:'retention', file:'retention/25-compliance.js', cadence:'Monthly (1st)', description:'CASL / ASC / BC Consumer Protection Act compliance checks.' },
+    { id:26, code:'26', name:'Growth Commander', dept:'command', file:'command/26-growth-commander.js', cadence:'Sun 21:00', description:'Synthesizes all 25 agents into a weekly executive brief.' },
+  ],
+};
+
+let RUNNER_ONLINE = false;
+
+function showOfflineBanner(detail) {
+  const main = document.getElementById('detail');
+  if (CURRENT_CODE) return; // don't overwrite an open agent panel
+  main.innerHTML = `
+    <div class="panel" style="background:#2a1a0a;border-color:#5a3a0a">
+      <h3 style="color:#fbbf24">⚠ Runner offline</h3>
+      <p>This page can show what each agent does — click any agent on the left.
+      But triggering a run, watching its output stream, and reading logs/files
+      requires the Node.js runner to be reachable.</p>
+      <p style="margin-top:12px"><strong>Reason:</strong> ${escapeHtml(detail || 'no response from runner')}</p>
+      <div style="background:#000;padding:12px;border-radius:6px;margin-top:12px;font-family:ui-monospace,monospace;font-size:12px;color:#cfd">
+        <div>cd handeefriend-growth-agent</div>
+        <div>npm install</div>
+        <div>cp .env.example .env <span style="color:#888"># then fill in ANTHROPIC_API_KEY etc.</span></div>
+        <div>npm run runner <span style="color:#888"># boots on http://localhost:3001</span></div>
+      </div>
+      <p style="margin-top:12px">Then click <a href="#" id="cfg-link" style="color:var(--link)">⚙ Connection</a>, paste your <code>RUNNER_SECRET</code>, and reload. Or open <a href="http://localhost:3001/agents.html" style="color:var(--link)">http://localhost:3001/agents.html</a> directly — that URL is served by the runner itself.</p>
+    </div>
+    <div class="empty-state" style="padding:40px">← Click any agent to see what it does (no runner needed)</div>
+  `;
+  document.getElementById('cfg-link').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('cfg-btn').click(); });
+}
+
 async function init() {
+  // Try the runner; fall through to embedded fallback if unreachable.
   try {
     REGISTRY = await api('/agents', { auth: false });
+    RUNNER_ONLINE = true;
   } catch (e) {
-    document.getElementById('sidebar').innerHTML =
-      `<div class="empty-state" style="padding:40px;color:var(--red)">Cannot reach the runner.<br/><br/>${escapeHtml(e.message)}<br/><br/><button onclick="document.getElementById('cfg-btn').click()">Open settings</button></div>`;
-    return;
+    REGISTRY = FALLBACK_REGISTRY;
+    RUNNER_ONLINE = false;
+    showOfflineBanner(e.message);
   }
-  // Hydrate latest log per agent
-  try {
-    const recent = await api('/logs/recent?limit=200');
-    const map = {};
-    for (const l of (recent.list || [])) {
-      const code = String(l.agent_id).padStart(2, '0');
-      (map[code] ||= []).push(l);
+  // Hydrate latest log per agent (only if runner online + secret set)
+  if (RUNNER_ONLINE && cfg.load().secret) {
+    try {
+      const recent = await api('/logs/recent?limit=200');
+      const map = {};
+      for (const l of (recent.list || [])) {
+        const code = String(l.agent_id).padStart(2, '0');
+        (map[code] ||= []).push(l);
+      }
+      LOG_INDEX = map;
+    } catch (e) {
+      console.warn(e);
     }
-    LOG_INDEX = map;
-  } catch (e) {
-    console.warn(e);
   }
   renderSidebar();
 }

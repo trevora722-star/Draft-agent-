@@ -1,0 +1,28 @@
+# Netlify deploy for the static control center pages.
+#
+# This publishes the interfaces/ folder as a static site. The pages will work
+# offline (showing all 26 agents from the embedded fallback registry); to
+# enable run + logs + file viewing they need to talk to the Node.js runner —
+# set the runner URL + secret in the Connection settings of agents.html.
+#
+# Usage:
+#   1. Push this repo to GitHub.
+#   2. In Netlify: Add new site → Import an existing project → pick the repo.
+#   3. Build settings: leave defaults; the publish dir is set below.
+#   4. (Optional) Set RUNNER_CORS_ORIGIN on your runner to the Netlify URL.
+
+[build]
+  base = "handeefriend-growth-agent"
+  publish = "handeefriend-growth-agent/interfaces"
+  command = "echo 'static deploy — no build step'"
+
+[[redirects]]
+  from = "/"
+  to   = "/agents.html"
+  status = 302
+
+# Cache HTML lightly so config changes show up quickly.
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=300, must-revalidate"
