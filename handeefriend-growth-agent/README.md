@@ -61,14 +61,30 @@ Every agent supports `--dry-run`. Runner endpoints accept `{ "dry_run": true }`.
 
 ## Web interfaces
 
-Self-contained HTML files in `interfaces/`:
+Self-contained HTML files in `interfaces/` — served by the runner at
+`http://localhost:3001/<page>.html` once `npm run runner` is up:
 
-- `dashboard.html` — Growth Commander dashboard
+- `agents.html` — **Agent Control Center**. Click any of the 26 agents to see
+  what it does, its recent runs, output files, and a "▶ Run live" button that
+  streams stdout/stderr in real time over Server-Sent Events.
+- `dashboard.html` — Growth Commander summary dashboard
 - `partner-portal.html` — Realtor/Inspector partner portal
 - `review-queue.html` — Human approval queue (Agents 06 + 10)
 
-Each prompts for the NocoDB connection details on first load and stores them
-in `localStorage`. Drop them into Netlify, S3, or any static host.
+Each prompts for the runner URL + secret on first load (gear icon, top right)
+and stores them in `localStorage`. Drop them into Netlify, S3, or any static
+host — they only need the runner reachable over HTTPS.
+
+### Hosting the website
+
+The runner already serves `interfaces/` as static files. Two common setups:
+
+**Single-host (simplest):** run the runner on Render/Fly/EC2 → that one URL
+serves both the API and the control center. Open `https://your-host/agents.html`.
+
+**Split (static front-end on Netlify):** push `interfaces/` to Netlify; set
+`RUNNER_CORS_ORIGIN=https://yoursite.netlify.app` on the runner; in the
+control center's settings modal, point the Runner URL at the runner host.
 
 ## Architecture
 
