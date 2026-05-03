@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Payment — Squamish Adventure Rentals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bebas+Neue&display=swap" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container nav">
+    <a href="index.html" class="brand">
+      <span class="brand-mark">▲</span>
+      <span class="brand-text">Squamish<br/><em>Adventure Rentals</em></span>
+    </a>
+    <nav class="nav-links">
+      <a href="index.html#rentals">Rentals</a>
+      <a href="index.html#how">How it works</a>
+      <a href="index.html#about">About</a>
+      <a href="index.html#contact">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page-shell" id="main">
+  <ol class="flow-steps">
+    <li class="is-done">1 · Choose gear &amp; dates</li>
+    <li class="is-active">2 · Payment</li>
+    <li>3 · Confirmation</li>
+  </ol>
+
+  <div id="content">
+    <h1>Secure payment</h1>
+    <p class="subhead">All transactions are encrypted. We never store your card number on our servers.</p>
+
+    <div id="error-slot"></div>
+
+    <div class="layout-2">
+      <div>
+        <section class="panel">
+          <h2>Card details</h2>
+          <div class="payment-card" aria-hidden="true">
+            <div>
+              <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;opacity:.7;margin-bottom:6px;">Squamish Adventure Rentals</div>
+              <div class="card-num" id="card-display">•••• •••• •••• ••••</div>
+            </div>
+            <div class="card-foot-row">
+              <span id="cardholder-display">CARDHOLDER NAME</span>
+              <span id="exp-display">MM / YY</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="cardholder">Cardholder name</label>
+            <input id="cardholder" type="text" autocomplete="cc-name" placeholder="As it appears on the card" required />
+          </div>
+          <div class="field">
+            <label for="cardnum">Card number</label>
+            <input id="cardnum" type="text" autocomplete="cc-number" inputmode="numeric" maxlength="23" placeholder="4242 4242 4242 4242" required />
+          </div>
+          <div class="row-2">
+            <div class="field">
+              <label for="exp">Expiry (MM/YY)</label>
+              <input id="exp" type="text" autocomplete="cc-exp" inputmode="numeric" maxlength="5" placeholder="08/28" required />
+            </div>
+            <div class="field">
+              <label for="cvc">CVC</label>
+              <input id="cvc" type="text" autocomplete="cc-csc" inputmode="numeric" maxlength="4" placeholder="•••" required />
+            </div>
+          </div>
+          <div class="field">
+            <label for="postal">Billing postal / ZIP</label>
+            <input id="postal" type="text" autocomplete="postal-code" placeholder="V8B 0A1" required />
+          </div>
+        </section>
+      </div>
+
+      <aside>
+        <div class="summary">
+          <h3>Your reservation</h3>
+          <div id="booking-summary"></div>
+          <button id="pay-btn" class="btn btn-primary btn-block" style="margin-top:18px;">Pay <span id="pay-amount">—</span></button>
+          <p style="font-size:12px;color:var(--ink-soft);margin:12px 0 0;text-align:center;">Demo mode uses test card <strong>4242 4242 4242 4242</strong>. Any future date &amp; CVC works.</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<!-- Chat agent widget -->
+<div id="sa-chat" class="chat-widget">
+  <button id="sa-chat-toggle" class="chat-toggle" aria-label="Open chat">💬<span>Ask us</span></button>
+  <div id="sa-chat-panel" class="chat-panel" hidden>
+    <header class="chat-head">
+      <strong>Squamish Adventure assistant</strong>
+      <button id="sa-chat-close" aria-label="Close chat">×</button>
+    </header>
+    <div id="sa-chat-log" class="chat-log"></div>
+    <form id="sa-chat-form" class="chat-form">
+      <input id="sa-chat-input" type="text" autocomplete="off" placeholder="Question about your booking?" required />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+</div>
+
+<script src="catalog.js"></script>
+<script src="site.js"></script>
+<script src="payment.js"></script>
+</body>
+</html>

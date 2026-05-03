@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Squamish Adventure Rentals — Bikes, Kayaks, SUPs & Gear</title>
+<meta name="description" content="Squamish Adventure Rentals: mountain bikes, e-bikes, kayaks, stand-up paddleboards, canoes and gear at the gateway to the Sea-to-Sky. Book online in 60 seconds." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bebas+Neue&display=swap" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container nav">
+    <a href="index.html" class="brand">
+      <span class="brand-mark">▲</span>
+      <span class="brand-text">Squamish<br/><em>Adventure Rentals</em></span>
+    </a>
+    <nav class="nav-links">
+      <a href="#rentals">Rentals</a>
+      <a href="#how">How it works</a>
+      <a href="#about">About</a>
+      <a href="#contact">Contact</a>
+      <a class="btn btn-primary" href="booking.html">Book now</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-bg" aria-hidden="true"></div>
+  <div class="container hero-inner">
+    <p class="kicker">Sea-to-Sky · Squamish, BC</p>
+    <h1>Your gear is ready.<br/>The mountains are waiting.</h1>
+    <p class="lede">
+      Mountain bikes, e-bikes, kayaks, paddleboards, canoes, and trip-ready gear —
+      walk out the door from downtown Squamish, on the water or on the trail in minutes.
+    </p>
+    <div class="hero-cta">
+      <a class="btn btn-primary btn-lg" href="booking.html">Book a rental</a>
+      <a class="btn btn-ghost btn-lg" href="#rentals">Browse gear</a>
+    </div>
+    <ul class="hero-points">
+      <li>★ 4.9/5 · 600+ reviews</li>
+      <li>Free helmet, lock & route map</li>
+      <li>Same-day pickup until 4pm</li>
+    </ul>
+  </div>
+</section>
+
+<section id="rentals" class="section">
+  <div class="container">
+    <div class="section-head">
+      <h2>Rentals</h2>
+      <p>Daily rates. Multi-day discounts apply automatically at checkout.</p>
+    </div>
+    <div class="grid cards" id="catalog-grid">
+      <!-- populated from window.CATALOG below -->
+    </div>
+  </div>
+</section>
+
+<section id="how" class="section section-alt">
+  <div class="container">
+    <div class="section-head">
+      <h2>How it works</h2>
+    </div>
+    <div class="grid steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Pick your gear</h3>
+        <p>Choose dates and the gear you want. Our chat agent (bottom-right) can help match you with the right kayak, bike, or trail.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Book &amp; pay online</h3>
+        <p>Secure card payment up front. You'll get a booking code in your inbox right away.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Pick up &amp; go</h3>
+        <p>Stop by our shop at 38123 Cleveland Ave, grab your gear, and we'll point you at the day's best conditions.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="about" class="section">
+  <div class="container two-col">
+    <div>
+      <h2>Locally owned. Trail tested.</h2>
+      <p>
+        We're a small Squamish-based crew that's been outfitting riders and paddlers
+        since 2014. Every bike comes tuned the morning of your ride. Every kayak
+        comes with a paddle, PFD and a quick briefing on the day's conditions.
+      </p>
+      <p>
+        We rent the gear we use ourselves. If you're new to Squamish, ask us where
+        to go — the chat agent at the bottom-right of every page knows our trails,
+        launch points, and what's good in the wind today.
+      </p>
+    </div>
+    <ul class="facts">
+      <li><strong>10 min</strong>walk to the Mamquam Blind Channel launch</li>
+      <li><strong>4 min</strong>drive to the trailhead network at the Bench</li>
+      <li><strong>120+</strong>bikes, boards, kayaks &amp; canoes in stock</li>
+      <li><strong>7 days</strong>open year-round, 8am – 6pm</li>
+    </ul>
+  </div>
+</section>
+
+<footer id="contact" class="site-footer">
+  <div class="container two-col footer-grid">
+    <div>
+      <div class="brand brand-light">
+        <span class="brand-mark">▲</span>
+        <span class="brand-text">Squamish<br/><em>Adventure Rentals</em></span>
+      </div>
+      <p class="footer-blurb">
+        38123 Cleveland Ave, Squamish, BC<br/>
+        (604) 555-0144 · hello@squamishadventurerentals.com
+      </p>
+    </div>
+    <div class="footer-links">
+      <a href="#rentals">Rentals</a>
+      <a href="booking.html">Book now</a>
+      <a href="#about">About</a>
+      <a href="#contact">Contact</a>
+    </div>
+  </div>
+  <div class="container footer-fine">
+    <span>© <span id="year"></span> Squamish Adventure Rentals</span>
+    <span>Acknowledging we operate on the unceded territory of the Sḵwx̱wú7mesh Úxwumixw.</span>
+  </div>
+</footer>
+
+<!-- Chat agent widget -->
+<div id="sa-chat" class="chat-widget" aria-live="polite">
+  <button id="sa-chat-toggle" class="chat-toggle" aria-label="Open chat">💬<span>Ask us</span></button>
+  <div id="sa-chat-panel" class="chat-panel" hidden>
+    <header class="chat-head">
+      <strong>Squamish Adventure assistant</strong>
+      <button id="sa-chat-close" aria-label="Close chat">×</button>
+    </header>
+    <div id="sa-chat-log" class="chat-log"></div>
+    <form id="sa-chat-form" class="chat-form">
+      <input id="sa-chat-input" type="text" autocomplete="off" placeholder="Ask about gear, trails, the wind…" required />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+</div>
+
+<script src="catalog.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

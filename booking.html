@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Book a rental — Squamish Adventure Rentals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bebas+Neue&display=swap" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container nav">
+    <a href="index.html" class="brand">
+      <span class="brand-mark">▲</span>
+      <span class="brand-text">Squamish<br/><em>Adventure Rentals</em></span>
+    </a>
+    <nav class="nav-links">
+      <a href="index.html#rentals">Rentals</a>
+      <a href="index.html#how">How it works</a>
+      <a href="index.html#about">About</a>
+      <a href="index.html#contact">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page-shell">
+  <ol class="flow-steps">
+    <li class="is-active">1 · Choose gear &amp; dates</li>
+    <li>2 · Payment</li>
+    <li>3 · Confirmation</li>
+  </ol>
+
+  <h1>Book your rental</h1>
+  <p class="subhead">Pick your gear, your dates, and how to reach you. We'll have everything tuned and ready when you arrive.</p>
+
+  <div id="error-slot"></div>
+
+  <div class="layout-2">
+    <div>
+      <section class="panel">
+        <h2>1. Dates</h2>
+        <div class="row-2">
+          <div class="field">
+            <label for="start">Pickup date</label>
+            <input id="start" type="date" required />
+          </div>
+          <div class="field">
+            <label for="end">Return date</label>
+            <input id="end" type="date" required />
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>2. Gear</h2>
+        <div class="qty-list" id="qty-list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>3. Your details</h2>
+        <div class="row-2">
+          <div class="field">
+            <label for="name">Full name</label>
+            <input id="name" type="text" autocomplete="name" required />
+          </div>
+          <div class="field">
+            <label for="phone">Phone</label>
+            <input id="phone" type="tel" autocomplete="tel" required />
+          </div>
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" type="email" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="notes">Anything we should know?</label>
+          <textarea id="notes" rows="3" placeholder="Rider height, experience level, special requests…"></textarea>
+        </div>
+      </section>
+    </div>
+
+    <aside>
+      <div class="summary">
+        <h3>Order summary</h3>
+        <div id="summary-lines"></div>
+        <div class="line"><span>Days</span><span id="sum-days">—</span></div>
+        <div class="line"><span>Subtotal</span><span id="sum-subtotal">$0</span></div>
+        <div class="line"><span>Multi-day discount</span><span id="sum-discount">−$0</span></div>
+        <div class="line"><span>GST (5%)</span><span id="sum-tax">$0</span></div>
+        <div class="line total"><span>Total</span><span id="sum-total">$0</span></div>
+        <button id="continue-btn" class="btn btn-primary btn-block" style="margin-top:18px;">Continue to payment →</button>
+        <p style="font-size:12px;color:var(--ink-soft);margin:12px 0 0;text-align:center;">Free cancellation up to 24h before pickup.</p>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<!-- Chat agent widget -->
+<div id="sa-chat" class="chat-widget">
+  <button id="sa-chat-toggle" class="chat-toggle" aria-label="Open chat">💬<span>Ask us</span></button>
+  <div id="sa-chat-panel" class="chat-panel" hidden>
+    <header class="chat-head">
+      <strong>Squamish Adventure assistant</strong>
+      <button id="sa-chat-close" aria-label="Close chat">×</button>
+    </header>
+    <div id="sa-chat-log" class="chat-log"></div>
+    <form id="sa-chat-form" class="chat-form">
+      <input id="sa-chat-input" type="text" autocomplete="off" placeholder="Ask about gear, trails, the wind…" required />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+</div>
+
+<script src="catalog.js"></script>
+<script src="site.js"></script>
+<script src="booking.js"></script>
+</body>
+</html>
