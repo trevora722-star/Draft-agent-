@@ -140,25 +140,26 @@
 
     continueBtn.disabled = true;
     continueBtn.textContent = "Reserving…";
-    try {
-      const res = await fetch("/api/booking", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showError(data.error || "Couldn't create the booking. Try again.");
-        continueBtn.disabled = false;
-        continueBtn.textContent = "Continue to payment →";
-        return;
-      }
+    // Static-demo: mint the booking client-side. The deployed branch POSTs
+    // this payload to /api/booking instead.
+    setTimeout(() => {
+      const code = "SAR-" + Math.random().toString(16).slice(2, 8).toUpperCase();
+      const data = {
+        booking_id: code,
+        start_date: payload.start_date,
+        end_date: payload.end_date,
+        days: q.d,
+        items: q.items,
+        subtotal: q.subtotal,
+        discount: q.discount,
+        discount_pct: q.discPct,
+        tax: q.tax,
+        total: q.total,
+        customer: payload.customer,
+        status: "pending_payment",
+      };
       sessionStorage.setItem("sa_booking", JSON.stringify(data));
-      location.href = "/payment.html";
-    } catch (e) {
-      showError("Network error. Please try again.");
-      continueBtn.disabled = false;
-      continueBtn.textContent = "Continue to payment →";
-    }
+      location.href = "payment.html";
+    }, 450);
   });
 })();

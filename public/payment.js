@@ -6,14 +6,14 @@
     document.getElementById("content").innerHTML = `
       <h1>No booking in progress</h1>
       <p class="subhead">Your reservation expired. Let's start over.</p>
-      <p><a class="btn btn-primary" href="/booking.html">Start a booking</a></p>
+      <p><a class="btn btn-primary" href="booking.html">Start a booking</a></p>
     `;
     return;
   }
   let booking;
   try { booking = JSON.parse(raw); } catch { booking = null; }
   if (!booking || !booking.booking_id) {
-    location.href = "/booking.html";
+    location.href = "booking.html";
     return;
   }
 
@@ -83,7 +83,7 @@
         <p>Booking code: <span class="code">${booking.booking_id}</span></p>
         <p>Charged <strong>${money(payment.amount)}</strong> · receipt <span class="code">${payment.receipt_id}</span></p>
         <p style="margin:24px 0 8px;">Pickup at <strong>38123 Cleveland Ave, Squamish</strong> any time after 8am on ${booking.start_date}. Bring photo ID.</p>
-        <p><a class="btn btn-primary" href="/">Back to home</a></p>
+        <p><a class="btn btn-primary" href="index.html">Back to home</a></p>
       </section>
     `;
     sessionStorage.removeItem("sa_booking");
@@ -104,33 +104,21 @@
 
     const btn = document.getElementById("pay-btn");
     btn.disabled = true; btn.textContent = "Processing…";
-    try {
-      const res = await fetch("/api/payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          booking_id: booking.booking_id,
-          amount: booking.total,
-          card: {
-            // We send only the last 4 + a token-like fingerprint. The real card
-            // number never leaves the browser in production (it'd go straight to
-            // Stripe.js). Demo backend just checks last4 and pretends to charge.
-            last4: num.slice(-4),
-            cardholder: cardholder.value.trim(),
-            postal: document.getElementById("postal").value.trim(),
-          },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showError(data.error || "Payment was declined. Try a different card.");
+    // Static-demo: simulate the charge client-side. Cards ending in 0000
+    // still decline, just like the deployed /api/payment endpoint.
+    setTimeout(() => {
+      if (num.slice(-4) === "0000") {
+        showError("Card was declined. Please try another card.");
         btn.disabled = false; btn.textContent = "Pay " + money(booking.total);
         return;
       }
+      const data = {
+        booking_id: booking.booking_id,
+        amount: booking.total,
+        receipt_id: "RCPT-" + Math.random().toString(16).slice(2, 10).toUpperCase(),
+        status: "paid",
+      };
       renderConfirmation(data);
-    } catch (e) {
-      showError("Network error during payment. No charge was made.");
-      btn.disabled = false; btn.textContent = "Pay " + money(booking.total);
-    }
+    }, 700);
   });
 })();
