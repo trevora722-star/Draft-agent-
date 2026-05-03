@@ -1,14 +1,16 @@
-# Netlify deploy config — multi-tenant NPO agent demo.
+# Netlify deploy config — Squamish Adventure Rentals site.
 #
 # Usage:
 #   1. Push this branch to GitHub.
 #   2. In Netlify: Add new site → Import an existing project → pick the repo.
-#   3. Set ANTHROPIC_API_KEY in Site settings → Environment variables.
-#   4. Trigger a deploy. Done.
+#   3. Set ANTHROPIC_API_KEY in Site settings → Environment variables (for chat agent).
+#   4. (Optional) Set STRIPE_SECRET_KEY to wire real card charging.
+#   5. Trigger a deploy.
 #
-# The static site is the demo.html page in `public/`. The four /api/demo/*
-# endpoints are Python Netlify Functions backed by Claude Haiku 4.5 (chosen
-# so a full grant draft fits inside the 10s sync function timeout).
+# Static pages in `public/` (index/booking/payment + assets). The /api/* routes
+# below are Python Netlify Functions: chat agent (Haiku 4.5), booking creation,
+# and payment finalization. The legacy NPO demo functions are kept so the
+# /api/demo/* endpoints still work for the BCSS walkthrough.
 
 [build]
   publish = "public"
@@ -19,27 +21,49 @@
   # _shared.py prepends the bundled path to sys.path on cold start.
   included_files = ["src/npo_agent/**"]
 
+[functions."chat"]
+  # Haiku 4.5 + cached system prompt. Typical 1–3s; 10s ceiling for cold start.
+  timeout = 10
+
+[functions."booking"]
+  # No LLM call — validation + JSON write to /tmp.
+  timeout = 10
+
+[functions."payment"]
+  # No LLM call — payment finalization. Real Stripe call would still fit easily.
+  timeout = 10
+
 [functions."demo_info"]
-  # Light: just SQL lookups + JSON serialization.
   timeout = 10
-
 [functions."demo_scrub"]
-  # No LLM call — pure regex scrub.
   timeout = 10
-
 [functions."demo_draft"]
-  # Heaviest endpoint. Haiku 4.5 + max_tokens=4000 + no thinking
-  # typically returns in 3–6s; 10s ceiling gives headroom for cold-start
-  # SDK init.
   timeout = 10
-
 [functions."demo_ask"]
-  # Short RAG answer; ~2–4s.
   timeout = 10
 
 # ---- routing ---------------------------------------------------------------
-# Pretty URLs: the demo.html page calls /api/demo/info, /api/demo/draft, etc.
-# These rewrites map them onto the underlying function names.
+# Pretty URLs for the rentals site.
+
+[[redirects]]
+  from = "/api/chat"
+  to = "/.netlify/functions/chat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/booking"
+  to = "/.netlify/functions/booking"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/payment"
+  to = "/.netlify/functions/payment"
+  status = 200
+  force = true
+
+# Legacy NPO demo endpoints (kept so /demo.html still works).
 
 [[redirects]]
   from = "/api/demo/info"
@@ -64,9 +88,3 @@
   to = "/.netlify/functions/demo_ask"
   status = 200
   force = true
-
-# Root → demo UI.
-[[redirects]]
-  from = "/"
-  to = "/demo.html"
-  status = 200
