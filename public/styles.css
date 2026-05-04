@@ -42,6 +42,14 @@ a:hover { text-decoration: underline; }
   color: var(--ink); font-weight: 700; line-height: 1.1;
   text-decoration: none;
 }
+/* Logo image: shown by default; falls back to the text mark below if the
+   image fails to load (the JS in site.js adds .no-logo on the .brand). */
+.brand-logo { height: 44px; width: auto; display: block; }
+.brand-logo-footer { height: 56px; }
+.brand-fallback { display: none; align-items: center; gap: 12px; }
+.brand.no-logo .brand-logo { display: none; }
+.brand.no-logo .brand-fallback { display: inline-flex; }
+
 .brand-mark {
   display: inline-grid; place-items: center;
   width: 36px; height: 36px; border-radius: 8px;
@@ -183,6 +191,7 @@ a:hover { text-decoration: underline; }
 }
 .facts strong { font-size: 18px; color: var(--forest-deep); }
 .two-col.reverse { grid-template-columns: .9fr 1.1fr; }
+.single-col { max-width: 760px; margin: 0 auto; }
 @media (max-width: 760px) {
   .two-col { grid-template-columns: 1fr; gap: 24px; }
   .two-col.reverse { grid-template-columns: 1fr; }

@@ -1,33 +1,14 @@
 # Photos
 
-Drop real photos here using the filenames below and they'll auto-appear on
-the site (no rebuild required — just redeploy on Netlify or push to the branch
-and Netlify rebuilds for you).
+Three image files power the site. Drop them here with these exact names and
+they'll appear automatically on the next deploy. Anything missing falls back
+to a styled placeholder (text mark for the logo, gradient panel for the
+hero / equipment shot), so the layout never breaks.
 
-If a file is missing or fails to load, the site keeps its CSS gradient
-placeholder, so the layout never breaks.
-
-## Expected files
-
-| Filename | Where it appears | Suggested dimensions |
+| Filename | Where it appears | Notes |
 |---|---|---|
-| `hero.jpg` | Full-bleed homepage hero (top of page) | 2400 × 1200, JPG, ~70% quality |
-| `adam.jpg` | Portrait next to "Hey, I'm Adam" | 800 × 1000, portrait orientation |
-| `atv.jpg` | Equipment section, single hero shot of the fleet | 1600 × 1200, landscape |
-| `atv-guided-half.jpg` | Services card: Guided Half-Day | 800 × 600 |
-| `atv-guided-full.jpg` | Services card: Guided Full-Day | 800 × 600 |
-| `atv-self-half.jpg` | Services card: Self-Guided Half-Day | 800 × 600 |
-| `atv-self-full.jpg` | Services card: Self-Guided Full-Day | 800 × 600 |
+| `logo.png` | Header and footer brand mark | Hex badge, transparent or cream background |
+| `hero.jpg` | Full-bleed homepage hero | Wide, dramatic; portrait subjects render fine because of the dark overlay |
+| `atv.jpg` | Equipment / "Four Kawasakis" section | Single hero shot of the fleet |
 
-JPG or WebP. Keep each under ~300KB if you can — the site loads quickly that
-way and looks crisp on phones.
-
-## Adding a new image slot
-
-The image path lives in two places:
-
-1. **For a card image** — set `image: "images/your-file.jpg"` on the SKU in
-   `public/catalog.js`.
-2. **For a section image** — add `data-bg="images/your-file.jpg"` to any HTML
-   element. The loader in `public/site.js` picks it up automatically and only
-   shows the photo if it loads successfully.
+JPG / PNG / WebP all fine. Aim for under ~300KB per image for fast loads.

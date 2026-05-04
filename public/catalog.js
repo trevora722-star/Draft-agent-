@@ -9,7 +9,6 @@ window.CATALOG = [
     price: 279,
     unit: "rider",
     icon: "🏔",
-    image: "images/atv-guided-half.jpg",
   },
   {
     sku: "guided-full",
@@ -19,7 +18,6 @@ window.CATALOG = [
     price: 429,
     unit: "rider",
     icon: "⛰",
-    image: "images/atv-guided-full.jpg",
   },
   {
     sku: "self-half",
@@ -29,7 +27,6 @@ window.CATALOG = [
     price: 229,
     unit: "ATV",
     icon: "🛞",
-    image: "images/atv-self-half.jpg",
   },
   {
     sku: "self-full",
@@ -39,7 +36,6 @@ window.CATALOG = [
     price: 349,
     unit: "ATV",
     icon: "🛞",
-    image: "images/atv-self-full.jpg",
   },
 ];
 

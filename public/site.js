@@ -23,6 +23,19 @@
   if (el) el.textContent = new Date().getFullYear();
 })();
 
+// Brand logo: if the image fails to load (file missing in deploy), add
+// .no-logo to the surrounding .brand link so the text-mark fallback shows.
+(function brandLogo() {
+  document.querySelectorAll(".brand-logo").forEach((img) => {
+    const fail = () => {
+      const brand = img.closest(".brand");
+      if (brand) brand.classList.add("no-logo");
+    };
+    img.addEventListener("error", fail);
+    if (img.complete && img.naturalWidth === 0) fail();
+  });
+})();
+
 // Background-image loader: any element with data-bg="path/to.jpg" preloads
 // the image and applies it as a background ONLY if it actually exists. If the
 // image is missing (404 or empty file), the element keeps its CSS gradient
