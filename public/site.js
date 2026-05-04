@@ -85,8 +85,13 @@
     toggle.style.display = "";
   };
 
-  toggle.addEventListener("click", open);
-  close.addEventListener("click", shut);
+  // Toggle reopens; close X always shuts. We also wire Escape to close,
+  // so there are three ways out of the panel.
+  toggle.addEventListener("click", () => (panel.hidden ? open() : shut()));
+  if (close) close.addEventListener("click", shut);
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && !panel.hidden) shut();
+  });
 
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
