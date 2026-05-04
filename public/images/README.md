@@ -13,7 +13,7 @@ placeholder, so the layout never breaks.
 |---|---|---|
 | `hero.jpg` | Full-bleed homepage hero (top of page) | 2400 × 1200, JPG, ~70% quality |
 | `adam.jpg` | Portrait next to "Hey, I'm Adam" | 800 × 1000, portrait orientation |
-| `atv-1.jpg` … `atv-4.jpg` | Equipment section, four-up grid of the fleet | 1200 × 900 each, landscape |
+| `atv.jpg` | Equipment section, single hero shot of the fleet | 1600 × 1200, landscape |
 | `atv-guided-half.jpg` | Services card: Guided Half-Day | 800 × 600 |
 | `atv-guided-full.jpg` | Services card: Guided Full-Day | 800 × 600 |
 | `atv-self-half.jpg` | Services card: Self-Guided Half-Day | 800 × 600 |

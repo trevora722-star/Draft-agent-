@@ -226,27 +226,30 @@ a:hover { text-decoration: underline; }
 }
 .portrait.has-bg .portrait-label { background: rgba(0,0,0,.55); color: #fff; }
 
-/* Fleet grid (4 ATV photo slots) */
-.fleet-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-}
-.fleet-tile {
-  position: relative; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden;
+/* Fleet photo (single hero shot) */
+.fleet-photo {
+  position: relative; aspect-ratio: 4 / 3; min-height: 320px;
+  border-radius: 16px; overflow: hidden;
   background:
     linear-gradient(160deg, rgba(15,58,82,.55), rgba(20,51,41,.9)),
-    radial-gradient(400px 200px at 40% 30%, var(--moss), transparent 60%),
+    radial-gradient(800px 400px at 40% 30%, var(--moss), transparent 60%),
     linear-gradient(180deg, #1f4d3f, #0f1d23);
   background-size: cover; background-position: center;
   display: grid; place-items: end start;
 }
-.fleet-tile.has-bg { background: #000; }
-.fleet-tile span {
-  position: relative; z-index: 1;
-  margin: 0 0 12px 12px; padding: 4px 10px;
-  background: rgba(255,255,255,.9); color: var(--forest-deep);
-  border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+.fleet-photo.has-bg { background: #000; }
+.fleet-photo.has-bg::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 50%, rgba(0,0,0,.55) 100%);
+  pointer-events: none;
 }
-.fleet-tile.has-bg span { background: rgba(0,0,0,.55); color: #fff; }
+.fleet-photo span {
+  position: relative; z-index: 1;
+  margin: 0 0 18px 18px; padding: 6px 12px;
+  background: rgba(255,255,255,.92); color: var(--forest-deep);
+  border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+}
+.fleet-photo.has-bg span { background: rgba(0,0,0,.55); color: #fff; }
 
 /* Dark section (land acknowledgment) */
 .section-dark {
