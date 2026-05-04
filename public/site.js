@@ -1,16 +1,16 @@
-// Site-wide JS: catalog rendering + chat widget.
+// Site-wide JS: catalog rendering + image loader + chat widget.
 
 (function renderCatalog() {
   const grid = document.getElementById("catalog-grid");
   if (!grid || !window.CATALOG) return;
   grid.innerHTML = window.CATALOG.map((p) => `
     <article class="card" data-kind="${p.kind}">
-      <div class="card-art" aria-hidden="true">${p.icon}</div>
+      <div class="card-art" aria-hidden="true" ${p.image ? `data-bg="${p.image}"` : ""}>${p.icon}</div>
       <div class="card-body">
         <h3>${p.name}</h3>
         <p class="desc">${p.desc}</p>
         <div class="card-foot">
-          <div class="price">$${p.price}<small>/day</small></div>
+          <div class="price">$${p.price}<small>${p.unit ? "/" + p.unit : "/day"}</small></div>
           <a class="btn btn-primary" href="/booking.html?sku=${encodeURIComponent(p.sku)}">Book</a>
         </div>
       </div>
@@ -21,6 +21,28 @@
 (function setYear() {
   const el = document.getElementById("year");
   if (el) el.textContent = new Date().getFullYear();
+})();
+
+// Background-image loader: any element with data-bg="path/to.jpg" preloads
+// the image and applies it as a background ONLY if it actually exists. If the
+// image is missing (404 or empty file), the element keeps its CSS gradient
+// placeholder so the site looks polished out of the box. Drop real photos in
+// public/images/ and they appear automatically.
+(function bgLoader() {
+  const targets = document.querySelectorAll("[data-bg]");
+  targets.forEach((el) => {
+    const src = el.dataset.bg;
+    if (!src) return;
+    const img = new Image();
+    img.onload = () => {
+      // Skip the empty 1x1 placeholder we ship as a stub
+      if (img.naturalWidth < 8 || img.naturalHeight < 8) return;
+      el.style.backgroundImage = `url("${src}")`;
+      el.classList.add("has-bg");
+    };
+    img.onerror = () => { /* keep CSS fallback */ };
+    img.src = src;
+  });
 })();
 
 // Chat widget
@@ -48,7 +70,7 @@
     if (log.childElementCount > 0) return;
     append(
       "bot",
-      "Hi! I'm the Squamish Adventure assistant. Ask me about gear, trail picks, or how booking works."
+      "Hey! I'm Adam's concierge. Ask about the rides, what to wear, group bookings, or anything else."
     );
   };
 

@@ -18,13 +18,10 @@ from typing import Any
 # ---- catalog -------------------------------------------------------------
 
 CATALOG: dict[str, dict[str, Any]] = {
-    "mtb-full":     {"name": "Mountain Bike — Full Suspension", "price": 89, "kind": "bike"},
-    "ebike":        {"name": "E-Bike",                          "price": 99, "kind": "ebike"},
-    "kayak-single": {"name": "Kayak — Single",                  "price": 49, "kind": "kayak"},
-    "kayak-tandem": {"name": "Kayak — Tandem",                  "price": 79, "kind": "kayak"},
-    "sup":          {"name": "Stand-Up Paddleboard",            "price": 49, "kind": "sup"},
-    "canoe":        {"name": "Canoe",                           "price": 69, "kind": "canoe"},
-    "gear":         {"name": "Backcountry Gear Bundle",         "price": 39, "kind": "gear"},
+    "guided-half": {"name": "Guided ATV Tour — Half Day",     "price": 279, "kind": "guided", "unit": "rider"},
+    "guided-full": {"name": "Guided ATV Tour — Full Day",     "price": 429, "kind": "guided", "unit": "rider"},
+    "self-half":   {"name": "Self-Guided Rental — Half Day",  "price": 229, "kind": "self",   "unit": "ATV"},
+    "self-full":   {"name": "Self-Guided Rental — Full Day",  "price": 349, "kind": "self",   "unit": "ATV"},
 }
 
 
