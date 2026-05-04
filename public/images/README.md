@@ -7,8 +7,10 @@ hero / equipment shot), so the layout never breaks.
 
 | Filename | Where it appears | Notes |
 |---|---|---|
-| `logo.png` | Header and footer brand mark | Hex badge, transparent or cream background |
-| `hero.jpg` | Full-bleed homepage hero | Wide, dramatic; portrait subjects render fine because of the dark overlay |
-| `atv.jpg` | Equipment / "Four Kawasakis" section | Single hero shot of the fleet |
+| `Logo.jpg` | Header and footer brand mark | Hex badge |
+| `adam.webp` | Full-bleed homepage hero | Mountain-top thumbs-up shot; the dark overlay keeps the headline readable |
+| `ATV.webp` | Equipment / "Four Kawasakis" section | BruteForce 450 close-up |
 
-JPG / PNG / WebP all fine. Aim for under ~300KB per image for fast loads.
+Filenames are case-sensitive on Netlify (Linux), so if you replace one,
+keep the same casing or update the references in `public/index.html`,
+`booking.html`, `payment.html`. Aim for under ~300KB per image for fast loads.
