@@ -23,6 +23,46 @@
   if (el) el.textContent = new Date().getFullYear();
 })();
 
+// Embed mode: when this page loads inside the WordPress (or any external)
+// embed.js iframe, hide the site chrome and post our content height to the
+// parent so the host iframe can auto-resize.
+(function embedMode() {
+  const isEmbed =
+    new URLSearchParams(location.search).get("embed") === "1" ||
+    (window.parent && window.parent !== window);
+  if (!isEmbed) return;
+
+  document.documentElement.classList.add("sar-embedded");
+
+  const post = () => {
+    try {
+      const h = Math.max(
+        document.documentElement.scrollHeight,
+        document.body ? document.body.scrollHeight : 0
+      );
+      window.parent.postMessage({ type: "sar-resize", height: h }, "*");
+    } catch (e) { /* same-origin guard */ }
+  };
+
+  // Initial + on every layout-affecting event we can observe.
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", post);
+  } else {
+    post();
+  }
+  window.addEventListener("load", post);
+  window.addEventListener("resize", post);
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(post);
+    if (document.body) ro.observe(document.body);
+    else document.addEventListener("DOMContentLoaded", () => ro.observe(document.body));
+  }
+  // Also re-emit periodically for the first few seconds while async assets
+  // (fonts, the catalog grid) settle.
+  let n = 0;
+  const tick = setInterval(() => { post(); if (++n > 10) clearInterval(tick); }, 300);
+})();
+
 // Brand logo: if the image fails to load (file missing in deploy), add
 // .no-logo to the surrounding .brand link so the text-mark fallback shows.
 (function brandLogo() {

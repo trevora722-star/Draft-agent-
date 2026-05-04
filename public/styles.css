@@ -525,3 +525,12 @@ a:hover { text-decoration: underline; }
 .contact-panel h2 { margin: 0 0 16px; font-size: 22px; }
 /* Honeypot — hidden from real users, visible to bots */
 .hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+/* Embed mode — when /booking.html is rendered inside the WordPress embed
+   iframe, hide our site header / footer / floating chat and snug up the
+   page padding. (The host WordPress page provides its own nav and chat.) */
+.sar-embedded body, html.sar-embedded body { background: #fbfaf6; }
+html.sar-embedded .site-header,
+html.sar-embedded .site-footer,
+html.sar-embedded .chat-widget { display: none !important; }
+html.sar-embedded .page-shell { padding-top: 28px; padding-bottom: 40px; }
