@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Services — Squamish Adventure Rentals</title>
+<meta name="description" content="What we offer at Squamish Adventure Rentals: flexible rental options, included safety gear, and local trail expertise." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bebas+Neue&display=swap" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container nav">
+    <a href="/" class="brand">
+      <img src="/images/Logo.jpg" alt="Squamish Adventure Rentals" class="brand-logo" />
+      <span class="brand-fallback" aria-hidden="true">
+        <span class="brand-mark">▲</span>
+        <span class="brand-text">Squamish<br/><em>Adventure Rentals</em></span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="/about.html">About</a>
+      <a href="/services.html" aria-current="page">Services</a>
+      <a href="/contact.html">Contact</a>
+      <a class="btn btn-primary" href="/booking.html">Book Your Ride</a>
+    </nav>
+  </div>
+</header>
+
+<section class="page-hero">
+  <div class="container">
+    <p class="eyebrow">Services</p>
+    <h1>What We Offer</h1>
+    <p class="page-hero-lede">
+      We make it easy to get out into nature with top-quality ATVs, local
+      knowledge, and flexible rental options.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="features-grid">
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">🕒</div>
+        <h3>Flexible Rental Options</h3>
+        <p>
+          Whether you want to rip around for a couple of hours, a full day, or
+          need a machine for a multi-week hunting trip, we can accommodate your
+          needs. We've got rental options to suit your schedule.
+        </p>
+      </article>
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">🪖</div>
+        <h3>We're All In</h3>
+        <p>
+          Our rentals include everything you need from safety gear to riding
+          instructions. Helmets, goggles, and gloves are included in
+          <strong>every</strong> rental.
+        </p>
+      </article>
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">🗺</div>
+        <h3>Local Trail Expertise</h3>
+        <p>
+          We're not just a rental shop — we're locals who know the terrain.
+          We'll point you toward the best routes based on what kind of ride
+          you're after: scenic, fast, technical, or all of the above.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section section-alt">
+  <div class="container cta-block">
+    <h2>Ready to Ride?</h2>
+    <a class="btn btn-primary btn-lg" href="/booking.html">Book Now</a>
+  </div>
+</section>
+
+<footer id="contact" class="site-footer">
+  <div class="container footer-grid-3">
+    <div>
+      <div class="brand brand-light">
+        <img src="/images/Logo.jpg" alt="Squamish Adventure Rentals" class="brand-logo brand-logo-footer" />
+        <span class="brand-fallback" aria-hidden="true">
+          <span class="brand-mark">▲</span>
+          <span class="brand-text">Squamish<br/><em>Adventure Rentals</em></span>
+        </span>
+      </div>
+      <p class="footer-blurb">Premium ATV rentals in Squamish, BC.</p>
+    </div>
+    <div>
+      <h4>Contact</h4>
+      <p class="footer-contact">
+        <a href="tel:18886827545">1-888-682-7545</a><br/>
+        <a href="mailto:info@squamishadventurerentals.com">info@squamishadventurerentals.com</a>
+      </p>
+      <h4>Follow along</h4>
+      <p class="footer-contact"><a href="#" rel="noopener">Instagram</a></p>
+    </div>
+    <div>
+      <h4>Services</h4>
+      <ul class="footer-list">
+        <li><a href="/services.html">ATV Rentals</a></li>
+        <li><a href="/booking.html?sku=guided-full">Guided ATV Tours</a></li>
+        <li><a href="/booking.html?sku=self-full">Self-Guided ATV Rentals</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="container footer-fine">
+    <span>© <span id="year"></span> Squamish Adventure Rentals.</span>
+    <span>Respectfully operating on the traditional, unceded territories of the Sḵwx̱wú7mesh (Squamish) Nation.</span>
+  </div>
+</footer>
+
+<!-- Chat agent widget -->
+<div id="sa-chat" class="chat-widget" aria-live="polite">
+  <button id="sa-chat-toggle" class="chat-toggle" aria-label="Open chat">💬<span>Ask us</span></button>
+  <div id="sa-chat-panel" class="chat-panel" hidden>
+    <header class="chat-head">
+      <strong>Ask Adam (concierge)</strong>
+      <button id="sa-chat-close" aria-label="Close chat">×</button>
+    </header>
+    <div id="sa-chat-log" class="chat-log"></div>
+    <form id="sa-chat-form" class="chat-form">
+      <input id="sa-chat-input" type="text" autocomplete="off" placeholder="Ask about gear, trails, the wind…" required />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+</div>
+
+<script src="/catalog.js"></script>
+<script src="/site.js"></script>
+</body>
+</html>

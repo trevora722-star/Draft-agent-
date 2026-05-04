@@ -106,6 +106,16 @@
     if (ev.key === "Escape" && !panel.hidden) shut();
   });
 
+  // Any button with class .js-open-chat opens the panel — used by the
+  // "Let's Chat" CTA on the homepage.
+  document.querySelectorAll(".js-open-chat").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      if (panel.hidden) open();
+      btn.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  });
+
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const text = input.value.trim();

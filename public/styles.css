@@ -449,3 +449,79 @@ a:hover { text-decoration: underline; }
   background: var(--forest); color: #fff; border: 0; border-radius: 999px;
   padding: 0 16px; cursor: pointer; font-weight: 600;
 }
+
+/* ---- New homepage / about / services / contact styles ---- */
+
+.hero-compact .hero-inner { padding: 64px 24px 64px; }
+.hero-centered { text-align: center; max-width: 880px; margin: 0 auto; }
+.hero-centered h1 { letter-spacing: .02em; }
+.hero-centered .kicker { margin-top: 18px; margin-bottom: 24px; }
+.hero-centered .hero-cta { justify-content: center; }
+
+.text-center { text-align: center; }
+.text-center .eyebrow { color: var(--moss); }
+
+.lede-dark { font-size: 18px; line-height: 1.65; color: var(--ink-soft); margin: 0 0 16px; }
+.tagline { font-weight: 600; color: var(--forest-deep); margin: 22px 0 26px; font-size: 17px; }
+.cta-row { display: flex; justify-content: center; gap: 12px; margin-bottom: 22px; }
+.rating-line { color: var(--ink-soft); font-size: 15px; margin: 0; }
+.rating-line .stars { color: var(--sun); margin-right: 6px; letter-spacing: .04em; }
+
+.section-head-center { text-align: center; margin-left: auto; margin-right: auto; }
+
+/* Reviews grid */
+.reviews-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px;
+}
+@media (max-width: 880px) { .reviews-grid { grid-template-columns: 1fr; } }
+.review-card {
+  background: #fff; border: 1px solid var(--line); border-radius: 14px;
+  padding: 24px 24px 20px; display: flex; flex-direction: column; gap: 10px;
+}
+.review-card .stars { color: var(--sun); letter-spacing: .04em; font-size: 16px; }
+.review-card p { margin: 0; color: var(--ink); font-size: 15px; line-height: 1.55; }
+.review-author { color: var(--ink-soft); font-weight: 600; font-size: 14px; margin-top: auto; padding-top: 6px; }
+
+/* Centered CTA block ("Need Help Planning?", "Ready to Ride?") */
+.cta-block { text-align: center; max-width: 720px; margin: 0 auto; }
+.cta-block h2 { font-family: 'Bebas Neue', sans-serif; font-size: clamp(34px, 4.6vw, 50px); margin: 0 0 12px; letter-spacing: .02em; font-weight: 400; }
+.cta-block p { color: var(--ink-soft); font-size: 17px; margin: 0 0 22px; }
+
+/* Inner-page hero (about / services / contact) */
+.page-hero {
+  padding: 72px 0 32px;
+  background:
+    radial-gradient(1100px 400px at 80% 0%, rgba(31,77,63,.10), transparent 60%),
+    linear-gradient(180deg, #fbfaf6 0%, #f3efe5 100%);
+  border-bottom: 1px solid var(--line);
+}
+.page-hero h1 {
+  font-family: 'Bebas Neue', sans-serif; font-size: clamp(40px, 6vw, 68px);
+  margin: 6px 0 12px; letter-spacing: .02em; font-weight: 400;
+}
+.page-hero-lede { color: var(--ink-soft); font-size: 18px; max-width: 680px; margin: 0; }
+
+/* Services features grid */
+.features-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px;
+}
+@media (max-width: 880px) { .features-grid { grid-template-columns: 1fr; } }
+.feature {
+  background: #fff; border: 1px solid var(--line); border-radius: 14px;
+  padding: 28px 26px;
+}
+.feature-icon { font-size: 32px; margin-bottom: 12px; }
+.feature h3 { margin: 0 0 8px; font-size: 19px; }
+.feature p { margin: 0; color: var(--ink-soft); font-size: 15px; line-height: 1.6; }
+
+/* Contact page layout */
+.contact-layout {
+  display: grid; grid-template-columns: .8fr 1.2fr; gap: 32px; align-items: start;
+}
+@media (max-width: 760px) { .contact-layout { grid-template-columns: 1fr; } }
+.contact-side h3 { margin: 0 0 12px; font-size: 16px; letter-spacing: .04em; text-transform: uppercase; color: var(--moss); }
+.contact-side p { margin: 0 0 6px; }
+.contact-side a { color: var(--forest-deep); font-weight: 600; }
+.contact-panel h2 { margin: 0 0 16px; font-size: 22px; }
+/* Honeypot — hidden from real users, visible to bots */
+.hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
