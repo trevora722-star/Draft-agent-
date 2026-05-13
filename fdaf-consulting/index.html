@@ -356,6 +356,150 @@
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0,0,0,0); border: 0;
   }
+
+  /* ---------- chat widget ---------- */
+  .chat-launcher {
+    position: fixed; bottom: 24px; right: 24px; z-index: 100;
+    background: var(--coral); color: #fff;
+    border: 0; border-radius: 999px;
+    padding: 14px 22px 14px 18px;
+    font: 500 1rem 'Inter', sans-serif;
+    display: inline-flex; align-items: center; gap: 10px;
+    box-shadow: 0 12px 32px rgba(217,104,74,.45);
+    cursor: pointer;
+    transition: transform .15s ease, background .15s ease;
+  }
+  .chat-launcher:hover { background: var(--coral-2); transform: translateY(-2px); }
+  .chat-launcher .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #fff;
+    box-shadow: 0 0 0 4px rgba(255,255,255,.3);
+  }
+  .chat-launcher.hidden { display: none; }
+
+  .chat-panel {
+    position: fixed; bottom: 24px; right: 24px; z-index: 100;
+    width: min(380px, calc(100vw - 32px));
+    height: min(580px, calc(100vh - 48px));
+    background: var(--paper);
+    border-radius: 22px;
+    box-shadow: 0 30px 80px rgba(22,36,29,.25);
+    display: none; flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .chat-panel.open { display: flex; }
+  .chat-head {
+    background: var(--moss); color: var(--paper);
+    padding: 18px 20px;
+    display: flex; align-items: center; gap: 12px;
+    flex-shrink: 0;
+  }
+  .chat-avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: var(--coral); color: #fff;
+    display: grid; place-items: center;
+    font: 600 1rem 'Fraunces', serif;
+    flex-shrink: 0;
+  }
+  .chat-title { flex: 1; }
+  .chat-title strong {
+    display: block; font-family: 'Fraunces', serif; font-weight: 500; font-size: 1.05rem;
+  }
+  .chat-title span { font-size: .78rem; color: rgba(246,241,231,.75); }
+  .chat-status::before {
+    content: ""; display: inline-block;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #6ed79a; margin-right: 6px; vertical-align: middle;
+  }
+  .chat-close {
+    background: rgba(246,241,231,.12); border: 0; color: var(--paper);
+    width: 32px; height: 32px; border-radius: 50%;
+    font-size: 1.1rem; cursor: pointer;
+  }
+  .chat-close:hover { background: rgba(246,241,231,.22); }
+
+  .chat-log {
+    flex: 1; overflow-y: auto;
+    padding: 18px 18px 6px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .msg {
+    max-width: 85%; padding: 10px 14px;
+    border-radius: 16px;
+    font-size: .94rem; line-height: 1.45;
+    white-space: pre-wrap; word-wrap: break-word;
+  }
+  .msg.bot {
+    background: #fff; border: 1px solid var(--line);
+    border-bottom-left-radius: 4px;
+    align-self: flex-start; color: var(--ink);
+  }
+  .msg.user {
+    background: var(--moss); color: var(--paper);
+    border-bottom-right-radius: 4px;
+    align-self: flex-end;
+  }
+  .msg.typing { display: inline-flex; gap: 4px; align-items: center; padding: 14px; }
+  .msg.typing span {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--ink-soft);
+    animation: bounce 1.2s infinite ease-in-out;
+  }
+  .msg.typing span:nth-child(2) { animation-delay: .15s; }
+  .msg.typing span:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: .4; }
+    40% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  .chat-suggest {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 0 18px 8px;
+  }
+  .chat-suggest button {
+    background: #fff; border: 1px solid var(--line);
+    border-radius: 999px; padding: 6px 12px;
+    font: 400 .82rem 'Inter', sans-serif;
+    color: var(--moss); cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .chat-suggest button:hover { background: var(--paper-2); border-color: var(--moss); }
+
+  .chat-input {
+    border-top: 1px solid var(--line);
+    background: #fff;
+    padding: 10px;
+    display: flex; gap: 8px; flex-shrink: 0;
+  }
+  .chat-input textarea {
+    flex: 1; border: 0; resize: none;
+    padding: 10px 12px;
+    font: inherit; color: var(--ink);
+    background: transparent;
+    max-height: 100px; min-height: 22px;
+    outline: none;
+  }
+  .chat-send {
+    background: var(--coral); color: #fff; border: 0;
+    width: 40px; height: 40px; border-radius: 50%;
+    font-size: 1.05rem; cursor: pointer;
+    transition: background .15s; flex-shrink: 0;
+    display: grid; place-items: center;
+  }
+  .chat-send:hover:not(:disabled) { background: var(--coral-2); }
+  .chat-send:disabled { background: var(--ink-soft); cursor: not-allowed; opacity: .6; }
+  .chat-foot {
+    text-align: center; font-size: .72rem; color: var(--ink-soft);
+    padding: 6px 0 8px;
+  }
+
+  @media (max-width: 480px) {
+    .chat-panel {
+      bottom: 0; right: 0;
+      width: 100vw; height: 100vh;
+      border-radius: 0;
+    }
+    .chat-launcher { bottom: 16px; right: 16px; }
+  }
 </style>
 </head>
 <body>
@@ -648,6 +792,35 @@
 
 </main>
 
+<!-- CHAT WIDGET -->
+<button class="chat-launcher" id="chatLauncher" aria-label="Open chat">
+  <span class="dot" aria-hidden="true"></span>
+  Chat with us
+</button>
+
+<aside class="chat-panel" id="chatPanel" role="dialog" aria-label="Chat with FDAF Consulting" aria-hidden="true">
+  <header class="chat-head">
+    <div class="chat-avatar" aria-hidden="true">F</div>
+    <div class="chat-title">
+      <strong>FDAF Consulting</strong>
+      <span class="chat-status">Usually replies in a few minutes</span>
+    </div>
+    <button class="chat-close" id="chatClose" aria-label="Close chat">✕</button>
+  </header>
+  <div class="chat-log" id="chatLog" role="log" aria-live="polite"></div>
+  <div class="chat-suggest" id="chatSuggest">
+    <button data-q="What areas do you serve?">Service area</button>
+    <button data-q="How much does a couples session cost?">Pricing</button>
+    <button data-q="I want to book a free consult.">Book consult</button>
+  </div>
+  <form class="chat-input" id="chatForm">
+    <label class="sr-only" for="chatText">Your message</label>
+    <textarea id="chatText" rows="1" placeholder="Type a message…" autocomplete="off"></textarea>
+    <button class="chat-send" id="chatSend" type="submit" aria-label="Send">→</button>
+  </form>
+  <div class="chat-foot">Powered by AI · For booking confirmations, the trainer follows up by email.</div>
+</aside>
+
 <footer>
   <div class="wrap">
     <div class="brand">
@@ -674,6 +847,129 @@
 
   // Year
   document.getElementById('yr').textContent = new Date().getFullYear();
+
+  // ---------- Chat widget ----------
+  (function () {
+    const launcher = document.getElementById('chatLauncher');
+    const panel    = document.getElementById('chatPanel');
+    const closeBtn = document.getElementById('chatClose');
+    const log      = document.getElementById('chatLog');
+    const form     = document.getElementById('chatForm');
+    const input    = document.getElementById('chatText');
+    const sendBtn  = document.getElementById('chatSend');
+    const suggest  = document.getElementById('chatSuggest');
+
+    // Override at deploy time if the chat lives on a different host.
+    const CHAT_ENDPOINT = window.FDAF_CHAT_ENDPOINT || '/api/chat';
+
+    const history = []; // [{role, content}, ...]
+    let busy = false;
+    let opened = false;
+
+    function open() {
+      panel.classList.add('open');
+      panel.setAttribute('aria-hidden', 'false');
+      launcher.classList.add('hidden');
+      setTimeout(() => input.focus(), 50);
+      if (!opened) {
+        opened = true;
+        addMsg('bot',
+          "Hi! I'm the FDAF Consulting assistant. I can answer questions about " +
+          "in-home training for couples and small groups in the Central Okanagan, " +
+          "or help you book a free 20-minute consult. What can I help with?");
+      }
+    }
+    function close() {
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+      launcher.classList.remove('hidden');
+    }
+
+    function addMsg(role, text) {
+      const el = document.createElement('div');
+      el.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+      el.textContent = text;
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+      return el;
+    }
+    function showTyping() {
+      const el = document.createElement('div');
+      el.className = 'msg bot typing';
+      el.innerHTML = '<span></span><span></span><span></span>';
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+      return el;
+    }
+
+    async function send(text) {
+      if (!text || busy) return;
+      busy = true;
+      sendBtn.disabled = true;
+
+      addMsg('user', text);
+      history.push({ role: 'user', content: text });
+      input.value = '';
+      input.style.height = 'auto';
+      suggest.style.display = 'none';
+
+      const typing = showTyping();
+      try {
+        const resp = await fetch(CHAT_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: history })
+        });
+        const data = await resp.json().catch(() => ({}));
+        typing.remove();
+        if (!resp.ok) {
+          addMsg('bot',
+            "Sorry — I'm having trouble connecting right now. " +
+            "Please email hello@fdafconsulting.ca or call (250) 000-0000.");
+        } else {
+          const reply = (data.reply || '').trim() ||
+            "I didn't catch that — could you say it another way?";
+          addMsg('bot', reply);
+          history.push({ role: 'assistant', content: reply });
+        }
+      } catch (e) {
+        typing.remove();
+        addMsg('bot',
+          "Network issue — can't reach the chat right now. " +
+          "Try the contact form below, or email hello@fdafconsulting.ca.");
+      } finally {
+        busy = false;
+        sendBtn.disabled = false;
+        input.focus();
+      }
+    }
+
+    launcher.addEventListener('click', open);
+    closeBtn.addEventListener('click', close);
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (text) send(text);
+    });
+
+    // Enter to send, Shift+Enter for newline, autoresize.
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        form.requestSubmit();
+      }
+    });
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+    });
+
+    suggest.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-q]');
+      if (btn) send(btn.dataset.q);
+    });
+  })();
 </script>
 
 </body>

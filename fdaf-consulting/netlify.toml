@@ -1,0 +1,26 @@
+# Netlify config for the FDAF Consulting website.
+#
+# Deploy steps:
+#   1. Push this branch to GitHub.
+#   2. In Netlify: Add new site → Import existing project → pick the repo.
+#   3. In Site settings → Build & deploy → set Base directory to
+#      `fdaf-consulting` (this folder).
+#   4. In Site settings → Environment variables, add ANTHROPIC_API_KEY.
+#   5. Trigger a deploy.
+#
+# The static site is `index.html`. The /api/chat endpoint is a Python
+# Netlify Function backed by Claude Haiku 4.5 (chosen so a chat turn fits
+# inside the 10s sync function timeout).
+
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[functions."chat"]
+  timeout = 10
+
+[[redirects]]
+  from = "/api/chat"
+  to = "/.netlify/functions/chat"
+  status = 200
+  force = true

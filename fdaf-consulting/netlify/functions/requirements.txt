@@ -1,0 +1,2 @@
+# Dependencies bundled with every FDAF Consulting Netlify Function.
+anthropic>=0.92.0
