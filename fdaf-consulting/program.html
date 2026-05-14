@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Program generator · FDAF Consulting</title>
+<meta name="theme-color" content="#1f3b2d" />
+<meta name="robots" content="noindex" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --ink: #16241d;
+    --ink-soft: #3a4a42;
+    --paper: #f6f1e7;
+    --paper-2: #efe6d2;
+    --moss: #1f3b2d;
+    --coral: #d9684a;
+    --coral-2: #c2553a;
+    --line: rgba(22,36,29,.14);
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: 'Inter', system-ui, sans-serif;
+    color: var(--ink); background: var(--paper); line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { width: min(880px, 92%); margin: 0 auto; }
+
+  .topbar {
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    padding: 18px 0;
+  }
+  .topbar-inner { display: flex; align-items: center; justify-content: space-between; }
+  .brand {
+    display: flex; align-items: center; gap: 12px;
+    font-family: 'Fraunces', serif; font-weight: 500; font-size: 1.15rem;
+    color: var(--ink); text-decoration: none;
+  }
+  .brand-mark {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--moss); color: var(--paper);
+    display: grid; place-items: center; font: 700 .9rem 'Fraunces', serif;
+  }
+  .back { color: var(--ink-soft); font-size: .9rem; text-decoration: none; }
+
+  header.hero { padding: 40px 0 24px; }
+  header.hero h1 {
+    font-family: 'Fraunces', serif; font-weight: 500;
+    font-size: clamp(1.8rem, 3.4vw, 2.4rem); margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  header.hero p { color: var(--ink-soft); margin: 0; }
+  header.hero .pill {
+    display: inline-block; margin-bottom: 16px;
+    font-size: .72rem; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--coral-2); font-weight: 700;
+    padding: 4px 10px; border: 1px solid var(--coral); border-radius: 999px;
+    background: rgba(217,104,74,.08);
+  }
+
+  form { padding-bottom: 28px; }
+  .group {
+    background: #fff; border: 1px solid var(--line); border-radius: 18px;
+    padding: 24px; margin-bottom: 18px;
+  }
+  label { font-size: .9rem; color: var(--ink-soft); display: block; margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  @media (max-width: 600px) { .row-2, .row-3 { grid-template-columns: 1fr; } }
+
+  input[type=text], input[type=number], select, textarea {
+    width: 100%; padding: 11px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: #fff;
+    font: inherit; color: var(--ink);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: 0; border-color: var(--moss);
+    box-shadow: 0 0 0 4px rgba(31,59,45,.1);
+  }
+  textarea { min-height: 70px; resize: vertical; }
+
+  .check-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+  }
+  @media (max-width: 600px) { .check-grid { grid-template-columns: 1fr; } }
+  .check-grid label {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border: 1px solid var(--line);
+    border-radius: 10px; cursor: pointer; margin: 0;
+    color: var(--ink); font-size: .88rem;
+  }
+  .check-grid input { accent-color: var(--moss); }
+
+  .actions {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  }
+  .btn {
+    background: var(--coral); color: #fff; border: 0;
+    padding: 13px 24px; border-radius: 999px;
+    font: 500 1rem 'Inter', sans-serif; cursor: pointer;
+    transition: background .15s, transform .15s;
+  }
+  .btn:hover:not(:disabled) { background: var(--coral-2); transform: translateY(-1px); }
+  .btn:disabled { opacity: .6; cursor: not-allowed; }
+  .btn-ghost {
+    background: transparent; color: var(--moss);
+    border: 1px solid var(--moss);
+  }
+  .btn-ghost:hover { background: var(--moss); color: var(--paper); }
+  .note { color: var(--ink-soft); font-size: .88rem; margin: 0; }
+
+  /* ----- result rendering ----- */
+  #result {
+    background: #fff; border: 1px solid var(--line); border-radius: 18px;
+    padding: 36px; margin: 0 0 40px; display: none;
+  }
+  #result h1 {
+    font-family: 'Fraunces', serif; font-weight: 500;
+    font-size: 1.8rem; margin: 0 0 6px; color: var(--moss);
+  }
+  #result h2 {
+    font-family: 'Fraunces', serif; font-weight: 500;
+    font-size: 1.3rem; margin: 28px 0 8px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--line);
+    color: var(--moss);
+  }
+  #result h3 {
+    font-family: 'Fraunces', serif; font-weight: 500;
+    font-size: 1.1rem; margin: 20px 0 6px; color: var(--ink);
+  }
+  #result p { margin: 0 0 12px; }
+  #result ul, #result ol { margin: 0 0 12px; padding-left: 22px; }
+  #result li { margin-bottom: 4px; }
+  #result strong { color: var(--moss); }
+  #result hr { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
+  #result .pill {
+    display: inline-block; font-size: .72rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--coral-2); font-weight: 700;
+    padding: 3px 9px; border: 1px solid var(--coral); border-radius: 999px;
+    background: rgba(217,104,74,.08); margin-bottom: 6px;
+  }
+
+  .result-bar {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+
+  @media print {
+    body { background: #fff; }
+    .topbar, form, .result-bar, .actions, .no-print { display: none !important; }
+    #result {
+      border: 0; padding: 0; margin: 0; display: block !important;
+      box-shadow: none;
+    }
+    @page { margin: 1in; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar no-print">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="/">
+      <span class="brand-mark">F</span>
+      <span>FDAF Consulting</span>
+    </a>
+    <a class="back" href="/">← Back to site</a>
+  </div>
+</div>
+
+<div class="wrap">
+  <header class="hero no-print">
+    <span class="pill">Trainer tools</span>
+    <h1>Workout program generator</h1>
+    <p>Fill this out, get a 4-week in-home program drafted by the FDAF agent. Review, tweak, print to PDF, hand to the client.</p>
+  </header>
+
+  <form id="programForm" class="no-print">
+    <div class="group">
+      <div class="row-2">
+        <div class="field">
+          <label for="client">Client name or initials</label>
+          <input id="client" name="client" type="text" placeholder="e.g. Sarah & Jake / S+J" required />
+        </div>
+        <div class="field">
+          <label for="frequency">Sessions per week</label>
+          <select id="frequency" name="frequency">
+            <option value="2">2× / week</option>
+            <option value="3" selected>3× / week</option>
+            <option value="4">4× / week</option>
+          </select>
+        </div>
+      </div>
+      <div class="row-3">
+        <div class="field">
+          <label for="level">Starting level</label>
+          <select id="level" name="level">
+            <option>Beginner</option>
+            <option selected>Returning beginner</option>
+            <option>Intermediate</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="session_len">Session length</label>
+          <select id="session_len" name="session_len">
+            <option value="30">30 min</option>
+            <option value="45" selected>45 min</option>
+            <option value="60">60 min</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="weeks">Duration</label>
+          <select id="weeks" name="weeks">
+            <option value="4" selected>4 weeks</option>
+            <option value="2">2 weeks</option>
+            <option value="6">6 weeks</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="goals">Primary goals</label>
+        <textarea id="goals" name="goals" required placeholder="e.g. Build strength after baby, reduce lower back pain, get used to lifting again."></textarea>
+      </div>
+      <div class="field">
+        <label for="injuries">Injuries / things to avoid</label>
+        <textarea id="injuries" name="injuries" placeholder="e.g. Avoid loaded spinal flexion. Right knee — no deep flexion under load."></textarea>
+      </div>
+      <div class="field">
+        <label>Equipment available</label>
+        <div class="check-grid">
+          <label><input type="checkbox" name="equipment" value="Dumbbells" checked /> Dumbbells</label>
+          <label><input type="checkbox" name="equipment" value="Kettlebell" /> Kettlebell</label>
+          <label><input type="checkbox" name="equipment" value="Resistance bands" checked /> Bands</label>
+          <label><input type="checkbox" name="equipment" value="Yoga mat" checked /> Mat</label>
+          <label><input type="checkbox" name="equipment" value="Bench/sturdy chair" /> Bench / chair</label>
+          <label><input type="checkbox" name="equipment" value="Pull-up bar" /> Pull-up bar</label>
+          <label><input type="checkbox" name="equipment" value="Sliders" /> Sliders</label>
+          <label><input type="checkbox" name="equipment" value="Stairs" /> Stairs</label>
+          <label><input type="checkbox" name="equipment" value="Bodyweight only" /> Bodyweight only</label>
+        </div>
+      </div>
+      <div class="field">
+        <label for="notes">Anything else for the agent?</label>
+        <textarea id="notes" name="notes" placeholder="e.g. Will train at home in a small living room. Prefers shorter sessions on Tues."></textarea>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn" id="programSubmit">Generate program</button>
+      <p class="note" id="programStatus">Takes about 10–15 seconds. The agent works hard.</p>
+    </div>
+  </form>
+
+  <article id="result"></article>
+  <div class="result-bar no-print" id="resultBar" style="display:none;">
+    <button type="button" class="btn" onclick="window.print()">Print / Save as PDF</button>
+    <button type="button" class="btn btn-ghost" id="copyBtn">Copy text</button>
+    <button type="button" class="btn btn-ghost" id="newBtn">Start over</button>
+  </div>
+</div>
+
+<script>
+  // Tiny markdown → HTML renderer (headings, bold, italic, lists, paragraphs, hr).
+  function renderMd(md) {
+    const lines = md.replace(/\r\n/g, '\n').split('\n');
+    const out = [];
+    let inList = null; // 'ul' | 'ol' | null
+    let para = [];
+
+    const flushPara = () => {
+      if (para.length) {
+        out.push('<p>' + inline(para.join(' ').trim()) + '</p>');
+        para = [];
+      }
+    };
+    const flushList = () => {
+      if (inList) { out.push('</' + inList + '>'); inList = null; }
+    };
+    const inline = (s) => s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/(?<!\w)\*(.+?)\*(?!\w)/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    for (const raw of lines) {
+      const line = raw.replace(/\s+$/, '');
+      if (!line.trim()) { flushPara(); flushList(); continue; }
+
+      let m;
+      if ((m = line.match(/^(#{1,3})\s+(.*)$/))) {
+        flushPara(); flushList();
+        const level = m[1].length;
+        out.push(`<h${level}>${inline(m[2])}</h${level}>`);
+        continue;
+      }
+      if (line.match(/^---+$/)) {
+        flushPara(); flushList();
+        out.push('<hr />');
+        continue;
+      }
+      if ((m = line.match(/^[-*]\s+(.*)$/))) {
+        flushPara();
+        if (inList !== 'ul') { flushList(); out.push('<ul>'); inList = 'ul'; }
+        out.push('<li>' + inline(m[1]) + '</li>');
+        continue;
+      }
+      if ((m = line.match(/^\d+\.\s+(.*)$/))) {
+        flushPara();
+        if (inList !== 'ol') { flushList(); out.push('<ol>'); inList = 'ol'; }
+        out.push('<li>' + inline(m[1]) + '</li>');
+        continue;
+      }
+      flushList();
+      para.push(line);
+    }
+    flushPara(); flushList();
+    return out.join('\n');
+  }
+
+  const form    = document.getElementById('programForm');
+  const btn     = document.getElementById('programSubmit');
+  const status  = document.getElementById('programStatus');
+  const result  = document.getElementById('result');
+  const bar     = document.getElementById('resultBar');
+  let lastMd = '';
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const fd = new FormData(form);
+    const payload = {
+      client:      (fd.get('client')      || '').toString().trim(),
+      frequency:   parseInt(fd.get('frequency'), 10) || 3,
+      level:       (fd.get('level')       || '').toString().trim(),
+      session_len: parseInt(fd.get('session_len'), 10) || 45,
+      weeks:       parseInt(fd.get('weeks'), 10) || 4,
+      goals:       (fd.get('goals')       || '').toString().trim(),
+      injuries:    (fd.get('injuries')    || '').toString().trim(),
+      equipment:   fd.getAll('equipment'),
+      notes:       (fd.get('notes')       || '').toString().trim(),
+    };
+
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+    status.textContent = 'The agent is drafting. Hang tight.';
+    result.style.display = 'none';
+    bar.style.display = 'none';
+
+    try {
+      const resp = await fetch('/api/program', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        status.textContent = data.error || 'Generation failed — try again, or shorten the request.';
+        btn.disabled = false;
+        btn.textContent = 'Generate program';
+        return;
+      }
+      lastMd = data.program || '';
+      result.innerHTML = renderMd(lastMd);
+      result.style.display = 'block';
+      bar.style.display = 'flex';
+      status.textContent = 'Done. Review, tweak, and print to PDF.';
+      btn.disabled = false;
+      btn.textContent = 'Regenerate';
+      result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (err) {
+      status.textContent = "Network issue — try again.";
+      btn.disabled = false;
+      btn.textContent = 'Generate program';
+    }
+  });
+
+  document.getElementById('copyBtn').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(lastMd);
+      const c = document.getElementById('copyBtn');
+      const orig = c.textContent;
+      c.textContent = 'Copied ✓';
+      setTimeout(() => c.textContent = orig, 1500);
+    } catch (_) {}
+  });
+
+  document.getElementById('newBtn').addEventListener('click', () => {
+    result.style.display = 'none';
+    bar.style.display = 'none';
+    form.reset();
+    status.textContent = 'Takes about 10–15 seconds. The agent works hard.';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+</script>
+
+</body>
+</html>

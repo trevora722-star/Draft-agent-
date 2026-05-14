@@ -719,6 +719,7 @@
         <span class="eyebrow">Get in touch</span>
         <h2>Book your free consult.</h2>
         <p>Tell me a bit about your group and what you're hoping to get out of training. I'll reply within one business day.</p>
+        <p style="margin-top: 14px;"><a href="/intake.html" style="color: var(--coral); font-weight: 500;">Or skip ahead and fill out the new-client intake →</a></p>
       </div>
 
       <div class="contact-grid">
@@ -734,7 +735,7 @@
             <div class="info-icon" aria-hidden="true">✉️</div>
             <div>
               <strong>Email</strong>
-              <span><a href="mailto:hello@fdafconsulting.ca">hello@fdafconsulting.ca</a></span>
+              <span><a href="mailto:fdafconsulting@gmail.com">fdafconsulting@gmail.com</a></span>
             </div>
           </div>
           <div class="info-row">
@@ -753,7 +754,7 @@
           </div>
         </div>
 
-        <form action="mailto:hello@fdafconsulting.ca" method="post" enctype="text/plain" novalidate>
+        <form id="leadForm" novalidate>
           <div class="row-2">
             <div>
               <label for="name">Your name</label>
@@ -783,8 +784,8 @@
             <label for="message">Tell me about your group & goals</label>
             <textarea id="message" name="message" placeholder="e.g. My partner and I want to train together twice a week before work. We both have stiff lower backs and haven't worked out in a year…"></textarea>
           </div>
-          <button type="submit" class="btn btn-primary" style="justify-self: start;">Send message</button>
-          <p class="form-note">Prefer to text? Reach out at (250) 000-0000.</p>
+          <button type="submit" class="btn btn-primary" id="leadSubmit" style="justify-self: start;">Send message</button>
+          <p class="form-note" id="leadStatus">Prefer to text? Reach out at (250) 000-0000.</p>
         </form>
       </div>
     </div>
@@ -925,7 +926,7 @@
         if (!resp.ok) {
           addMsg('bot',
             "Sorry — I'm having trouble connecting right now. " +
-            "Please email hello@fdafconsulting.ca or call (250) 000-0000.");
+            "Please email fdafconsulting@gmail.com or call (250) 000-0000.");
         } else {
           const reply = (data.reply || '').trim() ||
             "I didn't catch that — could you say it another way?";
@@ -936,7 +937,7 @@
         typing.remove();
         addMsg('bot',
           "Network issue — can't reach the chat right now. " +
-          "Try the contact form below, or email hello@fdafconsulting.ca.");
+          "Try the contact form below, or email fdafconsulting@gmail.com.");
       } finally {
         busy = false;
         sendBtn.disabled = false;
@@ -968,6 +969,66 @@
     suggest.addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-q]');
       if (btn) send(btn.dataset.q);
+    });
+  })();
+
+  // ---------- Contact form ----------
+  (function () {
+    const form   = document.getElementById('leadForm');
+    const btn    = document.getElementById('leadSubmit');
+    const status = document.getElementById('leadStatus');
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      const payload = {
+        name:    (fd.get('name')    || '').toString().trim(),
+        email:   (fd.get('email')   || '').toString().trim(),
+        phone:   (fd.get('phone')   || '').toString().trim(),
+        type:    (fd.get('type')    || '').toString().trim(),
+        message: (fd.get('message') || '').toString().trim(),
+      };
+      if (!payload.name || !payload.email || !payload.message) {
+        status.textContent = "Please fill in your name, email, and a short message.";
+        status.style.color = 'var(--coral-2)';
+        return;
+      }
+
+      btn.disabled = true;
+      const original = btn.textContent;
+      btn.textContent = 'Sending…';
+      status.style.color = 'var(--ink-soft)';
+      status.textContent = '';
+
+      try {
+        const resp = await fetch('/api/lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          status.textContent = data.error || "Couldn't send right now — please email fdafconsulting@gmail.com.";
+          status.style.color = 'var(--coral-2)';
+          btn.disabled = false;
+          btn.textContent = original;
+          return;
+        }
+        // Success: replace the form with a thank-you.
+        form.innerHTML =
+          '<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;text-align:center;">' +
+            '<div style="font-family:\\'Fraunces\\',serif;font-size:1.4rem;color:var(--moss);margin-bottom:6px;">Thanks!</div>' +
+            '<p style="color:var(--ink-soft);margin:0;">' +
+              (data.message || "Your message is in. She'll reply within one business day.") +
+            '</p>' +
+          '</div>';
+      } catch (err) {
+        status.textContent = "Network issue — please email fdafconsulting@gmail.com.";
+        status.style.color = 'var(--coral-2)';
+        btn.disabled = false;
+        btn.textContent = original;
+      }
     });
   })();
 </script>

@@ -1,26 +1,79 @@
-# Netlify config for the FDAF Consulting website.
+# Netlify config for the FDAF Consulting website + agents.
 #
 # Deploy steps:
 #   1. Push this branch to GitHub.
 #   2. In Netlify: Add new site → Import existing project → pick the repo.
 #   3. In Site settings → Build & deploy → set Base directory to
-#      `fdaf-consulting` (this folder).
+#      `fdaf-consulting`.
 #   4. In Site settings → Environment variables, add ANTHROPIC_API_KEY.
+#      (Optional) Add FDAF_WEBHOOK_URL or RESEND_API_KEY to receive lead
+#      and intake notifications. See README.md.
 #   5. Trigger a deploy.
 #
-# The static site is `index.html`. The /api/chat endpoint is a Python
-# Netlify Function backed by Claude Haiku 4.5 (chosen so a chat turn fits
-# inside the 10s sync function timeout).
+# Pages:
+#   /              → index.html      (public homepage with chat widget)
+#   /intake.html   → intake.html     (new-client intake form; noindex)
+#   /program.html  → program.html    (trainer's program generator; noindex)
+#   /social.html   → social.html     (trainer's social post drafter; noindex)
+#
+# Agents (Python Netlify Functions, all Claude Haiku 4.5):
+#   POST /api/chat    → chat.py     — site chatbot
+#   POST /api/lead    → lead.py     — drafts reply email from contact form
+#   POST /api/intake  → intake.py   — summarizes intake into one-page brief
+#   POST /api/program → program.py  — generates a 4-week in-home program
+#   POST /api/social  → social.py   — 3 social-post drafts
 
 [build]
   publish = "."
   functions = "netlify/functions"
 
+[functions]
+  # Default to 10s — the free-plan sync ceiling. Override per function if
+  # you upgrade to Pro and want to push longer programs.
+  node_bundler = "esbuild"
+
 [functions."chat"]
+  timeout = 10
+
+[functions."lead"]
+  timeout = 10
+
+[functions."intake"]
+  timeout = 12
+
+[functions."program"]
+  # Tight but feasible on Haiku 4.5 with the compact-output prompt.
+  timeout = 15
+
+[functions."social"]
   timeout = 10
 
 [[redirects]]
   from = "/api/chat"
   to = "/.netlify/functions/chat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/lead"
+  to = "/.netlify/functions/lead"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/intake"
+  to = "/.netlify/functions/intake"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/program"
+  to = "/.netlify/functions/program"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/social"
+  to = "/.netlify/functions/social"
   status = 200
   force = true

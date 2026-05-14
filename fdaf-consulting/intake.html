@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>New client intake · FDAF Consulting</title>
+<meta name="description" content="A quick (5-minute) health & goals intake so we can make your first session safe, smart, and tailored to you." />
+<meta name="theme-color" content="#1f3b2d" />
+<meta name="robots" content="noindex" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --ink: #16241d;
+    --ink-soft: #3a4a42;
+    --paper: #f6f1e7;
+    --paper-2: #efe6d2;
+    --moss: #1f3b2d;
+    --moss-2: #2e5742;
+    --coral: #d9684a;
+    --coral-2: #c2553a;
+    --line: rgba(22,36,29,.14);
+    --shadow: 0 20px 60px rgba(22,36,29,.12);
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: 'Inter', system-ui, sans-serif;
+    color: var(--ink); background: var(--paper); line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--moss); }
+  .wrap { width: min(720px, 92%); margin: 0 auto; }
+
+  .topbar {
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    padding: 18px 0;
+  }
+  .topbar-inner { display: flex; align-items: center; justify-content: space-between; }
+  .brand {
+    display: flex; align-items: center; gap: 12px;
+    font-family: 'Fraunces', serif; font-weight: 500; font-size: 1.15rem; color: var(--ink);
+    text-decoration: none;
+  }
+  .brand-mark {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--moss); color: var(--paper);
+    display: grid; place-items: center;
+    font: 700 .9rem 'Fraunces', serif;
+  }
+  .back { color: var(--ink-soft); font-size: .9rem; text-decoration: none; }
+
+  header.hero {
+    text-align: center; padding: 56px 0 32px;
+  }
+  header.hero h1 {
+    font-family: 'Fraunces', serif; font-weight: 500;
+    font-size: clamp(2rem, 4vw, 2.8rem); margin: 0 0 12px;
+    letter-spacing: -0.01em;
+  }
+  header.hero p { color: var(--ink-soft); max-width: 36em; margin: 0 auto; }
+  .est {
+    display: inline-block; margin-top: 16px;
+    font-size: .8rem; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--moss-2); font-weight: 600;
+    padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px;
+    background: rgba(255,255,255,.5);
+  }
+
+  form { padding-bottom: 64px; }
+  .group {
+    background: #fff; border: 1px solid var(--line); border-radius: 18px;
+    padding: 28px; margin-bottom: 18px;
+  }
+  .group h2 {
+    font-family: 'Fraunces', serif; font-weight: 500; font-size: 1.3rem;
+    margin: 0 0 4px; color: var(--moss);
+  }
+  .group .sub { color: var(--ink-soft); font-size: .92rem; margin: 0 0 20px; }
+
+  label { font-size: .9rem; color: var(--ink-soft); display: block; margin-bottom: 6px; }
+  label.req::after { content: " *"; color: var(--coral); }
+  .field { margin-bottom: 16px; }
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 520px) { .row-2 { grid-template-columns: 1fr; } }
+
+  input[type=text], input[type=email], input[type=tel], input[type=number],
+  select, textarea {
+    width: 100%; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: #fff;
+    font: inherit; color: var(--ink);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: 0; border-color: var(--moss);
+    box-shadow: 0 0 0 4px rgba(31,59,45,.1);
+  }
+  textarea { min-height: 90px; resize: vertical; }
+
+  .yesno {
+    display: flex; gap: 8px;
+  }
+  .yesno input { position: absolute; opacity: 0; }
+  .yesno label {
+    flex: 1; text-align: center; padding: 10px;
+    border: 1px solid var(--line); border-radius: 10px;
+    cursor: pointer; margin: 0; color: var(--ink);
+    transition: background .15s, border-color .15s;
+    font-weight: 500;
+  }
+  .yesno input:checked + label {
+    background: var(--moss); color: var(--paper); border-color: var(--moss);
+  }
+  .yesno input:focus-visible + label {
+    box-shadow: 0 0 0 4px rgba(31,59,45,.15);
+  }
+
+  .par-row {
+    display: grid; grid-template-columns: 1fr auto; gap: 16px;
+    padding: 14px 0; border-top: 1px solid var(--line);
+    align-items: center;
+  }
+  .par-row:first-of-type { border-top: 0; }
+  .par-row .q { font-size: .95rem; }
+  .par-row .yesno { width: 140px; }
+
+  .check-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  @media (max-width: 520px) { .check-grid { grid-template-columns: 1fr; } }
+  .check-grid label {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border: 1px solid var(--line);
+    border-radius: 10px; cursor: pointer;
+    color: var(--ink); margin: 0; font-size: .9rem;
+    transition: background .15s;
+  }
+  .check-grid label:hover { background: var(--paper-2); }
+  .check-grid input[type=checkbox] { accent-color: var(--moss); }
+
+  .submit-row {
+    background: var(--moss); color: var(--paper);
+    border-radius: 18px; padding: 28px;
+    text-align: center; margin-top: 24px;
+  }
+  .submit-row .note { color: rgba(246,241,231,.78); font-size: .9rem; margin: 12px 0 0; }
+  .btn {
+    background: var(--coral); color: #fff; border: 0;
+    padding: 14px 28px; border-radius: 999px;
+    font: 500 1rem 'Inter', sans-serif; cursor: pointer;
+    transition: background .15s, transform .15s;
+  }
+  .btn:hover:not(:disabled) { background: var(--coral-2); transform: translateY(-1px); }
+  .btn:disabled { opacity: .6; cursor: not-allowed; }
+
+  .thanks {
+    background: #fff; border: 1px solid var(--line); border-radius: 18px;
+    padding: 40px 28px; text-align: center;
+  }
+  .thanks h2 {
+    font-family: 'Fraunces', serif; font-weight: 500; color: var(--moss);
+    font-size: 2rem; margin: 0 0 12px;
+  }
+  .thanks p { color: var(--ink-soft); max-width: 32em; margin: 0 auto 8px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="/">
+      <span class="brand-mark">F</span>
+      <span>FDAF Consulting</span>
+    </a>
+    <a class="back" href="/">← Back to site</a>
+  </div>
+</div>
+
+<div class="wrap">
+  <header class="hero">
+    <h1>Welcome — let's plan your first session.</h1>
+    <p>
+      This intake helps me build a session that's safe, smart and actually fits
+      your body. Everything's confidential — answer honestly, and skip anything
+      that doesn't apply.
+    </p>
+    <span class="est">~5 minutes</span>
+  </header>
+
+  <form id="intakeForm" autocomplete="on">
+
+    <!-- ABOUT YOU -->
+    <fieldset class="group" style="border:0; padding:28px; margin:0 0 18px;">
+      <h2>About you</h2>
+      <p class="sub">The basics.</p>
+
+      <div class="row-2">
+        <div class="field">
+          <label class="req" for="name">Full name</label>
+          <input id="name" name="name" type="text" required autocomplete="name" />
+        </div>
+        <div class="field">
+          <label class="req" for="email">Email</label>
+          <input id="email" name="email" type="email" required autocomplete="email" />
+        </div>
+      </div>
+      <div class="row-2">
+        <div class="field">
+          <label for="phone">Phone</label>
+          <input id="phone" name="phone" type="tel" autocomplete="tel" />
+        </div>
+        <div class="field">
+          <label for="age">Age</label>
+          <input id="age" name="age" type="number" min="14" max="100" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="neighbourhood">Neighbourhood (so I can plan travel)</label>
+        <input id="neighbourhood" name="neighbourhood" type="text" placeholder="e.g. Glenrosa, Lakeview Heights, Peachland" />
+      </div>
+      <div class="field">
+        <label for="group">Who will be training in this group?</label>
+        <input id="group" name="group" type="text" placeholder="e.g. Me + my partner, or 4 friends from my hiking group" />
+      </div>
+    </fieldset>
+
+    <!-- HEALTH SCREENING (PAR-Q+) -->
+    <fieldset class="group" style="border:0; padding:28px; margin:0 0 18px;">
+      <h2>Health screening</h2>
+      <p class="sub">A "yes" doesn't disqualify you — it just helps me adapt.</p>
+
+      <div class="par-row">
+        <div class="q">Has a doctor ever told you that you have a heart condition or high blood pressure?</div>
+        <div class="yesno">
+          <input type="radio" id="par1_y" name="par_heart" value="yes" />
+          <label for="par1_y">Yes</label>
+          <input type="radio" id="par1_n" name="par_heart" value="no" checked />
+          <label for="par1_n">No</label>
+        </div>
+      </div>
+      <div class="par-row">
+        <div class="q">Do you ever feel chest pain, dizziness or shortness of breath with light activity?</div>
+        <div class="yesno">
+          <input type="radio" id="par2_y" name="par_chest" value="yes" />
+          <label for="par2_y">Yes</label>
+          <input type="radio" id="par2_n" name="par_chest" value="no" checked />
+          <label for="par2_n">No</label>
+        </div>
+      </div>
+      <div class="par-row">
+        <div class="q">Do you have a bone, joint or muscle problem that could be made worse by exercise?</div>
+        <div class="yesno">
+          <input type="radio" id="par3_y" name="par_joint" value="yes" />
+          <label for="par3_y">Yes</label>
+          <input type="radio" id="par3_n" name="par_joint" value="no" checked />
+          <label for="par3_n">No</label>
+        </div>
+      </div>
+      <div class="par-row">
+        <div class="q">Are you currently pregnant or postpartum (less than 12 months)?</div>
+        <div class="yesno">
+          <input type="radio" id="par4_y" name="par_preg" value="yes" />
+          <label for="par4_y">Yes</label>
+          <input type="radio" id="par4_n" name="par_preg" value="no" checked />
+          <label for="par4_n">No</label>
+        </div>
+      </div>
+      <div class="par-row">
+        <div class="q">Are you taking medication that affects exercise (blood pressure, heart, diabetes, etc.)?</div>
+        <div class="yesno">
+          <input type="radio" id="par5_y" name="par_meds" value="yes" />
+          <label for="par5_y">Yes</label>
+          <input type="radio" id="par5_n" name="par_meds" value="no" checked />
+          <label for="par5_n">No</label>
+        </div>
+      </div>
+      <div class="par-row">
+        <div class="q">Has a doctor said you should only do physical activity supervised by a professional?</div>
+        <div class="yesno">
+          <input type="radio" id="par6_y" name="par_supervised" value="yes" />
+          <label for="par6_y">Yes</label>
+          <input type="radio" id="par6_n" name="par_supervised" value="no" checked />
+          <label for="par6_n">No</label>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top: 20px;">
+        <label for="injuries">Any current pain, injuries, or things to avoid?</label>
+        <textarea id="injuries" name="injuries" placeholder="e.g. Stiff lower back, old ACL repair on right knee, shoulder clicks overhead."></textarea>
+      </div>
+      <div class="field">
+        <label for="meds">Medications or conditions I should know about</label>
+        <textarea id="meds" name="meds" placeholder="(Optional) e.g. high BP managed with medication, type 2 diabetes, anxiety."></textarea>
+      </div>
+    </fieldset>
+
+    <!-- HABITS & EXPERIENCE -->
+    <fieldset class="group" style="border:0; padding:28px; margin:0 0 18px;">
+      <h2>Where you're starting from</h2>
+      <p class="sub">Be honest — no judgement, just a better starting plan.</p>
+
+      <div class="field">
+        <label for="activity">Current activity level</label>
+        <select id="activity" name="activity">
+          <option>Sedentary — desk job, not much movement</option>
+          <option>Lightly active — walks, occasional weekend activity</option>
+          <option>Moderately active — workouts 2–3x/week</option>
+          <option>Very active — workouts 4+ times/week</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="history">Past training experience</label>
+        <textarea id="history" name="history" placeholder="e.g. Used to lift in my 20s, took a long break. Tried Pilates last year."></textarea>
+      </div>
+      <div class="row-2">
+        <div class="field">
+          <label for="sleep">Typical sleep / night</label>
+          <select id="sleep" name="sleep">
+            <option>Under 5 hrs</option>
+            <option>5–6 hrs</option>
+            <option>6–7 hrs</option>
+            <option>7–8 hrs</option>
+            <option>8+ hrs</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="stress">Current stress level</label>
+          <select id="stress" name="stress">
+            <option>Low</option>
+            <option>Moderate</option>
+            <option>High</option>
+            <option>Through the roof</option>
+          </select>
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- GOALS -->
+    <fieldset class="group" style="border:0; padding:28px; margin:0 0 18px;">
+      <h2>Your goals</h2>
+      <p class="sub">What you actually want out of this.</p>
+
+      <div class="field">
+        <label class="req" for="goals">Top 1–3 goals</label>
+        <textarea id="goals" name="goals" required placeholder="e.g. Be able to keep up on family hikes. Get stronger after baby #2. Lose 15 lbs without hating it."></textarea>
+      </div>
+      <div class="field">
+        <label for="success">If we hit it out of the park in 3 months, what does that look like?</label>
+        <textarea id="success" name="success" placeholder="e.g. We're both training twice a week without back pain. I can do 5 push-ups on my toes."></textarea>
+      </div>
+      <div class="field">
+        <label for="tried">What's worked or not worked for you before?</label>
+        <textarea id="tried" name="tried" placeholder="e.g. Group classes were too generic. F45 was fun but expensive. I never go to a gym alone."></textarea>
+      </div>
+    </fieldset>
+
+    <!-- LOGISTICS -->
+    <fieldset class="group" style="border:0; padding:28px; margin:0 0 18px;">
+      <h2>Logistics</h2>
+      <p class="sub">So I can show up with the right gear.</p>
+
+      <div class="field">
+        <label for="space">Training space at home</label>
+        <select id="space" name="space">
+          <option>Living room / open floor space</option>
+          <option>Garage</option>
+          <option>Backyard / patio / deck</option>
+          <option>Basement</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Equipment you already have (I'll bring the rest)</label>
+        <div class="check-grid">
+          <label><input type="checkbox" name="equipment" value="Dumbbells" /> Dumbbells</label>
+          <label><input type="checkbox" name="equipment" value="Kettlebells" /> Kettlebells</label>
+          <label><input type="checkbox" name="equipment" value="Resistance bands" /> Resistance bands</label>
+          <label><input type="checkbox" name="equipment" value="Yoga mat" /> Yoga mat</label>
+          <label><input type="checkbox" name="equipment" value="Bench" /> Bench</label>
+          <label><input type="checkbox" name="equipment" value="Pull-up bar" /> Pull-up bar</label>
+          <label><input type="checkbox" name="equipment" value="Cardio machine" /> Cardio machine</label>
+          <label><input type="checkbox" name="equipment" value="None / nothing yet" /> Nothing yet</label>
+        </div>
+      </div>
+      <div class="row-2">
+        <div class="field">
+          <label for="frequency">How often would you like to train together?</label>
+          <select id="frequency" name="frequency">
+            <option>Once a week</option>
+            <option>Twice a week</option>
+            <option>Three times a week</option>
+            <option>Not sure yet</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="times">Best times of day</label>
+          <input id="times" name="times" type="text" placeholder="e.g. Weekday mornings before 8, or evenings after 6" />
+        </div>
+      </div>
+    </fieldset>
+
+    <div class="submit-row">
+      <button type="submit" class="btn" id="intakeSubmit">Send my intake →</button>
+      <p class="note" id="intakeStatus">She'll review and follow up within one business day.</p>
+    </div>
+
+  </form>
+
+  <div class="thanks" id="intakeDone" style="display:none; margin-bottom: 60px;">
+    <h2>Got it. Thank you.</h2>
+    <p>Your intake is in. She'll review the details and follow up within one business day to lock in a first session.</p>
+    <p style="margin-top: 16px;"><a href="/">← Back to the homepage</a></p>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const form   = document.getElementById('intakeForm');
+    const btn    = document.getElementById('intakeSubmit');
+    const status = document.getElementById('intakeStatus');
+    const done   = document.getElementById('intakeDone');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const fd = new FormData(form);
+      const payload = {};
+      for (const [key, value] of fd.entries()) {
+        if (payload[key] === undefined) {
+          payload[key] = value;
+        } else {
+          payload[key] = [].concat(payload[key], value);
+        }
+      }
+
+      btn.disabled = true;
+      const original = btn.textContent;
+      btn.textContent = 'Sending…';
+      status.style.color = 'rgba(246,241,231,.78)';
+      status.textContent = 'Sending…';
+
+      try {
+        const resp = await fetch('/api/intake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          status.textContent = data.error || "Couldn't send — please email fdafconsulting@gmail.com.";
+          status.style.color = '#ffd2c4';
+          btn.disabled = false;
+          btn.textContent = original;
+          return;
+        }
+        form.style.display = 'none';
+        done.style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (err) {
+        status.textContent = "Network issue — please email fdafconsulting@gmail.com.";
+        status.style.color = '#ffd2c4';
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>

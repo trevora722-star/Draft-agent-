@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Social post drafter · FDAF Consulting</title>
+<meta name="theme-color" content="#1f3b2d" />
+<meta name="robots" content="noindex" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --ink: #16241d;
+    --ink-soft: #3a4a42;
+    --paper: #f6f1e7;
+    --paper-2: #efe6d2;
+    --moss: #1f3b2d;
+    --coral: #d9684a;
+    --coral-2: #c2553a;
+    --line: rgba(22,36,29,.14);
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: 'Inter', system-ui, sans-serif;
+    color: var(--ink); background: var(--paper); line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { width: min(820px, 92%); margin: 0 auto; }
+
+  .topbar {
+    background: var(--paper); border-bottom: 1px solid var(--line);
+    padding: 18px 0;
+  }
+  .topbar-inner { display: flex; align-items: center; justify-content: space-between; }
+  .brand {
+    display: flex; align-items: center; gap: 12px; text-decoration: none;
+    font-family: 'Fraunces', serif; font-weight: 500; font-size: 1.15rem; color: var(--ink);
+  }
+  .brand-mark {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--moss); color: var(--paper);
+    display: grid; place-items: center; font: 700 .9rem 'Fraunces', serif;
+  }
+  .back { color: var(--ink-soft); font-size: .9rem; text-decoration: none; }
+
+  header.hero { padding: 40px 0 24px; }
+  header.hero h1 {
+    font-family: 'Fraunces', serif; font-weight: 500;
+    font-size: clamp(1.8rem, 3.4vw, 2.4rem); margin: 0 0 8px;
+  }
+  header.hero p { color: var(--ink-soft); margin: 0; }
+  .pill {
+    display: inline-block; margin-bottom: 16px;
+    font-size: .72rem; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--coral-2); font-weight: 700;
+    padding: 4px 10px; border: 1px solid var(--coral); border-radius: 999px;
+    background: rgba(217,104,74,.08);
+  }
+
+  .group {
+    background: #fff; border: 1px solid var(--line); border-radius: 18px;
+    padding: 24px; margin-bottom: 18px;
+  }
+  label { font-size: .9rem; color: var(--ink-soft); display: block; margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 540px) { .row-2 { grid-template-columns: 1fr; } }
+
+  input[type=text], select, textarea {
+    width: 100%; padding: 11px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: #fff;
+    font: inherit; color: var(--ink);
+  }
+  textarea { min-height: 80px; resize: vertical; }
+  input:focus, select:focus, textarea:focus {
+    outline: 0; border-color: var(--moss);
+    box-shadow: 0 0 0 4px rgba(31,59,45,.1);
+  }
+
+  .actions {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    padding-bottom: 12px;
+  }
+  .btn {
+    background: var(--coral); color: #fff; border: 0;
+    padding: 13px 24px; border-radius: 999px;
+    font: 500 1rem 'Inter', sans-serif; cursor: pointer;
+    transition: background .15s, transform .15s;
+  }
+  .btn:hover:not(:disabled) { background: var(--coral-2); transform: translateY(-1px); }
+  .btn:disabled { opacity: .6; cursor: not-allowed; }
+  .note { color: var(--ink-soft); font-size: .88rem; margin: 0; }
+
+  .results { display: grid; gap: 14px; padding: 16px 0 40px; }
+  .post-card {
+    background: #fff; border: 1px solid var(--line); border-radius: 14px;
+    padding: 22px; position: relative;
+  }
+  .post-card h3 {
+    font-family: 'Fraunces', serif; font-weight: 500; font-size: 1.05rem;
+    margin: 0 0 10px; color: var(--moss);
+  }
+  .post-card .body {
+    white-space: pre-wrap; font-size: .96rem; color: var(--ink);
+    line-height: 1.55;
+  }
+  .post-card .copy {
+    position: absolute; top: 16px; right: 16px;
+    background: var(--paper-2); border: 0; color: var(--moss);
+    padding: 6px 12px; border-radius: 999px;
+    font: 500 .82rem 'Inter', sans-serif; cursor: pointer;
+  }
+  .post-card .copy:hover { background: var(--moss); color: var(--paper); }
+
+  .checklist {
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .checklist label {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border: 1px solid var(--line);
+    border-radius: 999px; cursor: pointer; margin: 0;
+    font-size: .85rem; color: var(--ink);
+  }
+  .checklist input { accent-color: var(--moss); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="/">
+      <span class="brand-mark">F</span>
+      <span>FDAF Consulting</span>
+    </a>
+    <a class="back" href="/">← Back to site</a>
+  </div>
+</div>
+
+<div class="wrap">
+  <header class="hero">
+    <span class="pill">Trainer tools</span>
+    <h1>Social post drafter</h1>
+    <p>Three drafts at a time in your voice — for Instagram, Facebook, or both. Tweak before posting.</p>
+  </header>
+
+  <form id="socialForm">
+    <div class="group">
+      <div class="row-2">
+        <div class="field">
+          <label for="platform">Platform</label>
+          <select id="platform" name="platform">
+            <option value="Instagram">Instagram</option>
+            <option value="Facebook">Facebook</option>
+            <option value="Both">Both</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="theme">Theme</label>
+          <select id="theme" name="theme">
+            <option>Educational tip</option>
+            <option>Behind-the-scenes</option>
+            <option>Client win (anonymized)</option>
+            <option>Seasonal / weather-tied</option>
+            <option>Community / Okanagan</option>
+            <option>Myth-busting</option>
+            <option>Promo / open spots</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="topic">What's the post about?</label>
+        <textarea id="topic" name="topic" required placeholder="e.g. Why couples training works even when partners are at totally different fitness levels."></textarea>
+      </div>
+      <div class="row-2">
+        <div class="field">
+          <label for="tone">Tone</label>
+          <select id="tone" name="tone">
+            <option>Warm + encouraging</option>
+            <option>Practical + no-nonsense</option>
+            <option>Playful</option>
+            <option>Reflective / personal</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="cta">Call to action</label>
+          <select id="cta" name="cta">
+            <option>Book a free consult</option>
+            <option>Comment with a question</option>
+            <option>DM "couples" / "group" / etc.</option>
+            <option>Tag a workout buddy</option>
+            <option>No CTA — just value</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Include</label>
+        <div class="checklist">
+          <label><input type="checkbox" name="include" value="hashtags" checked /> Hashtags</label>
+          <label><input type="checkbox" name="include" value="emoji" /> Light emoji</label>
+          <label><input type="checkbox" name="include" value="hook" checked /> Strong opening hook</label>
+          <label><input type="checkbox" name="include" value="local" checked /> West Kelowna / Okanagan mention</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn" id="socialSubmit">Draft 3 versions</button>
+      <p class="note" id="socialStatus">Cheap and fast. About 5–8 seconds.</p>
+    </div>
+  </form>
+
+  <div class="results" id="results"></div>
+</div>
+
+<script>
+  const form    = document.getElementById('socialForm');
+  const btn     = document.getElementById('socialSubmit');
+  const status  = document.getElementById('socialStatus');
+  const results = document.getElementById('results');
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function render(posts) {
+    results.innerHTML = '';
+    posts.forEach((post, i) => {
+      const card = document.createElement('div');
+      card.className = 'post-card';
+      card.innerHTML =
+        '<button class="copy" type="button">Copy</button>' +
+        '<h3>Version ' + (i + 1) + (post.label ? ' — ' + escapeHtml(post.label) : '') + '</h3>' +
+        '<div class="body">' + escapeHtml(post.text || '') + '</div>';
+      const copy = card.querySelector('.copy');
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(post.text || '');
+          copy.textContent = 'Copied ✓';
+          setTimeout(() => copy.textContent = 'Copy', 1500);
+        } catch (_) {}
+      });
+      results.appendChild(card);
+    });
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const payload = {
+      platform: (fd.get('platform') || 'Instagram').toString(),
+      theme:    (fd.get('theme')    || '').toString(),
+      topic:    (fd.get('topic')    || '').toString().trim(),
+      tone:     (fd.get('tone')     || '').toString(),
+      cta:      (fd.get('cta')      || '').toString(),
+      include:  fd.getAll('include'),
+    };
+    if (!payload.topic) {
+      status.textContent = "Give it a topic first.";
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Drafting…';
+    status.textContent = 'Drafting three versions…';
+    results.innerHTML = '';
+
+    try {
+      const resp = await fetch('/api/social', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !Array.isArray(data.posts)) {
+        status.textContent = data.error || 'Drafting failed — try again.';
+        btn.disabled = false;
+        btn.textContent = 'Draft 3 versions';
+        return;
+      }
+      render(data.posts);
+      status.textContent = 'Done. Pick a favourite, tweak, post.';
+      btn.disabled = false;
+      btn.textContent = 'Re-draft';
+    } catch (err) {
+      status.textContent = 'Network issue — try again.';
+      btn.disabled = false;
+      btn.textContent = 'Draft 3 versions';
+    }
+  });
+</script>
+
+</body>
+</html>
