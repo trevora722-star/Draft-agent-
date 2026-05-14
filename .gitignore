@@ -13,3 +13,14 @@ data/
 *.egg-info/
 dist/
 build/
+
+# Node / QAgent
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+runs/
+screenshots/
+.playwright/
+playwright-report/
+test-results/

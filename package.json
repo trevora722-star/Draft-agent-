@@ -1,0 +1,33 @@
+{
+  "name": "qagent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "QAgent — automated QA pipeline: crawler, test battery, and intelligence/reporting layer powered by Claude.",
+  "type": "module",
+  "bin": {
+    "qagent": "./run.js"
+  },
+  "scripts": {
+    "start": "node run.js",
+    "crawl": "node run.js",
+    "intel": "node intelligence/run-intel.js",
+    "report": "node intelligence/report.js",
+    "fixtures:intel": "node intelligence/run-intel.js --findings test-fixtures/sample-findings.json --out runs/fixture",
+    "playwright:install": "playwright install chromium"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.40.0",
+    "@axe-core/playwright": "^4.10.0",
+    "commander": "^12.1.0",
+    "dotenv": "^16.6.1",
+    "lighthouse": "^12.2.0",
+    "p-limit": "^6.1.0",
+    "playwright": "^1.48.0",
+    "sharp": "^0.33.5",
+    "uuid": "^10.0.0",
+    "zod": "^3.25.76"
+  },
+  "engines": {
+    "node": ">=18.17"
+  }
+}

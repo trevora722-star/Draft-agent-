@@ -178,6 +178,105 @@ Tests do not call Anthropic. Agent tests monkey-patch `llm.complete()`
 so isolation, persona threading, PII rehydration, and namespace filtering
 are all verified offline.
 
+## QAgent (Node) — crawler + intelligence pipeline
+
+A separate Node tool that lives alongside the Python NPO platform: it crawls a
+web application, collects evidence (screenshots, console errors, failed
+requests, a11y/perf/security signals via the test battery), triages the raw
+findings into deduplicated bugs with calibrated severity, and renders a
+self-contained HTML report.
+
+```bash
+npm install
+npx playwright install chromium
+cp .env.example .env   # fill in ANTHROPIC_API_KEY
+node run.js https://example.com
+# → runs/<ts>/{inventory.json, findings.json, screenshots/, bugs.json, statistics.json, analysis.md, report.html}
+```
+
+### Crawler
+
+The crawler (`crawler/explorer.js`) does a BFS, same-origin, depth-limited
+traversal from the base URL. For each route it:
+
+1. Navigates and waits for `networkidle` plus SPA hydration probes.
+2. Captures HTTP status, page title, final URL after redirects.
+3. Takes a full-page screenshot at 1440×900 and writes it to `screenshots/`.
+4. Inventories interactive elements with stable selectors (id ➜ `data-testid`
+   ➜ `aria-label` ➜ CSS path with `nth-of-type` segments).
+5. Collects console errors and 4xx/5xx network failures during the visit.
+6. Emits one Finding per console error / failed request / route ≥ 400.
+
+`inventory.json` example entry:
+
+```json
+{
+  "url": "https://example.com/login",
+  "final_url": "https://example.com/login",
+  "status": 200,
+  "title": "Sign in — Example",
+  "screenshot_path": "screenshots/route-003-example_com_login.png",
+  "elements": [
+    { "kind": "input", "selector": "#email", "type": "email", "name": "email" },
+    { "kind": "input", "selector": "#password", "type": "password", "name": "password" },
+    { "kind": "button", "selector": "button[type=submit]", "text": "Sign in" },
+    { "kind": "link", "selector": "a[href='/forgot']", "text": "Forgot password?", "href": "https://example.com/forgot" }
+  ],
+  "errors": [],
+  "depth": 1,
+  "elapsed_ms": 842
+}
+```
+
+`findings.json` is the **shared contract** consumed by Session B (battery) and
+Session C (intelligence). Each entry is validated against the zod schema in
+`lib/schema.js`. Categories: `console_error`, `network_error`, `http_status`,
+`accessibility`, `performance`, `security`, `visual`, `content`,
+`form_validation`, `navigation`, `auth`, `seo`. Severities: `critical`,
+`high`, `medium`, `low`, `info`.
+
+### Auth
+
+```bash
+# HTTP basic
+node run.js https://staging.example.com --auth-mode basic --auth user:pass
+
+# Form login — detects email/password/submit, or pass explicit selectors
+node run.js https://app.example.com \
+  --auth-mode form \
+  --login-url https://app.example.com/login \
+  --auth alice@example.com:hunter2
+```
+
+### Intelligence + Report
+
+The intelligence pass runs automatically as part of `run.js`, but can be
+invoked stand-alone against any `findings.json`:
+
+```bash
+# Render against the bundled fixture (30+ varied findings)
+npm run fixtures:intel
+# → runs/fixture/{bugs.json, statistics.json, analysis.md, report.html}
+```
+
+Pipeline:
+
+1. **`intelligence/triage.js`** — exact-match dedup, then a Claude Opus pass
+   for semantic merges, then a per-cluster severity recalibration with
+   explicit reasoning and confidence. Outputs `bugs.json`.
+2. **`intelligence/statistics.js`** — deterministic stats: distributions by
+   severity / category / agent / route, top 10 selectors, Pearson `r` between
+   form complexity and bug count per route, and a category-by-route
+   co-occurrence matrix. Outputs `statistics.json`.
+3. **`intelligence/hypothesis.js`** — one high-effort Claude Opus call asks
+   for root-cause hypotheses, architectural inferences, risk-surface
+   analysis, prioritization, and a confidence statement. Outputs
+   `analysis.md`.
+4. **`intelligence/report.js`** — renders `report/template.html` (Tailwind via
+   CDN, Inter font, vanilla-SVG charts, vanilla-JS lightbox) with all data
+   inlined. The result is a single self-contained `report.html`. The URL
+   fragment `?bug=<id>` deep-links and auto-expands a specific bug.
+
 ## Production hardening checklist
 
 The MVP is small on purpose. Before serving real NPOs:

@@ -1,0 +1,541 @@
+[
+  {
+    "id": "f-0001",
+    "source_agent": "crawler",
+    "category": "console_error",
+    "raw_severity": "medium",
+    "url": "https://shop.example.com/",
+    "title": "Console error: Failed to load resource",
+    "description": "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT (https://www.google-analytics.com/collect)",
+    "evidence": {
+      "console_message": "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT",
+      "console_level": "error",
+      "screenshot_path": "screenshots/route-001-shop_example_com.png"
+    },
+    "detected_at": "2026-05-13T18:01:11.000Z",
+    "selector_pattern": null,
+    "tags": ["runtime"],
+    "metadata": {}
+  },
+  {
+    "id": "f-0002",
+    "source_agent": "crawler",
+    "category": "console_error",
+    "raw_severity": "medium",
+    "url": "https://shop.example.com/products",
+    "title": "Console error: Failed to load resource",
+    "description": "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT (https://www.google-analytics.com/collect)",
+    "evidence": {
+      "console_message": "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT",
+      "console_level": "error",
+      "screenshot_path": "screenshots/route-002-products.png"
+    },
+    "detected_at": "2026-05-13T18:01:13.000Z",
+    "tags": ["runtime"]
+  },
+  {
+    "id": "f-0003",
+    "source_agent": "crawler",
+    "category": "console_error",
+    "raw_severity": "high",
+    "url": "https://shop.example.com/cart",
+    "title": "Uncaught TypeError: Cannot read properties of undefined (reading 'price')",
+    "description": "TypeError: Cannot read properties of undefined (reading 'price') at CartTotal.render (cart.js:142:18)",
+    "evidence": {
+      "console_message": "TypeError: Cannot read properties of undefined (reading 'price')",
+      "stack": "at CartTotal.render (cart.js:142:18)\n  at Object.commitWork (react-dom.js:11843:23)",
+      "screenshot_path": "screenshots/route-005-cart.png"
+    },
+    "detected_at": "2026-05-13T18:01:30.000Z",
+    "selector_pattern": "#cart-total",
+    "tags": ["runtime", "uncaught"]
+  },
+  {
+    "id": "f-0004",
+    "source_agent": "crawler",
+    "category": "console_error",
+    "raw_severity": "high",
+    "url": "https://shop.example.com/checkout",
+    "title": "Uncaught TypeError: Cannot read properties of undefined (reading 'price')",
+    "description": "TypeError on checkout page when cart total recomputes after coupon application.",
+    "evidence": {
+      "console_message": "TypeError: Cannot read properties of undefined (reading 'price')",
+      "screenshot_path": "screenshots/route-006-checkout.png"
+    },
+    "detected_at": "2026-05-13T18:01:42.000Z",
+    "selector_pattern": "#cart-total",
+    "tags": ["runtime", "uncaught"]
+  },
+  {
+    "id": "f-0005",
+    "source_agent": "crawler",
+    "category": "network_error",
+    "raw_severity": "high",
+    "url": "https://shop.example.com/products",
+    "title": "Request failed: /api/recommendations",
+    "description": "Request to https://shop.example.com/api/recommendations failed: net::ERR_TIMED_OUT",
+    "evidence": {
+      "request_url": "https://shop.example.com/api/recommendations",
+      "status_code": null,
+      "method": "GET",
+      "screenshot_path": "screenshots/route-002-products.png"
+    },
+    "detected_at": "2026-05-13T18:01:14.000Z",
+    "tags": ["network"]
+  },
+  {
+    "id": "f-0006",
+    "source_agent": "crawler",
+    "category": "http_status",
+    "raw_severity": "high",
+    "url": "https://shop.example.com/api/inventory",
+    "title": "500 /api/inventory",
+    "description": "Request to https://shop.example.com/api/inventory returned 500",
+    "evidence": {
+      "request_url": "https://shop.example.com/api/inventory",
+      "status_code": 500,
+      "method": "GET",
+      "screenshot_path": "screenshots/route-002-products.png"
+    },
+    "detected_at": "2026-05-13T18:01:15.000Z",
+    "tags": ["network", "server-error"]
+  },
+  {
+    "id": "f-0007",
+    "source_agent": "crawler",
+    "category": "http_status",
+    "raw_severity": "medium",
+    "url": "https://shop.example.com/api/wishlist",
+    "title": "404 /api/wishlist",
+    "description": "Request to https://shop.example.com/api/wishlist returned 404",
+    "evidence": {
+      "request_url": "https://shop.example.com/api/wishlist",
+      "status_code": 404,
+      "method": "GET"
+    },
+    "detected_at": "2026-05-13T18:01:18.000Z",
+    "tags": ["network"]
+  },
+  {
+    "id": "f-0008",
+    "source_agent": "battery",
+    "category": "accessibility",
+    "raw_severity": "medium",
+    "url": "https://shop.example.com/",
+    "title": "axe: color-contrast violation on primary buttons",
+    "description": "Insufficient color contrast (3.4:1) between text and background on the primary CTA. WCAG 2.1 AA requires 4.5:1 for normal text.",
+    "evidence": {
+      "axe_rule": "color-contrast",
+      "selector": "button.cta-primary",
+      "screenshot_path": "screenshots/route-001-shop_example_com.png"
+    },
+    "detected_at": "2026-05-13T18:02:00.000Z",
+    "selector_pattern": "button.cta-primary",
+    "tags": ["a11y", "wcag-2.1-AA"]
+  },
+  {
+    "id": "f-0009",
+    "source_agent": "battery",
+    "category": "accessibility",
+    "raw_severity": "medium",
+    "url": "https://shop.example.com/products",
+    "title": "axe: color-contrast violation on primary buttons",
+    "description": "Same color-contrast violation present on product listing CTA.",
+    "evidence": {
+      "axe_rule": "color-contrast",
+      "selector": "button.cta-primary",
+      "screenshot_path": "screenshots/route-002-products.png"
+    },
+    "detected_at": "2026-05-13T18:02:02.000Z",
+    "selector_pattern": "button.cta-primary",
+    "tags": ["a11y", "wcag-2.1-AA"]
+  },
+  {
+    "id": "f-0010",
+    "source_agent": "battery",
+    "category": "accessibility",
+    "raw_severity": "medium",
+    "url": "https://shop.example.com/account",
+    "title": "axe: form labels missing for input fields",
+    "description": "Three input fields on the account settings form do not have associated <label> elements or aria-labels.",
+    "evidence": {
+      "axe_rule": "label",
+      "selector": "form#account-settings input",
+      "screenshot_path": "screenshots/route-010-account.png"
+    },
+    "detected_at": "2026-05-13T18:02:04.000Z",
+    "selector_pattern": "form#account-settings input",
+    "tags": ["a11y", "forms"]
+  },
+  {
+    "id": "f-0011",
+    "source_agent": "battery",
+    "category": "accessibility",
+    "raw_severity": "medium",
+    "url": "https://shop.example.com/account/billing",
+    "title": "axe: form labels missing for input fields",
+    "description": "Billing form has 5 unlabeled input fields including card number and CVV.",
+    "evidence": {
+      "axe_rule": "label",
+      "selector": "form#billing input",
+      "screenshot_path": "screenshots/route-011-billing.png"
+    },
+    "detected_at": "2026-05-13T18:02:06.000Z",
+    "selector_pattern": "form#billing input",
+    "tags": ["a11y", "forms", "payment"]
+  },
+  {
+    "id": "f-0012",
+    "source_agent": "battery",
+    "category": "accessibility",
+    "raw_severity": "low",
+    "url": "https://shop.example.com/account/billing",
+    "title": "axe: image-alt missing on hero banner",
+    "description": "Hero banner img element on billing page has no alt attribute.",
+    "evidence": {
+      "axe_rule": "image-alt",
+      "selector": "img.hero-banner"
+    },
+    "detected_at": "2026-05-13T18:02:08.000Z",
+    "selector_pattern": "img.hero-banner",
+    "tags": ["a11y"]
+  },
+  {
+    "id": "f-0013",
+    "source_agent": "battery",
+    "category": "performance",
+    "raw_severity": "high",
+    "url": "https://shop.example.com/products",
+    "title": "LCP exceeds budget (5.8s)",
+    "description": "Largest Contentful Paint measured at 5.8s on a throttled fast-3G profile. Budget: 2.5s.",
+    "evidence": {
+      "metric": "LCP",
+      "metric_value": 5800
+    },
+    "detected_at": "2026-05-13T18:03:01.000Z",
+    "tags": ["perf", "core-web-vitals"]
+  },
+  {
+    "id": "f-0014",
+    "source_agent": "battery",
+    "category": "performance",
+    "raw_severity": "medium",
+    "url": "https://shop.example.com/products",
+    "title": "Total JS payload 2.1MB exceeds budget",
+    "description": "JS transferred size 2.1MB; budget is 800KB.",
+    "evidence": {
+      "metric": "js_transfer_kb",
+      "metric_value": 2100
+    },
+    "detected_at": "2026-05-13T18:03:03.000Z",
+    "tags": ["perf"]
+  },
+  {
+    "id": "f-0015",
+    "source_agent": "battery",
+    "category": "performance",
+    "raw_severity": "medium",
+    "url": "https://shop.example.com/account",
+    "title": "CLS above threshold (0.31)",
+    "description": "Cumulative Layout Shift 0.31, above the 0.1 threshold; sidebar avatar loads late.",
+    "evidence": {
+      "metric": "CLS",
+      "metric_value": 0.31
+    },
+    "detected_at": "2026-05-13T18:03:05.000Z",
+    "tags": ["perf", "core-web-vitals"]
+  },
+  {
+    "id": "f-0016",
+    "source_agent": "battery",
+    "category": "security",
+    "raw_severity": "high",
+    "url": "https://shop.example.com/",
+    "title": "Missing Content-Security-Policy header",
+    "description": "Response did not include a Content-Security-Policy header.",
+    "evidence": {
+      "metric": "csp_present",
+      "metric_value": 0
+    },
+    "detected_at": "2026-05-13T18:04:00.000Z",
+    "tags": ["security", "headers"]
+  },
+  {
+    "id": "f-0017",
+    "source_agent": "battery",
+    "category": "security",
+    "raw_severity": "high",
+    "url": "https://shop.example.com/products",
+    "title": "Missing Content-Security-Policy header",
+    "description": "Response did not include a Content-Security-Policy header.",
+    "evidence": {
+      "metric": "csp_present",
+      "metric_value": 0
+    },
+    "detected_at": "2026-05-13T18:04:02.000Z",
+    "tags": ["security", "headers"]
+  },
+  {
+    "id": "f-0018",
+    "source_agent": "battery",
+    "category": "security",
+    "raw_severity": "high",
+    "url": "https://shop.example.com/account",
+    "title": "Missing Content-Security-Policy header",
+    "description": "Response did not include a Content-Security-Policy header on a post-login page.",
+    "evidence": {
+      "metric": "csp_present",
+      "metric_value": 0
+    },
+    "detected_at": "2026-05-13T18:04:04.000Z",
+    "tags": ["security", "headers", "post-login"]
+  },
+  {
+    "id": "f-0019",
+    "source_agent": "battery",
+    "category": "security",
+    "raw_severity": "medium",
+    "url": "https://shop.example.com/",
+    "title": "Missing X-Frame-Options / frame-ancestors",
+    "description": "No protection against clickjacking via iframe embedding.",
+    "evidence": {
+      "metric": "x_frame_options",
+      "metric_value": 0
+    },
+    "detected_at": "2026-05-13T18:04:08.000Z",
+    "tags": ["security", "headers"]
+  },
+  {
+    "id": "f-0020",
+    "source_agent": "battery",
+    "category": "security",
+    "raw_severity": "critical",
+    "url": "https://shop.example.com/search",
+    "title": "Reflected search query rendered without escaping",
+    "description": "The /search?q=<value> page renders the query string into the DOM without HTML-escaping. Combined with the missing CSP, this is exploitable as reflected XSS.",
+    "evidence": {
+      "snippet": "<h1>Results for: <%= req.query.q %></h1>",
+      "selector": "h1.search-heading",
+      "screenshot_path": "screenshots/route-007-search.png"
+    },
+    "detected_at": "2026-05-13T18:04:10.000Z",
+    "selector_pattern": "h1.search-heading",
+    "tags": ["security", "xss"]
+  },
+  {
+    "id": "f-0021",
+    "source_agent": "battery",
+    "category": "form_validation",
+    "raw_severity": "high",
+    "url": "https://shop.example.com/account/billing",
+    "title": "Billing form accepts an empty card number",
+    "description": "Submitting the billing form with empty card number passes the client-side gate and reaches /api/billing, which returns 500.",
+    "evidence": {
+      "selector": "form#billing",
+      "console_message": "POST /api/billing 500 (Internal Server Error)",
+      "screenshot_path": "screenshots/route-011-billing.png"
+    },
+    "detected_at": "2026-05-13T18:05:00.000Z",
+    "selector_pattern": "form#billing",
+    "tags": ["forms", "validation", "payment"]
+  },
+  {
+    "id": "f-0022",
+    "source_agent": "battery",
+    "category": "form_validation",
+    "raw_severity": "medium",
+    "url": "https://shop.example.com/contact",
+    "title": "Contact form accepts invalid email and reports success",
+    "description": "Pattern attribute is missing on the email input; the server stores the bogus address and returns 200.",
+    "evidence": {
+      "selector": "form#contact input[name=email]",
+      "screenshot_path": "screenshots/route-008-contact.png"
+    },
+    "detected_at": "2026-05-13T18:05:04.000Z",
+    "selector_pattern": "form#contact input[name=email]",
+    "tags": ["forms", "validation"]
+  },
+  {
+    "id": "f-0023",
+    "source_agent": "crawler",
+    "category": "navigation",
+    "raw_severity": "medium",
+    "url": "https://shop.example.com/help",
+    "title": "Stale navigation link to /help/old",
+    "description": "The help page contains a link to /help/old which 404s.",
+    "evidence": {
+      "request_url": "https://shop.example.com/help/old",
+      "status_code": 404,
+      "selector": "a[href='/help/old']"
+    },
+    "detected_at": "2026-05-13T18:05:09.000Z",
+    "selector_pattern": "a[href='/help/old']",
+    "tags": ["navigation", "broken-link"]
+  },
+  {
+    "id": "f-0024",
+    "source_agent": "crawler",
+    "category": "navigation",
+    "raw_severity": "low",
+    "url": "https://shop.example.com/footer-test",
+    "title": "Footer link target attribute is _blank without rel=noopener",
+    "description": "Two outbound links open in a new tab without rel=noopener, opening a reverse-tabnabbing risk.",
+    "evidence": {
+      "selector": "footer a[target=_blank]:not([rel*='noopener'])"
+    },
+    "detected_at": "2026-05-13T18:05:12.000Z",
+    "selector_pattern": "footer a[target=_blank]",
+    "tags": ["navigation", "security-adjacent"]
+  },
+  {
+    "id": "f-0025",
+    "source_agent": "battery",
+    "category": "auth",
+    "raw_severity": "critical",
+    "url": "https://shop.example.com/account",
+    "title": "Account page reachable without authentication",
+    "description": "Visiting /account directly without any session cookie returns 200 and renders an empty profile shell. The shell exposes internal API endpoints (/api/me, /api/orders) in window.__APP_STATE__.",
+    "evidence": {
+      "selector": "main#account-shell",
+      "snippet": "window.__APP_STATE__ = { apiBase: 'https://shop.example.com/api', endpoints: ['/me','/orders','/billing'] }"
+    },
+    "detected_at": "2026-05-13T18:06:00.000Z",
+    "selector_pattern": "main#account-shell",
+    "tags": ["auth", "info-disclosure"]
+  },
+  {
+    "id": "f-0026",
+    "source_agent": "battery",
+    "category": "auth",
+    "raw_severity": "high",
+    "url": "https://shop.example.com/login",
+    "title": "Login form lacks rate limiting indicators",
+    "description": "10 rapid failed login attempts received identical 401 responses with no Retry-After header and no captcha challenge.",
+    "evidence": {
+      "metric": "consecutive_401",
+      "metric_value": 10
+    },
+    "detected_at": "2026-05-13T18:06:03.000Z",
+    "tags": ["auth", "rate-limit"]
+  },
+  {
+    "id": "f-0027",
+    "source_agent": "battery",
+    "category": "visual",
+    "raw_severity": "low",
+    "url": "https://shop.example.com/products",
+    "title": "Product card title truncation on narrow viewports",
+    "description": "Below 380px viewport width, product card titles are clipped without an ellipsis.",
+    "evidence": {
+      "selector": ".product-card .title",
+      "screenshot_path": "screenshots/route-002-products-narrow.png"
+    },
+    "detected_at": "2026-05-13T18:07:00.000Z",
+    "selector_pattern": ".product-card .title",
+    "tags": ["visual", "responsive"]
+  },
+  {
+    "id": "f-0028",
+    "source_agent": "battery",
+    "category": "visual",
+    "raw_severity": "info",
+    "url": "https://shop.example.com/",
+    "title": "Hero image lazy-loads above the fold",
+    "description": "The hero image uses loading=\"lazy\" which delays first paint of the primary visual.",
+    "evidence": {
+      "selector": "img.hero-banner"
+    },
+    "detected_at": "2026-05-13T18:07:04.000Z",
+    "selector_pattern": "img.hero-banner",
+    "tags": ["visual", "perf-adjacent"]
+  },
+  {
+    "id": "f-0029",
+    "source_agent": "battery",
+    "category": "seo",
+    "raw_severity": "low",
+    "url": "https://shop.example.com/products",
+    "title": "Page lacks <meta name=\"description\">",
+    "description": "Missing meta description on a high-traffic product listing route.",
+    "evidence": {
+      "selector": "head meta[name=description]"
+    },
+    "detected_at": "2026-05-13T18:07:08.000Z",
+    "tags": ["seo"]
+  },
+  {
+    "id": "f-0030",
+    "source_agent": "battery",
+    "category": "seo",
+    "raw_severity": "info",
+    "url": "https://shop.example.com/blog",
+    "title": "<title> tag is generic",
+    "description": "The blog index uses the site-wide default title 'Welcome'. Per-page titles improve discoverability.",
+    "evidence": {
+      "selector": "head title"
+    },
+    "detected_at": "2026-05-13T18:07:12.000Z",
+    "tags": ["seo"]
+  },
+  {
+    "id": "f-0031",
+    "source_agent": "battery",
+    "category": "content",
+    "raw_severity": "low",
+    "url": "https://shop.example.com/help",
+    "title": "Help text references a deprecated returns policy",
+    "description": "Help content mentions a 14-day returns window that conflicts with the 30-day policy in the footer.",
+    "evidence": {
+      "selector": "article.help-content"
+    },
+    "detected_at": "2026-05-13T18:07:18.000Z",
+    "tags": ["content", "consistency"]
+  },
+  {
+    "id": "f-0032",
+    "source_agent": "crawler",
+    "category": "console_error",
+    "raw_severity": "low",
+    "url": "https://shop.example.com/blog",
+    "title": "Console error: Deprecation warning",
+    "description": "Deprecation: '-webkit-text-size-adjust' is not supported by all browsers; consider using 'text-size-adjust'.",
+    "evidence": {
+      "console_message": "Deprecation: '-webkit-text-size-adjust'",
+      "console_level": "error"
+    },
+    "detected_at": "2026-05-13T18:08:00.000Z",
+    "tags": ["runtime", "deprecation"]
+  },
+  {
+    "id": "f-0033",
+    "source_agent": "battery",
+    "category": "accessibility",
+    "raw_severity": "high",
+    "url": "https://shop.example.com/checkout",
+    "title": "axe: keyboard-trap on payment modal",
+    "description": "The payment modal traps keyboard focus and cannot be dismissed with Escape, blocking users who do not use a mouse.",
+    "evidence": {
+      "axe_rule": "focus-trap",
+      "selector": "#payment-modal"
+    },
+    "detected_at": "2026-05-13T18:08:05.000Z",
+    "selector_pattern": "#payment-modal",
+    "tags": ["a11y", "wcag-2.1-AA", "keyboard"]
+  },
+  {
+    "id": "f-0034",
+    "source_agent": "crawler",
+    "category": "http_status",
+    "raw_severity": "medium",
+    "url": "https://shop.example.com/sitemap.xml",
+    "title": "404 /sitemap.xml",
+    "description": "Sitemap is referenced from robots.txt but returns 404.",
+    "evidence": {
+      "request_url": "https://shop.example.com/sitemap.xml",
+      "status_code": 404,
+      "method": "GET"
+    },
+    "detected_at": "2026-05-13T18:08:10.000Z",
+    "tags": ["seo", "network"]
+  }
+]

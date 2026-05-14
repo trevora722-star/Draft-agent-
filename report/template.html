@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QAgent Report — {{TARGET}}</title>
+    <link rel="preconnect" href="https://rsms.me/" />
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+      body { font-feature-settings: 'cv02','cv03','cv04','cv11'; }
+      .sev-critical { background: #7f1d1d; color: #fff; }
+      .sev-high     { background: #b91c1c; color: #fff; }
+      .sev-medium   { background: #c2410c; color: #fff; }
+      .sev-low      { background: #a16207; color: #fff; }
+      .sev-info     { background: #475569; color: #fff; }
+      .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
+      details > summary { list-style: none; cursor: pointer; }
+      details > summary::-webkit-details-marker { display: none; }
+      details[open] .chev { transform: rotate(90deg); }
+      .chev { transition: transform 120ms ease-out; }
+      .markdown h2 { font-size: 1.125rem; font-weight: 700; margin-top: 1.25rem; margin-bottom: 0.5rem; color: #0f172a; }
+      .markdown h3 { font-size: 1rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.25rem; color: #1e293b; }
+      .markdown p  { margin: 0.5rem 0; line-height: 1.65; color: #334155; }
+      .markdown ul { list-style: disc; margin: 0.5rem 0 0.5rem 1.5rem; color: #334155; }
+      .markdown ol { list-style: decimal; margin: 0.5rem 0 0.5rem 1.5rem; color: #334155; }
+      .markdown li { margin: 0.15rem 0; }
+      .markdown code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 0.875em; }
+      .lightbox-bg { background: rgba(15, 23, 42, 0.85); }
+      @media print {
+        .no-print { display: none !important; }
+        body { background: #fff; }
+        section { break-inside: avoid; }
+      }
+    </style>
+  </head>
+  <body class="bg-slate-50 text-slate-900">
+    <header class="bg-white border-b border-slate-200">
+      <div class="max-w-5xl mx-auto px-6 py-8">
+        <div class="flex items-baseline justify-between gap-4 flex-wrap">
+          <div>
+            <p class="text-xs uppercase tracking-wider text-slate-500">QAgent Report</p>
+            <h1 class="text-2xl font-bold mt-1 break-all">{{TARGET}}</h1>
+            <p class="text-sm text-slate-500 mt-1">Run: <span class="font-mono">{{RUN_ID}}</span> · {{RUN_TS}}</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span class="chip sev-critical">{{SEV_CRITICAL}} critical</span>
+            <span class="chip sev-high">{{SEV_HIGH}} high</span>
+            <span class="chip sev-medium">{{SEV_MEDIUM}} medium</span>
+            <span class="chip sev-low">{{SEV_LOW}} low</span>
+            <span class="chip sev-info">{{SEV_INFO}} info</span>
+          </div>
+        </div>
+        <p class="text-sm text-slate-600 mt-4">
+          <span class="font-semibold">{{TOTAL_BUGS}}</span> bugs after dedup
+          from <span class="font-semibold">{{TOTAL_FINDINGS}}</span> raw findings
+          (<span class="font-semibold">{{DEDUP_PCT}}%</span> consolidation).
+        </p>
+      </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-6 py-8 space-y-12">
+      <section id="executive-summary">
+        <h2 class="text-xl font-bold mb-3 text-slate-800">Executive Summary</h2>
+        <div class="bg-white rounded-lg border border-slate-200 p-6 markdown text-slate-700 leading-relaxed">
+          {{EXEC_SUMMARY_HTML}}
+        </div>
+      </section>
+
+      <section id="overview">
+        <h2 class="text-xl font-bold mb-3 text-slate-800">Statistical Overview</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="bg-white rounded-lg border border-slate-200 p-5">
+            <h3 class="text-sm font-semibold text-slate-700 mb-3">Bugs by severity</h3>
+            <svg id="chart-severity" viewBox="0 0 320 200" class="w-full h-48"></svg>
+          </div>
+          <div class="bg-white rounded-lg border border-slate-200 p-5">
+            <h3 class="text-sm font-semibold text-slate-700 mb-3">Findings by category</h3>
+            <svg id="chart-category" viewBox="0 0 320 200" class="w-full h-48"></svg>
+          </div>
+          <div class="bg-white rounded-lg border border-slate-200 p-5 md:col-span-2">
+            <h3 class="text-sm font-semibold text-slate-700 mb-3">Category × route heatmap</h3>
+            <svg id="chart-heatmap" viewBox="0 0 720 320" class="w-full"></svg>
+          </div>
+        </div>
+      </section>
+
+      <section id="analysis">
+        <h2 class="text-xl font-bold mb-3 text-slate-800">Root Cause Analysis</h2>
+        <div class="bg-white rounded-lg border border-slate-200 p-6 markdown">
+          {{ANALYSIS_HTML}}
+        </div>
+      </section>
+
+      <section id="bugs">
+        <h2 class="text-xl font-bold mb-3 text-slate-800">Bug List</h2>
+        <div id="bug-list" class="space-y-3">{{BUG_LIST_HTML}}</div>
+      </section>
+
+      <section id="appendix" class="text-sm text-slate-600">
+        <h2 class="text-xl font-bold mb-3 text-slate-800">Appendix — Methodology</h2>
+        <div class="bg-white rounded-lg border border-slate-200 p-6 space-y-3">
+          <p>
+            QAgent crawls the target from the base URL (BFS, same-origin,
+            depth-limited), captures DOM inventories and screenshots, and runs a
+            test battery (when present) covering accessibility (axe-core),
+            performance budgets, basic security headers, and visual smoke checks.
+            Raw observations are written as <em>findings</em>; the intelligence
+            pass deduplicates them into <em>bugs</em>, recalibrates severity with
+            Claude Opus 4.7, and produces this report.
+          </p>
+          <p>
+            <span class="font-semibold">Routes visited:</span> {{ROUTES_VISITED}} ·
+            <span class="font-semibold">Findings:</span> {{TOTAL_FINDINGS}} ·
+            <span class="font-semibold">Bugs after triage:</span> {{TOTAL_BUGS}} ·
+            <span class="font-semibold">Semantic merges:</span> {{SEMANTIC_MERGES}}
+          </p>
+          <p class="no-print">
+            Raw artifacts:
+            <a class="text-blue-600 underline" href="bugs.json">bugs.json</a> ·
+            <a class="text-blue-600 underline" href="statistics.json">statistics.json</a> ·
+            <a class="text-blue-600 underline" href="findings.json">findings.json</a> ·
+            <a class="text-blue-600 underline" href="analysis.md">analysis.md</a>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <div id="lightbox" class="fixed inset-0 hidden items-center justify-center lightbox-bg z-50 no-print" onclick="closeLightbox()">
+      <img id="lightbox-img" alt="" class="max-h-[92vh] max-w-[92vw] rounded shadow-2xl" />
+    </div>
+
+    <script id="report-data" type="application/json">{{REPORT_DATA_JSON}}</script>
+    <script>
+      const DATA = JSON.parse(document.getElementById('report-data').textContent);
+
+      // --- Lightbox ----------------------------------------------------------
+      function openLightbox(src) {
+        const lb = document.getElementById('lightbox');
+        document.getElementById('lightbox-img').src = src;
+        lb.classList.remove('hidden');
+        lb.classList.add('flex');
+      }
+      function closeLightbox() {
+        const lb = document.getElementById('lightbox');
+        lb.classList.add('hidden');
+        lb.classList.remove('flex');
+        document.getElementById('lightbox-img').src = '';
+      }
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeLightbox();
+      });
+      window.openLightbox = openLightbox;
+      window.closeLightbox = closeLightbox;
+
+      // --- Bug expansion via URL fragment ?bug=<id> --------------------------
+      const params = new URLSearchParams(window.location.search);
+      const requested = params.get('bug');
+      if (requested) {
+        const target = document.querySelector(`[data-bug-id="${CSS.escape(requested)}"]`);
+        if (target) {
+          target.open = true;
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+
+      // --- Charts (raw SVG) --------------------------------------------------
+      const SEV_COLOR = {
+        critical: '#7f1d1d',
+        high: '#b91c1c',
+        medium: '#c2410c',
+        low: '#a16207',
+        info: '#475569',
+      };
+      const PIE_PALETTE = ['#1e293b','#334155','#475569','#64748b','#0f766e','#0369a1','#7c2d12','#b91c1c','#a16207','#9333ea','#15803d','#0e7490'];
+
+      function renderBarChart(svgEl, entries) {
+        const W = 320, H = 200, P = 24;
+        const maxV = Math.max(1, ...entries.map(e => e.value));
+        const bw = (W - P * 2) / entries.length;
+        let svg = '';
+        entries.forEach((e, i) => {
+          const h = ((H - P * 2) * e.value) / maxV;
+          const x = P + i * bw + 4;
+          const y = H - P - h;
+          const color = e.color || PIE_PALETTE[i % PIE_PALETTE.length];
+          svg += `<rect x="${x}" y="${y}" width="${bw - 8}" height="${h}" fill="${color}" rx="3"/>`;
+          svg += `<text x="${x + (bw - 8) / 2}" y="${H - P + 14}" text-anchor="middle" font-size="10" fill="#475569">${e.label}</text>`;
+          svg += `<text x="${x + (bw - 8) / 2}" y="${y - 4}" text-anchor="middle" font-size="10" fill="#0f172a" font-weight="600">${e.value}</text>`;
+        });
+        svgEl.innerHTML = svg;
+      }
+
+      function renderPieChart(svgEl, entries) {
+        const W = 320, H = 200, cx = 110, cy = 100, r = 80;
+        const total = entries.reduce((a, b) => a + b.value, 0) || 1;
+        let acc = 0;
+        let paths = '';
+        let legend = '';
+        entries.forEach((e, i) => {
+          const start = (acc / total) * Math.PI * 2 - Math.PI / 2;
+          acc += e.value;
+          const end = (acc / total) * Math.PI * 2 - Math.PI / 2;
+          const large = end - start > Math.PI ? 1 : 0;
+          const x1 = cx + r * Math.cos(start), y1 = cy + r * Math.sin(start);
+          const x2 = cx + r * Math.cos(end),   y2 = cy + r * Math.sin(end);
+          const color = PIE_PALETTE[i % PIE_PALETTE.length];
+          if (e.value > 0) {
+            paths += `<path d="M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z" fill="${color}" stroke="#fff" stroke-width="1"/>`;
+          }
+          const ly = 22 + i * 16;
+          legend += `<rect x="220" y="${ly - 9}" width="10" height="10" fill="${color}" rx="2"/>`;
+          legend += `<text x="236" y="${ly}" font-size="10" fill="#334155">${e.label} (${e.value})</text>`;
+        });
+        svgEl.innerHTML = paths + legend;
+      }
+
+      function renderHeatmap(svgEl, matrix, xLabels, yLabels) {
+        const W = 720, H = 320, padLeft = 140, padTop = 30;
+        const cw = (W - padLeft - 10) / Math.max(1, xLabels.length);
+        const ch = (H - padTop - 20) / Math.max(1, yLabels.length);
+        let maxV = 0;
+        for (const r of matrix) for (const v of r) if (v > maxV) maxV = v;
+        const shade = (v) => {
+          if (v === 0 || maxV === 0) return '#f1f5f9';
+          const t = v / maxV;
+          const r = Math.round(248 - 200 * t);
+          const g = Math.round(113 - 80 * t);
+          const b = Math.round(113 - 60 * t);
+          return `rgb(${r},${g},${b})`;
+        };
+        let svg = '';
+        xLabels.forEach((lbl, i) => {
+          svg += `<text x="${padLeft + i * cw + cw / 2}" y="${padTop - 8}" font-size="10" fill="#334155" text-anchor="middle" transform="rotate(-30 ${padLeft + i * cw + cw / 2} ${padTop - 8})">${lbl}</text>`;
+        });
+        yLabels.forEach((lbl, j) => {
+          svg += `<text x="${padLeft - 6}" y="${padTop + j * ch + ch / 2 + 3}" font-size="10" fill="#334155" text-anchor="end">${lbl}</text>`;
+          for (let i = 0; i < xLabels.length; i++) {
+            const v = matrix[j][i] || 0;
+            svg += `<rect x="${padLeft + i * cw + 1}" y="${padTop + j * ch + 1}" width="${cw - 2}" height="${ch - 2}" fill="${shade(v)}" rx="2"><title>${yLabels[j]} on ${xLabels[i]}: ${v}</title></rect>`;
+            if (v > 0) {
+              svg += `<text x="${padLeft + i * cw + cw / 2}" y="${padTop + j * ch + ch / 2 + 3}" font-size="9" fill="#fff" text-anchor="middle" font-weight="600">${v}</text>`;
+            }
+          }
+        });
+        svgEl.innerHTML = svg;
+      }
+
+      // Build chart data from DATA payload.
+      const sevOrder = ['critical','high','medium','low','info'];
+      renderBarChart(
+        document.getElementById('chart-severity'),
+        sevOrder.map((s) => ({ label: s, value: DATA.statistics.by_severity?.[s]?.count || 0, color: SEV_COLOR[s] })),
+      );
+
+      const catEntries = Object.entries(DATA.statistics.by_category || {})
+        .slice(0, 10)
+        .map(([label, v]) => ({ label, value: v.count }));
+      renderPieChart(document.getElementById('chart-category'), catEntries);
+
+      // Heatmap: top 8 routes (by total finding count) × all categories present.
+      const findingsByRoute = DATA.findings.reduce((acc, f) => {
+        acc[f.url] = (acc[f.url] || 0) + 1;
+        return acc;
+      }, {});
+      const routes = Object.entries(findingsByRoute)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([u]) => u);
+      const categories = Object.keys(DATA.statistics.by_category || {});
+      const heat = routes.map((r) =>
+        categories.map(
+          (c) => DATA.findings.filter((f) => f.url === r && f.category === c).length,
+        ),
+      );
+      renderHeatmap(
+        document.getElementById('chart-heatmap'),
+        heat,
+        categories,
+        routes.map((u) => {
+          try { return new URL(u).pathname || '/'; } catch { return u.slice(0, 30); }
+        }),
+      );
+    </script>
+  </body>
+</html>
