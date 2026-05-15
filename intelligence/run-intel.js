@@ -7,49 +7,66 @@
 
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Command } from 'commander';
 import dotenv from 'dotenv';
 
 import { runIntel } from './report.js';
 
-dotenv.config();
+// Only run the CLI when invoked directly — guard against accidental side
+// effects when this file is imported as a module.
+const isDirect =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
-const program = new Command();
-program
-  .name('qagent-intel')
-  .description('Run the QAgent intelligence pass against a findings.json file.')
-  .requiredOption('--findings <path>', 'Path to findings.json')
-  .option('--inventory <path>', 'Path to inventory.json (optional)')
-  .option('--out <dir>', 'Output directory')
-  .option('--target <url>', 'Target URL (cosmetic in report)', 'unknown://target')
-  .parse(process.argv);
+if (isDirect) {
+  dotenv.config();
 
-const opts = program.opts();
+  const program = new Command();
+  program
+    .name('qagent-intel')
+    .description('Run the QAgent intelligence pass against a findings.json file.')
+    .requiredOption('--findings <path>', 'Path to findings.json')
+    .option('--inventory <path>', 'Path to inventory.json (optional)')
+    .option('--out <dir>', 'Output directory')
+    .option('--target <url>', 'Target URL (cosmetic in report)', 'unknown://target')
+    .parse(process.argv);
 
-const runDir = path.resolve(
-  opts.out || path.join('runs', new Date().toISOString().replace(/[:.]/g, '-')),
-);
-await fs.mkdir(runDir, { recursive: true });
+  const opts = program.opts();
 
-const findingsAbs = path.resolve(opts.findings);
-const findingsInRun = path.join(runDir, 'findings.json');
-if (path.resolve(findingsInRun) !== findingsAbs) {
-  await fs.copyFile(findingsAbs, findingsInRun);
-}
+  const runDir = path.resolve(
+    opts.out || path.join('runs', new Date().toISOString().replace(/[:.]/g, '-')),
+  );
+  await fs.mkdir(runDir, { recursive: true });
 
-let inventoryInRun;
-if (opts.inventory) {
-  const inventoryAbs = path.resolve(opts.inventory);
-  inventoryInRun = path.join(runDir, 'inventory.json');
-  if (path.resolve(inventoryInRun) !== inventoryAbs) {
-    await fs.copyFile(inventoryAbs, inventoryInRun);
+  const findingsAbs = path.resolve(opts.findings);
+  const findingsInRun = path.join(runDir, 'findings.json');
+  if (path.resolve(findingsInRun) !== findingsAbs) {
+    await fs.copyFile(findingsAbs, findingsInRun);
   }
+
+  let inventoryInRun;
+  if (opts.inventory) {
+    const inventoryAbs = path.resolve(opts.inventory);
+    inventoryInRun = path.join(runDir, 'inventory.json');
+    if (path.resolve(inventoryInRun) !== inventoryAbs) {
+      await fs.copyFile(inventoryAbs, inventoryInRun);
+    }
+  }
+
+  await runIntel({
+    findingsPath: findingsInRun,
+    inventoryPath: inventoryInRun,
+    runDir,
+    target: opts.target,
+  });
+  console.log(`[intel] done. open ${path.join(runDir, 'report.html')}`);
 }
 
-await runIntel({
-  findingsPath: findingsInRun,
-  inventoryPath: inventoryInRun,
-  runDir,
-  target: opts.target,
-});
-console.log(`[intel] done. open ${path.join(runDir, 'report.html')}`);
+export { runIntel };
+
+// Keep the unused-import-friendly side: surface a helpful hint if a caller
+// imports this module expecting CLI behaviour.
+export const _isDirect = isDirect;
+// fileURLToPath is imported for symmetry / future use; reference it so
+// linters don't complain.
+void fileURLToPath;

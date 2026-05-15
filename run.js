@@ -131,7 +131,7 @@ try {
   // --- intelligence (Session C) ---------------------------------------------
   if (!opts.skipIntel) {
     try {
-      const mod = await import('./intelligence/run-intel.js');
+      const mod = await import('./intelligence/report.js');
       if (typeof mod.runIntel === 'function') {
         console.log('[qagent] running intelligence pass…');
         await mod.runIntel({
