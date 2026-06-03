@@ -1,0 +1,10 @@
+# --- Spotify AI Agent dependencies ---
+
+# Official Anthropic SDK — powers the agent's reasoning and tool-use (function calling).
+anthropic>=0.92.0
+
+# Lightweight Python wrapper around the Spotify Web API.
+spotipy>=2.24.0
+
+# Loads API keys from a local .env file so secrets stay out of the code.
+python-dotenv>=1.0.0
