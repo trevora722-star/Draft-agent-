@@ -1,0 +1,24 @@
+# One-click deploy config for Render (https://render.com).
+# In the Render dashboard: New + -> Blueprint -> point at this repo.
+# Then fill in the secret env vars marked `sync: false`.
+services:
+  - type: web
+    name: spotify-ai-agent
+    runtime: python
+    plan: free
+    rootDir: spotify-agent
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn webapp:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false          # paste your Anthropic key in the dashboard
+      - key: SPOTIFY_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_SECRET
+        sync: false
+      - key: SPOTIFY_REDIRECT_URI
+        sync: false          # e.g. https://spotify-ai-agent.onrender.com/callback
+      - key: SESSION_SECRET
+        generateValue: true  # Render generates a strong random secret
+      - key: ENV
+        value: production

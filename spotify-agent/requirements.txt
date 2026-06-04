@@ -8,3 +8,10 @@ spotipy>=2.24.0
 
 # Loads API keys from a local .env file so secrets stay out of the code.
 python-dotenv>=1.0.0
+
+# --- Web app (webapp.py) ---
+# Web framework + ASGI server for the multi-user deployable app.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+# Signs the session cookie used by Starlette's SessionMiddleware.
+itsdangerous>=2.1

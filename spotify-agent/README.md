@@ -1,121 +1,158 @@
 # 🎵 Spotify AI Agent
 
-A lightweight terminal AI agent built with the **official Anthropic SDK** and
-the **Spotify Web API**. Type a request in plain English and the agent decides
-which Spotify actions to take using Claude's tool-use (function calling).
+A natural-language agent for Spotify, built with the **official Anthropic SDK**
+and the **Spotify Web API**. Ask in plain English and Claude decides which
+Spotify actions to take using tool-use (function calling).
 
 Example:
 
 > "Create a playlist called 'Smooth Woodturning Beats' with some chill lo-fi tracks."
 
-The agent searches Spotify for matching tracks, creates the playlist on your
-account, and replies with a shareable link.
+It comes in two flavours that share the same agent brain:
+
+- **CLI** (`agent.py`) — runs in your terminal, single user (you).
+- **Web app** (`webapp.py`) — a deployable, **multi-user** site where each
+  visitor logs in with **their own** Spotify account and gets playlists on it.
 
 ---
 
 ## What's in here
 
-| File                | Purpose                                                        |
-| ------------------- | -------------------------------------------------------------- |
-| `agent.py`          | The agent: reads your request, talks to Claude, runs tools.    |
-| `spotify_tools.py`  | The two Spotify tools + their schemas (the Claude integration).|
-| `requirements.txt`  | Python dependencies.                                           |
-| `.env.example`      | Template for your API keys — copy to `.env`.                   |
+| File                 | Purpose                                                          |
+| -------------------- | --------------------------------------------------------------- |
+| `agent_core.py`      | The shared agent loop (Claude + tool-use). Used by both apps.   |
+| `spotify_tools.py`   | The two Spotify tools + their schemas.                          |
+| `agent.py`           | CLI entrypoint (local Spotify login).                           |
+| `webapp.py`          | FastAPI web app (multi-user Spotify OAuth + chat).             |
+| `static/index.html`  | The web chat UI.                                                |
+| `requirements.txt`   | Python dependencies.                                            |
+| `.env.example`       | Template for your keys — copy to `.env`.                        |
+| `render.yaml` / `Procfile` | Deployment configs.                                       |
 
 ---
 
-## 1. Environment setup
+## 1. Install
 
 You need **Python 3.10+**.
 
 ```bash
-# From inside this folder:
-
-# Create and activate a virtual environment
+cd spotify-agent
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Create your secrets file
 cp .env.example .env             # Windows: copy .env.example .env
 ```
 
-Then open `.env` and fill in the four values (next two sections explain how to
-get them).
+Then fill in `.env` (next sections explain each value).
 
 ---
 
-## 2. Spotify auth setup
-
-Create a (free) app in the **Spotify Developer Dashboard** so the agent can act
-on your account:
+## 2. Spotify app setup (Developer Dashboard)
 
 1. Go to <https://developer.spotify.com/dashboard> and log in.
-2. Click **Create app**. Give it any name/description.
-3. For **Redirect URI**, add exactly:
-   ```
-   http://127.0.0.1:8888/callback
-   ```
-   > ⚠️ Spotify requires a loopback IP (`127.0.0.1`), **not** `localhost`.
-   > This must match `SPOTIFY_REDIRECT_URI` in your `.env` character-for-character.
-4. Save, then open the app's **Settings** and copy:
-   - **Client ID** → `SPOTIFY_CLIENT_ID`
-   - **Client Secret** → `SPOTIFY_CLIENT_SECRET`
+2. **Create app** — give it any name/description.
+3. Add **Redirect URIs** (you can add several). Add the one(s) you'll use:
+   - CLI: `http://127.0.0.1:8888/callback`
+   - Web, local: `http://127.0.0.1:8000/callback`
+   - Web, deployed: `https://YOUR-APP-DOMAIN/callback`
+   > ⚠️ Spotify requires a loopback IP (`127.0.0.1`), **not** `localhost`,
+   > and each URI must match `SPOTIFY_REDIRECT_URI` character-for-character.
+4. From **Settings**, copy **Client ID** → `SPOTIFY_CLIENT_ID` and
+   **Client Secret** → `SPOTIFY_CLIENT_SECRET`.
 
-The agent uses the OAuth **Authorization Code** flow, requesting the
-`playlist-modify-public` and `playlist-modify-private` scopes — enough to search
-and to create playlists on your behalf. The **first time** you run a tool, a
-browser window opens asking you to authorize the app; after that the token is
-cached in `.spotify_token_cache` and you won't be asked again.
+The agent requests the `playlist-modify-public` and `playlist-modify-private`
+scopes — enough to search and create playlists.
+
+> 🔑 **Multi-user note:** a brand-new Spotify app is in **Development Mode**,
+> which only lets **up to 25 users you explicitly add** log in. In the
+> dashboard go to **Settings → User Management** and add each friend's Spotify
+> account email. To open it to anyone, submit a **quota extension request** to
+> Spotify.
 
 ---
 
 ## 3. Anthropic key
 
-Grab an API key from <https://console.anthropic.com/> (Settings → API Keys) and
-put it in `.env` as `ANTHROPIC_API_KEY`.
+Get an API key at <https://console.anthropic.com/> (Settings → API Keys) and put
+it in `.env` as `ANTHROPIC_API_KEY`. On the web app, **your** key pays for
+everyone's usage — keep it server-side (never in the browser) and watch usage.
 
 ---
 
-## 4. Run it
+## 4a. Run the CLI
 
 ```bash
-# Interactive mode
 python agent.py
-
-# One-shot mode
 python agent.py "Create a playlist called 'Smooth Woodturning Beats' with some chill lo-fi tracks."
 ```
 
-You'll see the tool calls the agent makes, then a short summary with your new
-playlist link. Open the link in Spotify to hear the result.
+The first tool call opens a browser to authorize Spotify; the token is cached to
+`.spotify_token_cache` so you're only asked once.
+
+## 4b. Run the web app locally
+
+```bash
+# Generate a session secret and put it in .env as SESSION_SECRET:
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+
+uvicorn webapp:app --reload --port 8000
+```
+
+Open <http://127.0.0.1:8000>, click **Log in with Spotify**, then chat.
+(Make sure `http://127.0.0.1:8000/callback` is in your Spotify Redirect URIs and
+in `.env` as `SPOTIFY_REDIRECT_URI`.)
+
+---
+
+## 5. Deploy the web app (so a friend just visits a URL)
+
+Any host that runs a Python web process works. Easiest is **Render**:
+
+1. Push this repo to GitHub.
+2. Render → **New + → Blueprint** → pick the repo (it reads `render.yaml`).
+3. Set the secret env vars when prompted:
+   - `ANTHROPIC_API_KEY`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`
+   - `SPOTIFY_REDIRECT_URI` = `https://YOUR-APP.onrender.com/callback`
+   - `SESSION_SECRET` is auto-generated; `ENV` is set to `production`.
+4. In the **Spotify Dashboard**, add that same `https://YOUR-APP.onrender.com/callback`
+   to the app's Redirect URIs.
+5. Add your friends' Spotify emails under **User Management** (Development Mode).
+6. Share the URL. 🎉
+
+Other hosts (Railway, Fly.io, a VM) use the same idea — set the env vars and run:
+
+```
+uvicorn webapp:app --host 0.0.0.0 --port $PORT
+```
+
+(`Procfile` already declares this.)
 
 ---
 
 ## How the agent works
 
-1. Your text goes to Claude (`claude-opus-4-8`) along with two tool definitions.
+1. Your text goes to Claude (`claude-opus-4-8`, adaptive thinking) with two tool
+   definitions.
 2. Claude calls **`search_spotify_tracks`** to find real track IDs.
 3. Claude calls **`create_spotify_playlist`** with those IDs.
-4. Each tool result is fed back to Claude, which loops until it's done, then
-   replies in plain English.
+4. Tool results are fed back to Claude, which loops until done, then replies.
 
-Adding a new capability is easy: write a Python function in `spotify_tools.py`,
-add a matching entry to `TOOL_SCHEMAS`, and register it in `TOOL_FUNCTIONS`.
+The web app builds a **separate** Spotify client per logged-in user from their
+own OAuth token (auto-refreshed and kept in their signed session cookie), so
+everyone acts on their own account. Adding a capability is easy: write a function
+in `spotify_tools.py`, add a matching `TOOL_SCHEMAS` entry, and register it in
+`_TOOL_FUNCTIONS`.
+
+> ℹ️ Chat requests are handled independently (no cross-message memory), which
+> keeps deployment simple and safe across multiple server workers. Each request
+> like "build me a playlist for X" is fully self-contained.
 
 ---
 
-## Sharing this project
+## Security notes
 
-This folder is self-contained — zip it and send it to a friend:
-
-```bash
-cd ..
-zip -r spotify-agent.zip spotify-agent -x "spotify-agent/.venv/*" "spotify-agent/.env" "spotify-agent/.spotify_token_cache"
-```
-
-Your friend just needs their own `.env` (their own Anthropic key and their own
-Spotify app), then `pip install -r requirements.txt` and `python agent.py`.
-Never share your `.env` or token cache — those are your personal secrets.
+- Never commit `.env` or `.spotify_token_cache` (both are git-ignored).
+- The session cookie is **signed** (tamper-proof) and HTTPS-only in production;
+  it holds each user's Spotify token. Set a strong `SESSION_SECRET`.
+- Your Anthropic key funds all web usage — keep the user list small (Development
+  Mode's 25-user cap helps) or add your own rate limiting before going public.
