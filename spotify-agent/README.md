@@ -109,28 +109,51 @@ auth · `POST /api/chat` runs the agent.
 
 ---
 
-## 5. Deploy the web app (so a friend just visits a URL)
+## 5. Put it online for free (so a friend just visits a URL)
 
-Any host that runs a Python web process works. Easiest is **Render**:
+**Is it free?** Hosting is free (Render's free tier), Spotify is free. The only
+cost is the AI itself: each request calls Claude on *your* Anthropic key — a few
+cents each. Keep the user list small and it stays tiny.
 
-1. Push this repo to GitHub.
-2. Render → **New + → Blueprint** → pick the repo (it reads `render.yaml`).
-3. Set the secret env vars when prompted:
-   - `ANTHROPIC_API_KEY`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`
-   - `SPOTIFY_REDIRECT_URI` = `https://YOUR-APP.onrender.com/callback`
-   - `SESSION_SECRET` is auto-generated; `ENV` is set to `production`.
-4. In the **Spotify Dashboard**, add that same `https://YOUR-APP.onrender.com/callback`
-   to the app's Redirect URIs.
-5. Add your friends' Spotify emails under **User Management** (Development Mode).
-6. Share the URL. 🎉
+### Free deploy on Render (≈5 minutes)
 
-Other hosts (Railway, Fly.io, a VM) use the same idea — set the env vars and run:
+This repo's root has another project's `render.yaml`, so use a **manual web
+service** pointed at the `spotify-agent` folder (don't use the Blueprint option):
 
-```
-uvicorn webapp:app --host 0.0.0.0 --port $PORT
-```
+1. Push this repo to GitHub (your branch is already pushed).
+2. Go to <https://render.com>, sign up (free), then **New + → Web Service** and
+   connect this GitHub repo.
+3. Configure:
+   - **Root Directory:** `spotify-agent`
+   - **Runtime:** Python
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `uvicorn webapp:app --host 0.0.0.0 --port $PORT`
+   - **Instance Type:** **Free**
+4. Under **Environment**, add these variables:
+   | Key | Value |
+   | --- | --- |
+   | `ANTHROPIC_API_KEY` | your Anthropic key |
+   | `SPOTIFY_CLIENT_ID` | from the Spotify dashboard |
+   | `SPOTIFY_CLIENT_SECRET` | from the Spotify dashboard |
+   | `SPOTIFY_REDIRECT_URI` | `https://YOUR-APP.onrender.com/callback` |
+   | `SESSION_SECRET` | a long random string (`python -c "import secrets; print(secrets.token_urlsafe(32))"`) |
+   | `ENV` | `production` |
+5. Click **Create Web Service**. Render gives you a URL like
+   `https://YOUR-APP.onrender.com` (you'll know the exact name on this screen —
+   use it for `SPOTIFY_REDIRECT_URI` above; update and redeploy if needed).
+6. In the **Spotify Dashboard → your app → Settings**, add that exact
+   `https://YOUR-APP.onrender.com/callback` to **Redirect URIs**.
+7. **Spotify Dashboard → User Management**: add each friend's Spotify account
+   email (Development Mode allows up to 25 people).
+8. Send your friend the URL. 🎉
 
-(`Procfile` already declares this.)
+> ⏳ **Free-tier note:** Render's free service goes to sleep after ~15 minutes
+> idle, so the *first* visit after a quiet spell takes ~30–50s to wake up. After
+> that it's fast. Fine for a friends project; upgrade the instance if you want it
+> always-on.
+
+Other free-ish hosts (Railway, Fly.io) work the same way — set the same env vars
+and run `uvicorn webapp:app --host 0.0.0.0 --port $PORT` (see `Procfile`).
 
 ---
 

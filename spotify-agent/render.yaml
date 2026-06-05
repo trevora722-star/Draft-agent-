@@ -1,6 +1,9 @@
-# One-click deploy config for Render (https://render.com).
-# In the Render dashboard: New + -> Blueprint -> point at this repo.
-# Then fill in the secret env vars marked `sync: false`.
+# Reference config for Render (https://render.com).
+#
+# NOTE: Render's Blueprint feature only reads a render.yaml at the REPO ROOT,
+# and this repo's root already has a different project's render.yaml. So for
+# THIS app, follow README section 5 and create a *manual* Web Service with
+# Root Directory = spotify-agent. The settings below mirror what to enter there.
 services:
   - type: web
     name: spotify-ai-agent
