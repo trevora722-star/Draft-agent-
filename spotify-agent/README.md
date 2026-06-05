@@ -24,10 +24,12 @@ It comes in two flavours that share the same agent brain:
 | `spotify_tools.py`   | The two Spotify tools + their schemas.                          |
 | `agent.py`           | CLI entrypoint (local Spotify login).                           |
 | `webapp.py`          | FastAPI web app (multi-user Spotify OAuth + chat).             |
-| `static/index.html`  | The web chat UI.                                                |
+| `static/landing.html`| The public landing page (served at `/`).                       |
+| `static/index.html`  | The web chat UI (served at `/app`).                            |
 | `requirements.txt`   | Python dependencies.                                            |
 | `.env.example`       | Template for your keys — copy to `.env`.                        |
-| `render.yaml` / `Procfile` | Deployment configs.                                       |
+| `api/index.py` / `vercel.json` | Vercel serverless deployment.                        |
+| `render.yaml` / `Procfile` | Render / generic deployment configs.                     |
 
 ---
 
@@ -109,13 +111,51 @@ auth · `POST /api/chat` runs the agent.
 
 ---
 
-## 5. Put it online for free (so a friend just visits a URL)
+## 5. Put it online (so a friend just visits a URL)
 
-**Is it free?** Hosting is free (Render's free tier), Spotify is free. The only
-cost is the AI itself: each request calls Claude on *your* Anthropic key — a few
-cents each. Keep the user list small and it stays tiny.
+**Costs:** Hosting is free on both options below, Spotify is free. You pay only
+for the AI: each request calls Claude on *your* Anthropic key (a few cents each).
 
-### Free deploy on Render (≈5 minutes)
+### Deploy on Vercel (recommended, ≈5 minutes)
+
+The app ships ready for Vercel: `api/index.py` is the serverless entrypoint and
+`vercel.json` routes all traffic to it (with a 60s function timeout).
+
+1. Push this repo to GitHub (your branch is already pushed).
+2. Go to <https://vercel.com>, sign up, then **Add New… → Project** and import
+   this GitHub repo.
+3. In the import screen, set **Root Directory** to `spotify-agent` (click *Edit*
+   next to Root Directory and pick the folder). Vercel auto-detects Python from
+   `requirements.txt` — leave build/output settings as their defaults.
+4. Expand **Environment Variables** and add:
+   | Key | Value |
+   | --- | --- |
+   | `ANTHROPIC_API_KEY` | your Anthropic key |
+   | `SPOTIFY_CLIENT_ID` | from the Spotify dashboard |
+   | `SPOTIFY_CLIENT_SECRET` | from the Spotify dashboard |
+   | `SPOTIFY_REDIRECT_URI` | `https://YOUR-PROJECT.vercel.app/callback` |
+   | `SESSION_SECRET` | long random string (`python -c "import secrets; print(secrets.token_urlsafe(32))"`) |
+   | `ENV` | `production` |
+   > You won't know the exact `*.vercel.app` domain until after the first deploy.
+   > Deploy once, copy the domain Vercel shows you, then update
+   > `SPOTIFY_REDIRECT_URI` and redeploy (Deployments → ⋯ → Redeploy).
+5. Click **Deploy**.
+6. In the **Spotify Dashboard → your app → Settings**, add that exact
+   `https://YOUR-PROJECT.vercel.app/callback` to **Redirect URIs**.
+7. **Spotify Dashboard → User Management**: add each friend's Spotify account
+   email (Development Mode allows up to 25 people).
+8. Send your friend the Vercel URL. 🎉
+
+> ⏱️ **Timeout note:** Vercel's Hobby plan caps functions at 60s (set in
+> `vercel.json`). A normal playlist request finishes well within that. If you
+> ask for very large playlists and hit a timeout, upgrade to Pro (300s) and bump
+> `maxDuration` in `vercel.json`.
+
+> 💡 **Local dev with Vercel:** `npm i -g vercel` then `vercel dev` from the
+> `spotify-agent` folder runs the same serverless setup locally. Or just use
+> `uvicorn webapp:app --reload --port 8000` (section 4b) — both serve the same app.
+
+### Alternative: free deploy on Render (≈5 minutes)
 
 This repo's root has another project's `render.yaml`, so use a **manual web
 service** pointed at the `spotify-agent` folder (don't use the Blueprint option):
