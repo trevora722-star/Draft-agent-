@@ -6,7 +6,8 @@ playlists are created on their account. Your Anthropic API key lives on the
 server and powers everyone's requests.
 
 Endpoints:
-    GET  /            -> the chat UI (static/index.html)
+    GET  /            -> landing page (static/landing.html)
+    GET  /app         -> the chat UI (static/index.html), gated by login
     GET  /login       -> redirect to Spotify's authorization page
     GET  /callback    -> exchange the code, store the token in the session
     GET  /logout      -> clear the session
