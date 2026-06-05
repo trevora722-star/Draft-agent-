@@ -98,9 +98,14 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 uvicorn webapp:app --reload --port 8000
 ```
 
-Open <http://127.0.0.1:8000>, click **Log in with Spotify**, then chat.
+Open <http://127.0.0.1:8000>, you'll see the **landing page**; click
+**Log in with Spotify**, then you're taken into the chat app.
 (Make sure `http://127.0.0.1:8000/callback` is in your Spotify Redirect URIs and
 in `.env` as `SPOTIFY_REDIRECT_URI`.)
+
+**Routes:** `/` is the public landing page · `/app` is the chat UI (redirects to
+`/` if you're not logged in) · `/login`, `/callback`, `/logout` handle Spotify
+auth · `POST /api/chat` runs the agent.
 
 ---
 

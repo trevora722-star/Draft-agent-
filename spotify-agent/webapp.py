@@ -85,8 +85,17 @@ def make_oauth(token_info: dict | None = None) -> SpotifyOAuth:
 # Pages
 # --------------------------------------------------------------------------- #
 @app.get("/", response_class=HTMLResponse)
-def index() -> str:
-    return (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+def landing() -> str:
+    """Marketing landing page — the public front door."""
+    return (STATIC_DIR / "landing.html").read_text(encoding="utf-8")
+
+
+@app.get("/app", response_class=HTMLResponse)
+def app_page(request: Request):
+    """The chat app. Sends visitors to the landing page if not logged in."""
+    if not request.session.get("token_info"):
+        return RedirectResponse("/")
+    return HTMLResponse((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
 
 
 # --------------------------------------------------------------------------- #
@@ -122,7 +131,7 @@ def callback(request: Request):
     except Exception:
         request.session["display_name"] = None
 
-    return RedirectResponse("/")
+    return RedirectResponse("/app")
 
 
 @app.get("/logout")
