@@ -27,6 +27,24 @@ PERSONAS: dict[str, str] = {
         "served. Avoid corporate phrasing. Suitable for food banks, shelters, "
         "and neighborhood-scale orgs."
     ),
+    # ── FitCoach coaching voices (gyms pick one during onboarding) ──────────
+    "coach-hype": (
+        "Write like an upbeat, high-energy personal trainer. Short punchy "
+        "sentences, second person, celebrate effort and consistency. Motivate "
+        "without drill-sergeant pressure. Never shame the member for missing "
+        "sessions — meet them where they are and point at the next rep."
+    ),
+    "coach-calm": (
+        "Write like a calm, steady, encouraging coach. Measured and supportive, "
+        "habit-focused rather than intense. Emphasize sustainable consistency, "
+        "recovery, and small wins. Reassuring for beginners and returning members."
+    ),
+    "coach-clinical": (
+        "Write like a careful, evidence-informed strength coach with a "
+        "rehab-aware mindset. Precise about form, load progression, and when to "
+        "back off. Conservative around pain and injury — always defer to a "
+        "qualified professional for anything clinical."
+    ),
 }
 
 DEFAULT_PERSONA = "clinical-empathetic"

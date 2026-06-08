@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Anytime Coach</title>
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --line:#272b34; --txt:#e7e9ee; --mut:#9aa3b2;
+          --accent:#5b8cff; --me:#2a3550; --bot:#1f242e; --warn:#e74c3c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.55 system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--txt); }
+  header { padding:16px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; }
+  header h1 { font-size:17px; margin:0; }
+  main { max-width:680px; margin:0 auto; padding:18px 16px 120px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px; }
+  label { display:block; font-size:13px; color:var(--mut); margin:10px 0 4px; }
+  input, select, textarea { width:100%; background:#0c0e12; border:1px solid var(--line); color:var(--txt);
+    border-radius:8px; padding:9px 11px; font-size:14px; font-family:inherit; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 16px; font-size:14px; cursor:pointer; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--txt); }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; }
+  .row > * { flex:1; }
+  .mut { color:var(--mut); font-size:13px; }
+  .hide { display:none; }
+  .chk { display:flex; align-items:center; gap:8px; margin-top:8px; }
+  .chk input { width:auto; }
+  .msg { padding:11px 13px; border-radius:12px; margin:8px 0; max-width:88%; white-space:pre-wrap; }
+  .msg.me { background:var(--me); margin-left:auto; border-bottom-right-radius:3px; }
+  .msg.bot { background:var(--bot); border:1px solid var(--line); border-bottom-left-radius:3px; }
+  .msg.warn { border-color:var(--warn); }
+  .composer { position:fixed; bottom:0; left:0; right:0; background:var(--bg); border-top:1px solid var(--line);
+    padding:12px 16px; display:flex; gap:10px; }
+  .composer .inner { max-width:680px; margin:0 auto; display:flex; gap:10px; width:100%; }
+  .composer input { flex:1; }
+  pre, .program { white-space:pre-wrap; font-family:inherit; }
+  .tag { font-size:12px; color:var(--mut); }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>💪 Anytime Coach</h1>
+  <span id="who" class="mut"></span>
+  <span style="margin-left:auto"></span>
+  <a href="/dashboard" class="mut">Owner →</a>
+</header>
+
+<main>
+  <!-- Gate -->
+  <div id="gate" class="card">
+    <h3 style="margin-top:0">Welcome</h3>
+    <p class="mut">Enter your gym's access key to get started. (In the real app this is handled by your membership login — for the demo, paste the key from <code>seed-fitness-demo</code>.)</p>
+    <label>Gym access key</label>
+    <input id="key" placeholder="npo_..." />
+    <div style="margin-top:12px"><button id="enter">Continue</button></div>
+    <p id="gateErr" class="mut" style="color:var(--warn)"></p>
+  </div>
+
+  <!-- Member picker / onboarding -->
+  <div id="pick" class="card hide">
+    <h3 style="margin-top:0">Who's training?</h3>
+    <label>Pick an existing member</label>
+    <div class="row">
+      <select id="memberSel"></select>
+      <button id="useMember" style="flex:0 0 auto">Start</button>
+    </div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0" />
+    <h4 style="margin:0 0 4px">…or sign up</h4>
+    <label>Name</label><input id="oName" placeholder="Alex Kim" />
+    <div class="row">
+      <div><label>Experience</label>
+        <select id="oExp"><option>beginner</option><option>returning</option><option>intermediate</option><option>advanced</option></select></div>
+      <div><label>Target days / week</label><input id="oTarget" type="number" value="3" min="1" max="7" /></div>
+    </div>
+    <label>Your goals</label><input id="oGoals" placeholder="build strength, lose a bit of weight" />
+    <label>Home location</label><select id="oLoc"></select>
+    <label>Injuries / conditions (optional)</label><input id="oInjuries" placeholder="none" />
+    <div class="chk"><input type="checkbox" id="oConsentContact" checked /><label for="oConsentContact" style="margin:0">OK to send me check-in reminders</label></div>
+    <div style="margin-top:14px"><button id="signup">Create my profile</button></div>
+    <p class="mut">By continuing you agree this is general fitness coaching, not medical advice.</p>
+  </div>
+
+  <!-- Coach -->
+  <div id="app" class="hide">
+    <div class="card">
+      <div class="row" style="align-items:center">
+        <h3 style="margin:0">Your program</h3>
+        <button id="buildBtn" style="flex:0 0 auto">Generate / refresh plan</button>
+      </div>
+      <p id="programMeta" class="tag"></p>
+      <div id="program" class="program mut">No program yet — tap “Generate plan”. (Uses the equipment at your home gym.)</div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Ask your coach</h3>
+      <p class="mut">Try: “the squat rack is taken, what do I do?” or “swap leg press for something with dumbbells”.</p>
+      <div id="thread"></div>
+    </div>
+  </div>
+</main>
+
+<div id="composer" class="composer hide">
+  <div class="inner">
+    <input id="chatInput" placeholder="Message your coach…" />
+    <button id="sendBtn" style="flex:0 0 auto">Send</button>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let KEY = localStorage.getItem("fitcoach_key") || "";
+let MEMBER = null;
+
+function headers(){ return { "X-API-Key": KEY, "Content-Type":"application/json" }; }
+async function api(path, opts={}) {
+  const res = await fetch(path, { headers: headers(), ...opts });
+  if (res.status === 401) { gate("Invalid key."); throw new Error("401"); }
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+function esc(s){ return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+function gate(msg){
+  KEY=""; localStorage.removeItem("fitcoach_key");
+  $("gate").classList.remove("hide"); $("pick").classList.add("hide");
+  $("app").classList.add("hide"); $("composer").classList.add("hide");
+  if(msg) $("gateErr").textContent = msg;
+}
+
+$("enter").onclick = async () => {
+  const k = $("key").value.trim();
+  if(!k){ $("gateErr").textContent="Enter a key."; return; }
+  KEY=k; localStorage.setItem("fitcoach_key",k);
+  await showPicker();
+};
+
+async function showPicker(){
+  $("gate").classList.add("hide");
+  try {
+    const [{members}, {locations}] = await Promise.all([api("/v1/members"), api("/v1/locations")]);
+    $("memberSel").innerHTML = members.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join("")
+      || `<option value="">(no members yet — sign up below)</option>`;
+    $("oLoc").innerHTML = locations.map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join("");
+    $("pick").classList.remove("hide");
+  } catch(e){ /* handled */ }
+}
+
+$("useMember").onclick = async () => {
+  const id = $("memberSel").value;
+  if(!id) return;
+  const {members} = await api("/v1/members");
+  MEMBER = members.find(m=>m.id===id);
+  await startCoach();
+};
+
+$("signup").onclick = async () => {
+  const body = {
+    name: $("oName").value.trim() || "New member",
+    experience: $("oExp").value,
+    target_visits_per_week: parseInt($("oTarget").value||"3"),
+    goals: $("oGoals").value.trim(),
+    home_location_id: $("oLoc").value || null,
+    injuries: $("oInjuries").value.trim() || null,
+    consent_contact: $("oConsentContact").checked
+  };
+  MEMBER = await api("/v1/members", { method:"POST", body: JSON.stringify(body) });
+  await startCoach();
+};
+
+async function startCoach(){
+  $("pick").classList.add("hide"); $("app").classList.remove("hide");
+  $("composer").classList.remove("hide");
+  $("who").textContent = "· " + (MEMBER.name||"");
+  try {
+    const p = await api(`/v1/members/${MEMBER.id}/program`);
+    $("program").classList.remove("mut");
+    $("program").textContent = p.body;
+    $("programMeta").textContent = "Saved " + p.created_at;
+  } catch(e){ /* no program yet — leave placeholder */ }
+}
+
+$("buildBtn").onclick = async () => {
+  $("buildBtn").disabled = true;
+  $("program").classList.add("mut");
+  $("program").textContent = "Building your plan from your gym's equipment… (this can take 30–90s)";
+  try {
+    const r = await api("/v1/agents/coach/program", { method:"POST",
+      body: JSON.stringify({ member_id: MEMBER.id, weeks: 4 }) });
+    $("program").classList.remove("mut");
+    $("program").textContent = r.body;
+    $("programMeta").textContent = "Built from: " + (r.equipment_docs||[]).join(", ");
+  } catch(e){ $("program").textContent = "Couldn't build a plan: " + e.message; }
+  $("buildBtn").disabled = false;
+};
+
+function addMsg(text, cls){
+  const d = document.createElement("div");
+  d.className = "msg " + cls;
+  d.textContent = text;
+  $("thread").appendChild(d);
+  window.scrollTo(0, document.body.scrollHeight);
+  return d;
+}
+
+async function send(){
+  const text = $("chatInput").value.trim();
+  if(!text || !MEMBER) return;
+  $("chatInput").value = "";
+  addMsg(text, "me");
+  const pending = addMsg("…", "bot");
+  $("sendBtn").disabled = true;
+  try {
+    const r = await api("/v1/agents/coach/chat", { method:"POST",
+      body: JSON.stringify({ member_id: MEMBER.id, message: text }) });
+    pending.textContent = r.text;
+    if (r.escalated) pending.classList.add("warn");
+  } catch(e){ pending.textContent = "Error: " + e.message; pending.classList.add("warn"); }
+  $("sendBtn").disabled = false;
+}
+$("sendBtn").onclick = send;
+$("chatInput").addEventListener("keydown", e => { if(e.key==="Enter") send(); });
+
+if (KEY) showPicker();
+</script>
+</body>
+</html>

@@ -122,6 +122,49 @@ The demo UI has three tabs:
    This is the tab to land on for a board-level discussion about PIPA / FOIPPA
    exposure.
 
+## FitCoach — gym coaching & retention (Anytime Fitness)
+
+The same engine powers a second product line: **FitCoach**, a white-label AI
+coaching + retention platform for multi-location gyms (reference deployment: an
+Anytime Fitness ownership group with 11 Kelowna/Okanagan locations). The gym
+brands it as their own and sells it to members as a monthly add-on; we charge
+the gym. Full design + business model is in
+[`docs/fitness-agent-design.md`](docs/fitness-agent-design.md).
+
+It reuses the platform primitives directly: an ownership group is a **tenant**,
+its gyms are **locations**, equipment/class/policy docs live in a
+**location-scoped vault namespace**, and the **PII scrubber** runs on member
+profiles before anything reaches the model.
+
+Two agents:
+
+| Agent | Model | Job |
+|-------|-------|-----|
+| **Coach** (`agents/coach.py`) | Opus (programs) / Haiku (chat, substitutions) | Equipment-aware program builder, in-gym substitutions, grounded chat. **Any pain/injury message is escalated to a human instead of coached** (`fitness.detect_injury`). |
+| **Accountability** (`agents/accountability.py`) | Haiku | The agentic retention loop: scores churn risk from the check-in feed (`fitness.assess`, no LLM), nudges at-risk members who consented to contact, escalates prolonged absence to a human. |
+
+Two UIs ship as static pages:
+
+- **Member app** → `/coach` (onboarding, program, coach chat)
+- **Owner dashboard** → `/dashboard` (roster by churn risk, run-sweep button, escalations, nudges)
+
+### Demo walkthrough
+
+```bash
+pip install -e ".[dev]"
+export ANTHROPIC_API_KEY=sk-ant-...        # only needed for program/chat/nudge text
+npo-agent seed-fitness-demo                  # seeds a gym + 6 members + check-in history
+npo-agent serve --port 8000
+# → http://localhost:8000/dashboard  (paste the api_key the seeder printed)
+# → http://localhost:8000/coach
+```
+
+The seeded roster spans the risk spectrum (a steady regular, a member who
+lapsed ~8 days ago, two who've gone cold, and one who never badged in) so the
+dashboard's risk bands and the accountability sweep are populated on first load.
+Risk scoring and the dashboard work with **no** Anthropic key; only program
+generation, chat, and nudge composition call the model.
+
 ## Production / multi-tenant quick start
 
 For real multi-tenant operation (creating tenants, ingesting their docs,

@@ -25,6 +25,11 @@ def main(argv: list[str] | None = None) -> int:
         choices=list(PERSONAS.keys()),
     )
 
+    sub.add_parser(
+        "seed-fitness-demo",
+        help="Seed the FitCoach demo tenant (gym + members + check-in history)",
+    )
+
     p_serve = sub.add_parser("serve", help="Run the API with uvicorn")
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=8000)
@@ -45,6 +50,25 @@ def main(argv: list[str] | None = None) -> int:
         print(f"persona:   {tenant.persona}")
         print(f"api_key:   {api_key}")
         print("(store the api_key now — it is not retrievable later)")
+        return 0
+
+    if args.cmd == "seed-fitness-demo":
+        from .fitness_demo import seed_fitness_demo
+
+        init_db()
+        info = seed_fitness_demo()
+        print("FitCoach demo seeded.\n")
+        print(f"tenant_id:   {info['tenant_id']}")
+        print(f"api_key:     {info['api_key']}   (use as X-API-Key)")
+        print(f"location_id: {info['location_id']}")
+        print("members:")
+        for m in info["members"]:
+            print(f"  - {m['id']}  {m['name']}")
+        print("\nNext:")
+        print("  npo-agent serve --port 8000")
+        print("  Owner dashboard → http://localhost:8000/dashboard")
+        print("  Member app      → http://localhost:8000/coach")
+        print("  (paste the api_key above into either UI)")
         return 0
 
     if args.cmd == "serve":

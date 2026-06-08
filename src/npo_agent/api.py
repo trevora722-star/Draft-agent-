@@ -19,7 +19,8 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .agents import GrantWriter, PolicyNavigator
+from . import fitness
+from .agents import Accountability, Coach, GrantWriter, PolicyNavigator
 from .config import get_settings
 from .db import init_db
 from .personas import DEFAULT_PERSONA, PERSONAS
@@ -73,6 +74,21 @@ def demo_ui():
             detail="Demo mode disabled. Set NPO_DEMO_MODE=1 to enable.",
         )
     return FileResponse(_STATIC_DIR / "demo.html")
+
+
+# ---- FitCoach UIs (always available; the browser supplies the tenant key) ---
+
+
+@app.get("/coach", include_in_schema=False)
+def coach_ui():
+    """Member-facing app: onboarding, program, and chat with the AI coach."""
+    return FileResponse(_STATIC_DIR / "coach.html")
+
+
+@app.get("/dashboard", include_in_schema=False)
+def dashboard_ui():
+    """Owner-facing dashboard: roster, churn risk, nudges, escalations."""
+    return FileResponse(_STATIC_DIR / "dashboard.html")
 
 
 # ---- auth dependencies ----------------------------------------------------
@@ -292,3 +308,334 @@ def policy_navigator_ask(
 ) -> PolicyAnswerResponse:
     answer = PolicyNavigator(tenant).ask(req.question)
     return PolicyAnswerResponse(answer=answer.answer, citations=answer.citations)
+
+
+# ===========================================================================
+# FitCoach — multi-location gym coaching + retention
+# ===========================================================================
+#
+# The gym ownership group is the tenant (authenticated by X-API-Key). Its
+# physical gyms are locations; members belong to a home location. Equipment /
+# class / policy docs are ingested into a location-scoped vault namespace so the
+# Coach only ever sees one gym's gear.
+
+
+def _member_or_404(tenant: Tenant, member_id: str):
+    member = fitness.get_member(tenant, member_id)
+    if member is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+    return member
+
+
+# ---- request / response models -------------------------------------------
+
+
+class CreateLocationRequest(BaseModel):
+    name: str
+    address: str | None = None
+    timezone: str = "America/Vancouver"
+
+
+class LocationResponse(BaseModel):
+    id: str
+    name: str
+    address: str | None
+    timezone: str
+
+
+class LocationDocumentRequest(BaseModel):
+    title: str
+    body: str
+    kind: str = Field(
+        default="equipment",
+        description="Location doc kind: 'equipment', 'classes', or 'policies'.",
+    )
+
+
+class CreateMemberRequest(BaseModel):
+    name: str
+    home_location_id: str | None = None
+    email: str | None = None
+    goals: str | None = None
+    experience: str = "beginner"
+    injuries: str | None = None
+    constraints: str | None = None
+    target_visits_per_week: int = 3
+    consent_coaching: bool = True
+    consent_contact: bool = False
+    consent_retention: bool = True
+
+
+class MemberResponse(BaseModel):
+    id: str
+    name: str
+    home_location_id: str | None
+    goals: str | None
+    experience: str
+    target_visits_per_week: int
+    consent_contact: bool
+
+
+class CheckinImportRequest(BaseModel):
+    location_id: str | None = None
+    timestamps: list[str] = Field(
+        description="ISO datetimes or YYYY-MM-DD dates of visits to import."
+    )
+
+
+class ProgramRequest(BaseModel):
+    member_id: str
+    weeks: int = 4
+
+
+class SubstituteRequest(BaseModel):
+    member_id: str
+    exercise: str
+
+
+class ChatRequest(BaseModel):
+    member_id: str
+    message: str
+
+
+class ChatResponse(BaseModel):
+    text: str
+    escalated: bool
+    used_llm: bool
+    citations: list[str]
+
+
+# ---- locations ------------------------------------------------------------
+
+
+@app.post("/v1/locations", response_model=LocationResponse)
+def create_location(
+    req: CreateLocationRequest,
+    tenant: Annotated[Tenant, Depends(require_tenant)],
+) -> LocationResponse:
+    loc = fitness.create_location(
+        tenant, req.name, address=req.address, timezone=req.timezone
+    )
+    return LocationResponse(id=loc.id, name=loc.name, address=loc.address, timezone=loc.timezone)
+
+
+@app.get("/v1/locations")
+def list_locations(tenant: Annotated[Tenant, Depends(require_tenant)]) -> dict:
+    return {
+        "locations": [
+            {"id": l.id, "name": l.name, "address": l.address, "timezone": l.timezone}
+            for l in fitness.list_locations(tenant)
+        ]
+    }
+
+
+@app.post("/v1/locations/{location_id}/documents", response_model=IngestDocumentResponse)
+def ingest_location_document(
+    location_id: str,
+    req: LocationDocumentRequest,
+    tenant: Annotated[Tenant, Depends(require_tenant)],
+) -> IngestDocumentResponse:
+    if fitness.get_location(tenant, location_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+    namespace = fitness.location_namespace(location_id, req.kind)
+    doc = Vault(tenant).add(title=req.title, body=req.body, namespace=namespace)
+    return IngestDocumentResponse(document_id=doc.id, namespace=doc.namespace)
+
+
+# ---- members --------------------------------------------------------------
+
+
+@app.post("/v1/members", response_model=MemberResponse)
+def create_member(
+    req: CreateMemberRequest,
+    tenant: Annotated[Tenant, Depends(require_tenant)],
+) -> MemberResponse:
+    member = fitness.create_member(
+        tenant,
+        req.name,
+        home_location_id=req.home_location_id,
+        email=req.email,
+        goals=req.goals,
+        experience=req.experience,
+        injuries=req.injuries,
+        constraints=req.constraints,
+        target_visits_per_week=req.target_visits_per_week,
+        consent_coaching=req.consent_coaching,
+        consent_contact=req.consent_contact,
+        consent_retention=req.consent_retention,
+    )
+    return MemberResponse(
+        id=member.id,
+        name=member.name,
+        home_location_id=member.home_location_id,
+        goals=member.goals,
+        experience=member.experience,
+        target_visits_per_week=member.target_visits_per_week,
+        consent_contact=member.consent_contact,
+    )
+
+
+@app.get("/v1/members")
+def list_members(tenant: Annotated[Tenant, Depends(require_tenant)]) -> dict:
+    return {
+        "members": [
+            {
+                "id": m.id,
+                "name": m.name,
+                "home_location_id": m.home_location_id,
+                "experience": m.experience,
+                "consent_contact": m.consent_contact,
+            }
+            for m in fitness.list_members(tenant)
+        ]
+    }
+
+
+@app.post("/v1/members/{member_id}/checkins")
+def import_checkins(
+    member_id: str,
+    req: CheckinImportRequest,
+    tenant: Annotated[Tenant, Depends(require_tenant)],
+) -> dict:
+    _member_or_404(tenant, member_id)
+    count = fitness.record_checkins(
+        tenant, member_id, req.timestamps, location_id=req.location_id
+    )
+    return {"member_id": member_id, "imported": count}
+
+
+@app.get("/v1/members/{member_id}/program")
+def get_member_program(
+    member_id: str,
+    tenant: Annotated[Tenant, Depends(require_tenant)],
+) -> dict:
+    _member_or_404(tenant, member_id)
+    program = fitness.latest_program(tenant, member_id)
+    if program is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No program yet")
+    return {"id": program.id, "body": program.body, "created_at": program.created_at}
+
+
+# ---- coach agent ----------------------------------------------------------
+
+
+@app.post("/v1/agents/coach/program")
+def coach_build_program(
+    req: ProgramRequest,
+    tenant: Annotated[Tenant, Depends(require_tenant)],
+) -> dict:
+    member = _member_or_404(tenant, req.member_id)
+    result = Coach(tenant).build_program(member, weeks=req.weeks)
+    return {
+        "program_id": result.program_id,
+        "body": result.body,
+        "equipment_docs": result.equipment_docs,
+    }
+
+
+@app.post("/v1/agents/coach/substitute", response_model=ChatResponse)
+def coach_substitute(
+    req: SubstituteRequest,
+    tenant: Annotated[Tenant, Depends(require_tenant)],
+) -> ChatResponse:
+    member = _member_or_404(tenant, req.member_id)
+    reply = Coach(tenant).substitute(member, req.exercise)
+    return ChatResponse(
+        text=reply.text,
+        escalated=reply.escalated,
+        used_llm=reply.used_llm,
+        citations=reply.citations,
+    )
+
+
+@app.post("/v1/agents/coach/chat", response_model=ChatResponse)
+def coach_chat(
+    req: ChatRequest,
+    tenant: Annotated[Tenant, Depends(require_tenant)],
+) -> ChatResponse:
+    member = _member_or_404(tenant, req.member_id)
+    reply = Coach(tenant).chat(member, req.message)
+    return ChatResponse(
+        text=reply.text,
+        escalated=reply.escalated,
+        used_llm=reply.used_llm,
+        citations=reply.citations,
+    )
+
+
+# ---- accountability agent -------------------------------------------------
+
+
+@app.get("/v1/agents/accountability/assess/{member_id}")
+def accountability_assess(
+    member_id: str,
+    tenant: Annotated[Tenant, Depends(require_tenant)],
+) -> dict:
+    member = _member_or_404(tenant, member_id)
+    a = Accountability(tenant).assess(member)
+    return {
+        "member_id": a.member_id,
+        "score": a.score,
+        "band": a.band,
+        "days_since_last": a.days_since_last,
+        "visits_last_7": a.visits_last_7,
+        "visits_last_14": a.visits_last_14,
+        "visits_last_28": a.visits_last_28,
+        "target_visits_per_week": a.target_visits_per_week,
+        "reasons": a.reasons,
+    }
+
+
+@app.post("/v1/agents/accountability/sweep")
+def accountability_sweep(
+    tenant: Annotated[Tenant, Depends(require_tenant)],
+    send: bool = True,
+) -> dict:
+    result = Accountability(tenant).run_sweep(send=send)
+    return {
+        "assessed": result.assessed,
+        "nudged": result.nudged,
+        "escalated": result.escalated,
+        "skipped_no_consent": result.skipped_no_consent,
+        "nudges": [
+            {"member_id": n.member_id, "band": n.band, "score": n.score, "message": n.message}
+            for n in result.nudges
+        ],
+    }
+
+
+# ---- owner dashboard ------------------------------------------------------
+
+
+@app.get("/v1/dashboard")
+def dashboard(tenant: Annotated[Tenant, Depends(require_tenant)]) -> dict:
+    """Everything the owner-facing dashboard needs in one call."""
+    members = fitness.list_members(tenant)
+    acct = Accountability(tenant)
+    roster = []
+    bands = {"low": 0, "medium": 0, "high": 0}
+    for m in members:
+        a = acct.assess(m)
+        bands[a.band] += 1
+        roster.append(
+            {
+                "member_id": m.id,
+                "name": m.name,
+                "home_location_id": m.home_location_id,
+                "band": a.band,
+                "score": a.score,
+                "days_since_last": a.days_since_last,
+                "visits_last_28": a.visits_last_28,
+                "consent_contact": m.consent_contact,
+                "reasons": a.reasons,
+            }
+        )
+    roster.sort(key=lambda r: -r["score"])
+    return {
+        "tenant": tenant.name,
+        "member_count": len(members),
+        "risk_bands": bands,
+        "roster": roster,
+        "recent_nudges": fitness.list_nudges(tenant, limit=25),
+        "open_escalations": fitness.list_escalations(tenant, unresolved_only=True),
+    }

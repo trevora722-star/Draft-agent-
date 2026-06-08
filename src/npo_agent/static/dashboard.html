@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FitCoach — Owner Dashboard</title>
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --line:#272b34; --txt:#e7e9ee; --mut:#9aa3b2;
+          --low:#2ecc71; --med:#f1c40f; --high:#e74c3c; --accent:#5b8cff; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--txt); }
+  header { padding:20px 28px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  header h1 { font-size:18px; margin:0; }
+  header .sub { color:var(--mut); font-size:13px; }
+  main { padding:24px 28px; max-width:1100px; margin:0 auto; }
+  .row { display:flex; gap:16px; flex-wrap:wrap; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; }
+  .kpi { flex:1; min-width:150px; }
+  .kpi .n { font-size:30px; font-weight:700; }
+  .kpi .l { color:var(--mut); font-size:13px; }
+  .band { display:inline-block; padding:2px 9px; border-radius:99px; font-size:12px; font-weight:600; color:#0c0e12; }
+  .band.low{background:var(--low);} .band.medium{background:var(--med);} .band.high{background:var(--high);}
+  table { width:100%; border-collapse:collapse; margin-top:6px; }
+  th,td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:top; }
+  th { color:var(--mut); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .mut { color:var(--mut); }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:9px 16px; font-size:14px; cursor:pointer; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--txt); }
+  button:disabled { opacity:.5; cursor:default; }
+  input { background:#0c0e12; border:1px solid var(--line); color:var(--txt); border-radius:8px; padding:9px 11px; font-size:14px; }
+  .gate { max-width:440px; margin:60px auto; }
+  h2 { font-size:15px; margin:24px 0 8px; }
+  .pill { font-size:12px; color:var(--mut); border:1px solid var(--line); border-radius:99px; padding:1px 8px; }
+  .hide { display:none; }
+  .muted-row td { color:var(--mut); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏋️ FitCoach <span class="sub">Owner Dashboard</span></h1>
+  <span id="tenantName" class="sub"></span>
+  <span style="margin-left:auto"></span>
+  <a href="/coach" class="sub" style="color:var(--accent)">Member app →</a>
+  <button id="logout" class="ghost hide">Switch key</button>
+</header>
+
+<main>
+  <!-- API key gate -->
+  <div id="gate" class="gate card">
+    <h2 style="margin-top:0">Sign in</h2>
+    <p class="mut">Paste the gym's API key (the <code>X-API-Key</code> issued to the ownership group).</p>
+    <div class="row">
+      <input id="key" placeholder="npo_..." style="flex:1" />
+      <button id="enter">Open dashboard</button>
+    </div>
+    <p id="gateErr" class="mut" style="color:var(--high)"></p>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="app" class="hide">
+    <div class="row" style="margin-bottom:20px">
+      <div class="card kpi"><div class="n" id="kMembers">–</div><div class="l">Members</div></div>
+      <div class="card kpi"><div class="n" id="kHigh" style="color:var(--high)">–</div><div class="l">High churn risk</div></div>
+      <div class="card kpi"><div class="n" id="kMed" style="color:var(--med)">–</div><div class="l">Medium risk</div></div>
+      <div class="card kpi"><div class="n" id="kLow" style="color:var(--low)">–</div><div class="l">On track</div></div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="align-items:center">
+        <h2 style="margin:0">Roster — sorted by churn risk</h2>
+        <span style="margin-left:auto"></span>
+        <button id="sweep">▶ Run accountability sweep</button>
+      </div>
+      <p class="mut" id="sweepMsg" style="font-size:13px"></p>
+      <table>
+        <thead><tr><th>Member</th><th>Risk</th><th>Score</th><th>Last visit</th><th>4-wk visits</th><th>Why</th><th>Contact?</th></tr></thead>
+        <tbody id="roster"></tbody>
+      </table>
+    </div>
+
+    <div class="row" style="margin-top:18px">
+      <div class="card" style="flex:1; min-width:320px">
+        <h2 style="margin-top:0">⚠️ Open escalations <span class="pill">human follow-up</span></h2>
+        <div id="escalations"></div>
+      </div>
+      <div class="card" style="flex:1; min-width:320px">
+        <h2 style="margin-top:0">Recent nudges sent</h2>
+        <div id="nudges"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let KEY = localStorage.getItem("fitcoach_key") || "";
+
+function headers() { return { "X-API-Key": KEY, "Content-Type": "application/json" }; }
+
+async function api(path, opts={}) {
+  const res = await fetch(path, { headers: headers(), ...opts });
+  if (res.status === 401) { logout("Invalid API key."); throw new Error("401"); }
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+function logout(msg) {
+  localStorage.removeItem("fitcoach_key"); KEY = "";
+  $("app").classList.add("hide"); $("gate").classList.remove("hide");
+  $("logout").classList.add("hide");
+  if (msg) $("gateErr").textContent = msg;
+}
+
+function bandTag(b){ return `<span class="band ${b}">${b}</span>`; }
+function esc(s){ return (s||"").replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+async function load() {
+  const d = await api("/v1/dashboard");
+  $("tenantName").textContent = d.tenant;
+  $("kMembers").textContent = d.member_count;
+  $("kHigh").textContent = d.risk_bands.high;
+  $("kMed").textContent = d.risk_bands.medium;
+  $("kLow").textContent = d.risk_bands.low;
+
+  $("roster").innerHTML = d.roster.map(r => `
+    <tr>
+      <td>${esc(r.name)}</td>
+      <td>${bandTag(r.band)}</td>
+      <td>${r.score.toFixed(2)}</td>
+      <td>${r.days_since_last==null ? "<span class='mut'>never</span>" : r.days_since_last+"d ago"}</td>
+      <td>${r.visits_last_28}</td>
+      <td class="mut">${esc((r.reasons||[]).join(" "))}</td>
+      <td>${r.consent_contact ? "✓" : "<span class='mut'>no consent</span>"}</td>
+    </tr>`).join("");
+
+  $("escalations").innerHTML = d.open_escalations.length
+    ? d.open_escalations.map(e => `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
+        <b>${esc(e.reason)}</b> <span class="mut">· ${esc(e.created_at)}</span><br>
+        <span class="mut">${esc(e.detail||"")}</span></div>`).join("")
+    : "<p class='mut'>None — nothing needs a human right now.</p>";
+
+  $("nudges").innerHTML = d.recent_nudges.length
+    ? d.recent_nudges.map(n => `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
+        <span class="mut">risk ${Number(n.risk_at_send).toFixed(2)} · ${esc(n.created_at)}</span><br>
+        ${esc(n.body)}</div>`).join("")
+    : "<p class='mut'>No nudges sent yet. Run a sweep.</p>";
+}
+
+$("enter").onclick = () => {
+  const k = $("key").value.trim();
+  if (!k) { $("gateErr").textContent = "Enter a key."; return; }
+  KEY = k; localStorage.setItem("fitcoach_key", k);
+  start();
+};
+
+$("logout").onclick = () => logout("");
+
+$("sweep").onclick = async () => {
+  $("sweep").disabled = true; $("sweepMsg").textContent = "Assessing every member…";
+  try {
+    const r = await api("/v1/agents/accountability/sweep", { method:"POST", body:"{}" });
+    $("sweepMsg").textContent =
+      `Assessed ${r.assessed} · nudged ${r.nudged} · escalated ${r.escalated} · skipped (no consent) ${r.skipped_no_consent}.`;
+    await load();
+  } catch(e) { $("sweepMsg").textContent = "Sweep failed: " + e.message; }
+  $("sweep").disabled = false;
+};
+
+async function start() {
+  $("gate").classList.add("hide"); $("app").classList.remove("hide");
+  $("logout").classList.remove("hide");
+  try { await load(); } catch(e) { /* handled in api() */ }
+}
+
+if (KEY) start();
+</script>
+</body>
+</html>
