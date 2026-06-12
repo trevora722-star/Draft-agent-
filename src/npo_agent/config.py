@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     demo_mode: bool = False
     demo_tenant_name: str = "BCSS Demo"
 
+    # FitCoach demo mode. When enabled, the API auto-seeds the gym demo tenant
+    # (locations + members + check-in history) and serves a known demo key to
+    # the /coach and /dashboard UIs so a one-link deploy works with no login.
+    fitness_demo_mode: bool = False
+    fitness_demo_key: str = "npo_fitcoach_demo"
+
 
 @lru_cache
 def get_settings() -> Settings:

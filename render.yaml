@@ -36,3 +36,35 @@ services:
       name: npo-data
       mountPath: /var/data
       sizeGB: 1
+
+  # ── FitCoach one-link demo (gym coaching + retention) ──────────────────────
+  # Auto-seeds the "Anytime Coach Demo" gym (locations + members + check-in
+  # history) and serves /dashboard and /coach with no login — the UIs fetch the
+  # seeded demo key from /fit-demo/key. Programs use full Opus + adaptive
+  # thinking (~30–90s), which is why this runs on Render, not a serverless
+  # function. Share the root URL; it redirects to the owner dashboard.
+  - type: web
+    name: fitcoach-demo
+    runtime: python
+    region: oregon  # for paid prod, switch to a CA region for data residency
+    plan: free
+    buildCommand: pip install -e .
+    startCommand: uvicorn npo_agent.api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false  # must be set in the Render dashboard
+      - key: NPO_FITNESS_DEMO_MODE
+        value: "1"
+      - key: NPO_DB_PATH
+        value: /var/data/fitcoach.sqlite
+      - key: NPO_DATA_RESIDENCY
+        value: ca-central
+      - key: NPO_ADMIN_TOKEN
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: "3.11"
+    disk:
+      name: fitcoach-data
+      mountPath: /var/data
+      sizeGB: 1

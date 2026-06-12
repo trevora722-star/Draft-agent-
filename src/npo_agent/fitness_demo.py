@@ -15,7 +15,9 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from . import fitness
-from .tenancy import Tenant, create_tenant
+from .config import get_settings
+from .db import connect
+from .tenancy import Tenant, create_tenant, get_tenant
 from .vault import Vault
 
 DEMO_TENANT_NAME = "Anytime Coach Demo"
@@ -109,11 +111,8 @@ _DEMO_MEMBERS = [
 ]
 
 
-def seed_fitness_demo() -> dict:
-    """Create the demo tenant + location + members. Idempotent-ish: each call
-    mints a fresh tenant (new API key) so demos don't collide."""
-    tenant, api_key = create_tenant(DEMO_TENANT_NAME, persona="coach-hype")
-
+def _populate(tenant: Tenant) -> dict:
+    """Seed one location + the exercise library + the demo roster into a tenant."""
     location = fitness.create_location(
         tenant,
         "Anytime Fitness — Kelowna (Rutland)",
@@ -157,7 +156,41 @@ def seed_fitness_demo() -> dict:
 
     return {
         "tenant_id": tenant.id,
-        "api_key": api_key,
         "location_id": location.id,
         "members": [{"id": m.id, "name": m.name} for m in members],
     }
+
+
+def seed_fitness_demo() -> dict:
+    """Create a fresh demo tenant + location + members (CLI path).
+
+    Each call mints a new tenant with a random API key so local demos don't
+    collide. Returns the key so the operator can paste it into the UIs.
+    """
+    tenant, api_key = create_tenant(DEMO_TENANT_NAME, persona="coach-hype")
+    info = _populate(tenant)
+    info["api_key"] = api_key
+    return info
+
+
+def _find_tenant_by_name(name: str) -> Tenant | None:
+    with connect() as conn:
+        row = conn.execute("SELECT id FROM tenants WHERE name = ?", (name,)).fetchone()
+    return get_tenant(row["id"]) if row else None
+
+
+def ensure_fitness_demo() -> dict:
+    """Idempotent bootstrap for one-link deploys (NPO_FITNESS_DEMO=1).
+
+    On a fresh database, seed the demo tenant with a KNOWN api key
+    (settings.fitness_demo_key) so the browser can fetch it from /fit-demo/key
+    and the deployed link works with no login. Safe to call on every cold start.
+    """
+    api_key = get_settings().fitness_demo_key
+    existing = _find_tenant_by_name(DEMO_TENANT_NAME)
+    if existing is not None:
+        return {"tenant_id": existing.id, "api_key": api_key}
+    tenant, _ = create_tenant(DEMO_TENANT_NAME, persona="coach-hype", api_key=api_key)
+    info = _populate(tenant)
+    info["api_key"] = api_key
+    return info

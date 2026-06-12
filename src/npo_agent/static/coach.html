@@ -221,7 +221,17 @@ async function send(){
 $("sendBtn").onclick = send;
 $("chatInput").addEventListener("keydown", e => { if(e.key==="Enter") send(); });
 
-if (KEY) showPicker();
+// One-link demo: if no key yet, try the server's seeded demo key.
+async function init() {
+  if (!KEY) {
+    try {
+      const r = await fetch("/fit-demo/key");
+      if (r.ok) { KEY = (await r.json()).api_key; localStorage.setItem("fitcoach_key", KEY); }
+    } catch(e) { /* not in demo mode — show the gate */ }
+  }
+  if (KEY) showPicker();
+}
+init();
 </script>
 </body>
 </html>

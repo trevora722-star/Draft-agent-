@@ -52,18 +52,45 @@ if get_settings().demo_mode:
 @app.on_event("startup")
 def _startup() -> None:
     init_db()
-    if get_settings().demo_mode:
+    settings = get_settings()
+    if settings.demo_mode:
         from . import demo as demo_module
 
         demo_module.ensure_demo_tenant()
+    if settings.fitness_demo_mode:
+        from . import fitness_demo
+
+        fitness_demo.ensure_fitness_demo()
 
 
 @app.get("/", include_in_schema=False)
 def root():
-    """In demo mode, redirect to the demo UI; otherwise to the OpenAPI docs."""
-    if get_settings().demo_mode:
+    """Redirect to the relevant landing page; otherwise to the OpenAPI docs."""
+    settings = get_settings()
+    if settings.fitness_demo_mode:
+        return RedirectResponse(url="/dashboard")
+    if settings.demo_mode:
         return RedirectResponse(url="/demo-ui")
     return RedirectResponse(url="/docs")
+
+
+@app.get("/fit-demo/key", include_in_schema=False)
+def fit_demo_key():
+    """Hand the seeded demo key to the UIs so a one-link deploy needs no login.
+
+    Only active in fitness-demo mode, where the key only unlocks fake seeded
+    members — never enabled for real tenants.
+    """
+    settings = get_settings()
+    if not settings.fitness_demo_mode:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not in demo mode")
+    return {"api_key": settings.fitness_demo_key, "tenant": fitness_demo_module_name()}
+
+
+def fitness_demo_module_name() -> str:
+    from .fitness_demo import DEMO_TENANT_NAME
+
+    return DEMO_TENANT_NAME
 
 
 @app.get("/demo-ui", include_in_schema=False)

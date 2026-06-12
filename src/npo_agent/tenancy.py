@@ -35,13 +35,18 @@ class Tenant:
         return f"tenant:{self.id}"
 
 
-def create_tenant(name: str, persona: str = DEFAULT_PERSONA) -> tuple[Tenant, str]:
+def create_tenant(
+    name: str, persona: str = DEFAULT_PERSONA, *, api_key: str | None = None
+) -> tuple[Tenant, str]:
     """Create a tenant. Returns (tenant, plaintext_api_key).
 
     The plaintext key is shown to the admin once; only its hash is stored.
+    A specific `api_key` may be supplied (used by demo bootstrap so a one-link
+    deploy can hand the browser a known key); otherwise one is generated.
     """
     tenant_id = uuid.uuid4().hex
-    api_key = f"npo_{secrets.token_urlsafe(32)}"
+    if api_key is None:
+        api_key = f"npo_{secrets.token_urlsafe(32)}"
     with connect() as conn:
         conn.execute(
             "INSERT INTO tenants (id, name, api_key_hash, persona) VALUES (?, ?, ?, ?)",

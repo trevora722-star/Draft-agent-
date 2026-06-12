@@ -165,6 +165,24 @@ dashboard's risk bands and the accountability sweep are populated on first load.
 Risk scoring and the dashboard work with **no** Anthropic key; only program
 generation, chat, and nudge composition call the model.
 
+### One-link deploy (Render)
+
+The Render blueprint (`render.yaml`) ships a `fitcoach-demo` service. With
+`NPO_FITNESS_DEMO_MODE=1` it auto-seeds the gym on first boot and the UIs fetch
+the seeded key from `/fit-demo/key`, so the deployed link works with **no
+login** — share the root URL and it lands on the owner dashboard. Programs run
+full Opus + adaptive thinking (which is why this is a Render web service, not a
+serverless function with a short timeout).
+
+1. Push this branch to GitHub.
+2. In Render: **New + → Blueprint** → point at this repo (deploys both the BCSS
+   and `fitcoach-demo` services).
+3. Set `ANTHROPIC_API_KEY` on the `fitcoach-demo` service.
+4. Open the service URL → owner dashboard. Add `/coach` for the member app.
+
+The business case + pricing for the ownership group is in
+[`docs/fitness-pitch.md`](docs/fitness-pitch.md).
+
 ## Production / multi-tenant quick start
 
 For real multi-tenant operation (creating tenants, ingesting their docs,
