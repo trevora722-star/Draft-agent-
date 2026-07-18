@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fit Connect — Retention infrastructure for gym groups</title>
+<meta name="description" content="AI coaching and member-retention infrastructure for multi-location gym groups. Run your own ROI numbers and book a demo.">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0B0D12">
+<meta property="og:title" content="Fit Connect — Retention infrastructure for gym groups">
+<meta property="og:description" content="Stop losing members you could have saved. AI coaching your members pay for, plus an automatic churn-retention loop.">
+<meta property="og:type" content="website">
+<style>*{margin:0}</style>
+</head>
+<body>
+<style>
+  :root{
+    --ink:#0B0D12; --ink2:#0F1219; --panel:#151925; --panel2:#1B2130; --line:#28303F;
+    --chalk:#EDEFF3; --mut:#93A0B2; --faint:#5C6879;
+    --ember:#FF6A3D; --ember2:#FF8C4A; --ember-soft:rgba(255,106,61,.15);
+    --gain:#37D98A; --gain-soft:rgba(55,217,138,.14); --steel:#4E6178;
+    --grid:rgba(255,255,255,.032);
+    --shadow:0 30px 70px -30px rgba(0,0,0,.8);
+    --ring:rgba(255,106,61,.5);
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --ink:#EEF1F5; --ink2:#F5F7FA; --panel:#FFFFFF; --panel2:#F7F9FC; --line:#DFE4EC;
+      --chalk:#111620; --mut:#556174; --faint:#8A96A6;
+      --ember:#DC4818; --ember2:#E9662F; --ember-soft:rgba(220,72,24,.10);
+      --gain:#0E9A5C; --gain-soft:rgba(14,154,92,.10); --steel:#7D8CA0;
+      --grid:rgba(17,22,32,.045);
+      --shadow:0 30px 60px -34px rgba(30,45,70,.30);
+      --ring:rgba(220,72,24,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#0B0D12; --ink2:#0F1219; --panel:#151925; --panel2:#1B2130; --line:#28303F;
+    --chalk:#EDEFF3; --mut:#93A0B2; --faint:#5C6879;
+    --ember:#FF6A3D; --ember2:#FF8C4A; --ember-soft:rgba(255,106,61,.15);
+    --gain:#37D98A; --gain-soft:rgba(55,217,138,.14); --steel:#4E6178;
+    --grid:rgba(255,255,255,.032); --shadow:0 30px 70px -30px rgba(0,0,0,.8); --ring:rgba(255,106,61,.5);
+  }
+  :root[data-theme="light"]{
+    --ink:#EEF1F5; --ink2:#F5F7FA; --panel:#FFFFFF; --panel2:#F7F9FC; --line:#DFE4EC;
+    --chalk:#111620; --mut:#556174; --faint:#8A96A6;
+    --ember:#DC4818; --ember2:#E9662F; --ember-soft:rgba(220,72,24,.10);
+    --gain:#0E9A5C; --gain-soft:rgba(14,154,92,.10); --steel:#7D8CA0;
+    --grid:rgba(17,22,32,.045); --shadow:0 30px 60px -34px rgba(30,45,70,.30); --ring:rgba(220,72,24,.4);
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;background:var(--ink);color:var(--chalk);
+    font:16px/1.62 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  .bg-grid{position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:72px 72px;mask-image:radial-gradient(ellipse 90% 60% at 50% 0%,#000 30%,transparent 90%);}
+  .mono{font-family:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;}
+  .wrap{max-width:1140px;margin:0 auto;padding:0 24px;position:relative;z-index:1;}
+  a{color:inherit;}
+  h1,h2,h3,h4{margin:0;text-wrap:balance;}
+  .display{font-family:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;font-weight:800;letter-spacing:-.03em;line-height:1.0;}
+  .tnum{font-variant-numeric:tabular-nums;}
+  .eyebrow{font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--ember);display:inline-flex;align-items:center;gap:10px;}
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--ember);}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:30;backdrop-filter:blur(12px);
+    background:color-mix(in srgb,var(--ink) 78%,transparent);border-bottom:1px solid var(--line);}
+  .nav-in{display:flex;align-items:center;gap:16px;height:62px;}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:800;letter-spacing:-.02em;font-size:18px;}
+  .glyph{width:24px;height:24px;position:relative;flex:0 0 auto;filter:drop-shadow(0 0 10px var(--ember-soft));}
+  .glyph::before,.glyph::after{content:"";position:absolute;background:var(--ember);border-radius:2px;}
+  .glyph::before{width:24px;height:6px;top:9px;left:0;}
+  .glyph::after{width:6px;height:24px;top:0;left:9px;}
+  .brand small{color:var(--faint);font-weight:600;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;}
+  .nav-links{margin-left:auto;display:flex;align-items:center;gap:26px;}
+  .nav-links a.navlink{font-size:14px;color:var(--mut);text-decoration:none;}
+  .nav-links a.navlink:hover{color:var(--chalk);}
+  .btn{display:inline-flex;align-items:center;gap:9px;font-weight:700;font-size:14px;text-decoration:none;
+    padding:12px 20px;border-radius:10px;border:1px solid transparent;cursor:pointer;
+    transition:transform .13s ease,box-shadow .13s ease,border-color .13s ease,color .13s ease;}
+  .btn-primary{background:linear-gradient(180deg,var(--ember2),var(--ember));color:#fff;box-shadow:0 10px 26px -10px var(--ember);}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 34px -12px var(--ember);}
+  .btn-ghost{border-color:var(--line);color:var(--chalk);}
+  .btn-ghost:hover{border-color:var(--ember);color:var(--ember);}
+  .nav-links .btn{padding:10px 16px;}
+  @media(max-width:760px){.nav-links a.navlink{display:none;}}
+
+  /* hero */
+  .hero{padding:70px 0 46px;display:grid;grid-template-columns:1.02fr .98fr;gap:48px;align-items:center;}
+  .hero h1{font-size:clamp(38px,6vw,68px);margin:22px 0 0;}
+  .hero h1 .em{color:var(--ember);position:relative;}
+  .hero .lead{color:var(--mut);font-size:19px;max-width:37ch;margin:22px 0 0;}
+  .hero-cta{display:flex;gap:14px;align-items:center;margin-top:32px;flex-wrap:wrap;}
+  .trustline{display:flex;gap:18px;flex-wrap:wrap;margin-top:26px;color:var(--faint);font-size:13px;}
+  .trustline span{display:inline-flex;align-items:center;gap:7px;}
+  .trustline span::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--gain);}
+  @media(max-width:900px){.hero{grid-template-columns:1fr;padding:44px 0 20px;gap:28px;}}
+
+  /* radar console */
+  .console{background:linear-gradient(180deg,var(--panel),var(--ink2));border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--shadow);}
+  .console-bar{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--panel2) 70%,transparent);}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--faint);opacity:.5;}
+  .console-bar .lbl{margin-left:8px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);}
+  .console-bar .live{margin-left:auto;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gain);display:flex;align-items:center;gap:7px;}
+  .console-bar .live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--gain);animation:blip 2.2s infinite;}
+  @keyframes blip{0%{box-shadow:0 0 0 0 var(--gain-soft);}70%{box-shadow:0 0 0 8px transparent;}100%{box-shadow:0 0 0 0 transparent;}}
+  #radar{width:100%;height:300px;display:block;}
+  .readout{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line);}
+  .cell{background:var(--panel);padding:14px 16px;}
+  .cell .k{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--faint);}
+  .cell .n{font-size:24px;font-weight:800;letter-spacing:-.02em;margin-top:4px;}
+  .cell .n.gain{color:var(--gain);} .cell .n.ember{color:var(--ember);}
+
+  /* generic section */
+  section{padding:74px 0;position:relative;z-index:1;}
+  .divider{border-top:1px solid var(--line);}
+  .sec-head{max-width:60ch;}
+  .sec-head h2{font-size:clamp(28px,4vw,42px);margin-top:15px;}
+  .sec-head p{color:var(--mut);font-size:17.5px;margin:16px 0 0;}
+
+  /* ROI calculator — the centerpiece */
+  .calc-shell{background:radial-gradient(120% 100% at 100% 0%,var(--ember-soft),transparent 55%),var(--panel);
+    border:1px solid var(--line);border-radius:22px;overflow:hidden;margin-top:40px;box-shadow:var(--shadow);}
+  .calc{display:grid;grid-template-columns:1fr 1.05fr;}
+  .calc-inputs{padding:34px;border-right:1px solid var(--line);}
+  .calc-inputs h3{font-size:15px;letter-spacing:-.01em;}
+  .calc-inputs .hint{color:var(--faint);font-size:13px;margin:6px 0 22px;}
+  .field{margin-bottom:20px;}
+  .field .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;}
+  .field label{font-size:14px;color:var(--mut);}
+  .field .val{font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:700;color:var(--chalk);}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:99px;
+    background:linear-gradient(90deg,var(--ember) var(--fill,40%),var(--line) var(--fill,40%));outline:none;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;
+    background:#fff;border:3px solid var(--ember);box-shadow:0 3px 10px -2px var(--ember);cursor:pointer;}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--ember);cursor:pointer;}
+  .calc-out{padding:34px;background:linear-gradient(180deg,transparent,var(--ember-soft));display:flex;flex-direction:column;gap:16px;}
+  .out-hero{background:var(--ink2);border:1px solid var(--line);border-radius:16px;padding:24px;}
+  .out-hero .k{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);}
+  .out-hero .big{font-family:ui-monospace,Menlo,monospace;font-size:clamp(38px,5vw,52px);font-weight:800;letter-spacing:-.03em;color:var(--gain);line-height:1;margin-top:8px;}
+  .out-hero .sub{color:var(--mut);font-size:13.5px;margin-top:10px;}
+  .out-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .out-cell{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:16px 18px;}
+  .out-cell .k{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);}
+  .out-cell .n{font-family:ui-monospace,Menlo,monospace;font-size:24px;font-weight:800;margin-top:6px;letter-spacing:-.02em;}
+  .out-cell .n.ember{color:var(--ember);}
+  .out-note{color:var(--faint);font-size:12px;line-height:1.5;}
+  @media(max-width:880px){.calc{grid-template-columns:1fr;}.calc-inputs{border-right:none;border-bottom:1px solid var(--line);}}
+  @media(max-width:520px){.out-grid{grid-template-columns:1fr;}}
+
+  /* proof band */
+  .proof{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:40px;}
+  .pf{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px 24px;}
+  .pf .big{font-family:ui-monospace,Menlo,monospace;font-size:clamp(32px,4vw,44px);font-weight:800;letter-spacing:-.03em;line-height:1;}
+  .pf .big.gain{color:var(--gain);} .pf .big.ember{color:var(--ember);}
+  .pf .cap{color:var(--mut);font-size:14.5px;margin-top:14px;}
+  @media(max-width:800px){.proof{grid-template-columns:1fr;}}
+
+  /* how it works */
+  .agents{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:40px;}
+  .agent{background:linear-gradient(180deg,var(--panel),var(--ink2));border:1px solid var(--line);border-radius:18px;padding:30px;transition:transform .16s ease,border-color .16s ease;}
+  .agent:hover{transform:translateY(-4px);border-color:color-mix(in srgb,var(--ember) 45%,var(--line));}
+  .agent .tag{font-family:ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);}
+  .agent h3{font-size:24px;margin:12px 0 0;letter-spacing:-.02em;}
+  .agent .who{font-size:13px;color:var(--ember);margin-top:6px;font-weight:600;}
+  .agent p{color:var(--mut);font-size:15px;margin:15px 0 0;}
+  .agent ul{list-style:none;padding:0;margin:18px 0 0;display:flex;flex-direction:column;gap:11px;}
+  .agent li{font-size:15px;padding-left:24px;position:relative;}
+  .agent li::before{content:"";position:absolute;left:0;top:8px;width:10px;height:10px;border-radius:3px;background:var(--ember);}
+  .agent li.g::before{background:var(--gain);}
+  @media(max-width:800px){.agents{grid-template-columns:1fr;}}
+
+  /* product mock — the dashboard */
+  .mock{margin-top:40px;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--shadow);}
+  .mock-bar{display:flex;align-items:center;gap:8px;padding:13px 18px;border-bottom:1px solid var(--line);background:var(--panel2);}
+  .mock-bar .title{margin-left:8px;font-weight:700;font-size:14px;}
+  .mock-bar .pillbtn{margin-left:auto;font-size:12px;color:#fff;background:var(--ember);border-radius:8px;padding:7px 13px;font-weight:700;}
+  .roster{width:100%;border-collapse:collapse;font-size:14px;}
+  .roster th,.roster td{text-align:left;padding:13px 18px;border-bottom:1px solid var(--line);}
+  .roster th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:600;}
+  .roster tr:last-child td{border-bottom:none;}
+  .roster .name{font-weight:600;}
+  .roster .reason{color:var(--mut);font-size:13px;}
+  .band{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:700;}
+  .band.high{background:var(--ember-soft);color:var(--ember);} .band.medium{background:rgba(240,180,40,.14);color:#E0A21E;}
+  .band.low{background:var(--gain-soft);color:var(--gain);}
+  .score{font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;}
+  @media(max-width:640px){.roster .hidecol{display:none;}}
+
+  /* trust */
+  .trust{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:40px;}
+  .trust .t{background:var(--panel2);border:1px solid var(--line);border-top:3px solid var(--ember);border-radius:14px;padding:24px;}
+  .trust h4{font-size:17px;letter-spacing:-.01em;}
+  .trust p{color:var(--mut);font-size:14px;margin:11px 0 0;}
+  @media(max-width:800px){.trust{grid-template-columns:1fr;}}
+
+  /* pilot */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:40px;}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:26px;}
+  .step .idx{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--ember);letter-spacing:.1em;}
+  .step h4{margin:15px 0 0;font-size:18px;}
+  .step p{color:var(--mut);font-size:14px;margin:10px 0 0;}
+  @media(max-width:800px){.steps{grid-template-columns:1fr;}}
+
+  /* cta */
+  .cta{margin:78px 0;background:radial-gradient(130% 140% at 100% 0%,var(--ember-soft),transparent 50%),linear-gradient(120deg,var(--panel),var(--ink2));
+    border:1px solid var(--line);border-radius:24px;padding:56px;position:relative;overflow:hidden;}
+  .cta h2{font-size:clamp(28px,4.2vw,44px);max-width:22ch;}
+  .cta p{color:var(--mut);font-size:17px;margin:16px 0 30px;max-width:54ch;}
+  .cta .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+  .cta .fine{font-size:13px;color:var(--faint);}
+
+  footer{border-top:1px solid var(--line);padding:38px 0 60px;color:var(--faint);font-size:13px;position:relative;z-index:1;}
+  .foot-in{display:flex;gap:16px;align-items:center;flex-wrap:wrap;}
+  .foot-in .brand{font-size:16px;color:var(--chalk);}
+  .foot-in .res{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap;}
+  .chip{border:1px solid var(--line);border-radius:99px;padding:5px 12px;font-size:11.5px;color:var(--mut);font-family:ui-monospace,Menlo,monospace;letter-spacing:.03em;}
+
+  .reveal{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s ease;}
+  .reveal.in{opacity:1;transform:none;}
+  @media(prefers-reduced-motion:reduce){
+    .reveal{opacity:1;transform:none;transition:none;}
+    .console-bar .live::before,.btn-primary{animation:none;}
+    html{scroll-behavior:auto;}
+  }
+  :focus-visible{outline:2px solid var(--ember);outline-offset:3px;border-radius:6px;}
+</style>
+
+<div class="bg-grid"></div>
+
+<nav>
+  <div class="wrap nav-in">
+    <div class="brand"><span class="glyph"></span>Fit&nbsp;Connect <small>&nbsp;for operators</small></div>
+    <div class="nav-links">
+      <a class="navlink" href="#roi">ROI</a>
+      <a class="navlink" href="#how">How it works</a>
+      <a class="navlink" href="#product">The dashboard</a>
+      <a class="btn btn-primary" href="mailto:trevora722@gmail.com?subject=Fit%20Connect%20demo">Book a demo</a>
+    </div>
+  </div>
+</nav>
+
+<header class="wrap hero">
+  <div>
+    <span class="eyebrow">Retention infrastructure for gym groups</span>
+    <h1 class="display">Stop losing members you could have <span class="em">saved</span>.</h1>
+    <p class="lead">Your key-fobs already know who's about to quit. Fit&nbsp;Connect turns that signal into automatic re-engagement — and an AI coach your members happily pay for every month.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="#roi">Run your numbers →</a>
+      <a class="btn btn-ghost" href="mailto:trevora722@gmail.com?subject=Fit%20Connect%20demo">Book a demo</a>
+    </div>
+    <div class="trustline">
+      <span>Equipment-aware coaching</span>
+      <span>PIPEDA / BC&nbsp;PIPA</span>
+      <span>Pilot one club first</span>
+    </div>
+  </div>
+
+  <div class="console reveal">
+    <div class="console-bar">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="lbl">retention&nbsp;radar</span>
+      <span class="live">scanning</span>
+    </div>
+    <canvas id="radar" width="560" height="300" aria-label="An animated radar sweeping a field of member dots; at-risk members drift toward the edge and are pulled back after a nudge."></canvas>
+    <div class="readout">
+      <div class="cell"><div class="k">Members watched</div><div class="n tnum" data-count="9900" data-suffix="">0</div></div>
+      <div class="cell"><div class="k">At-risk caught</div><div class="n ember tnum" data-count="312">0</div></div>
+      <div class="cell"><div class="k">Won back / mo</div><div class="n gain tnum" data-count="188">0</div></div>
+    </div>
+  </div>
+</header>
+
+<section id="roi" class="divider">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Run your own numbers</span>
+      <h2 class="display">What Fit&nbsp;Connect is worth to your group.</h2>
+      <p>Drag the sliders to match your operation. Add-on revenue is exact; retention upside is a deliberately conservative estimate.</p>
+    </div>
+
+    <div class="calc-shell reveal">
+      <div class="calc">
+        <div class="calc-inputs">
+          <h3>Your operation</h3>
+          <p class="hint">Defaults reflect a mid-size 11-club group.</p>
+
+          <div class="field">
+            <div class="top"><label for="s-clubs">Locations</label><span class="val" id="v-clubs">11</span></div>
+            <input id="s-clubs" type="range" min="1" max="30" value="11">
+          </div>
+          <div class="field">
+            <div class="top"><label for="s-members">Members per club</label><span class="val" id="v-members">900</span></div>
+            <input id="s-members" type="range" min="150" max="2500" step="50" value="900">
+          </div>
+          <div class="field">
+            <div class="top"><label for="s-adopt">Take the coaching add-on</label><span class="val" id="v-adopt">18%</span></div>
+            <input id="s-adopt" type="range" min="5" max="60" value="18">
+          </div>
+          <div class="field">
+            <div class="top"><label for="s-price">Add-on price / month</label><span class="val" id="v-price">$19</span></div>
+            <input id="s-price" type="range" min="9" max="39" value="19">
+          </div>
+          <div class="field">
+            <div class="top"><label for="s-dues">Avg membership dues / month</label><span class="val" id="v-dues">$45</span></div>
+            <input id="s-dues" type="range" min="20" max="90" value="45">
+          </div>
+          <div class="field">
+            <div class="top"><label for="s-churn">Churn points recovered <span class="mono" style="color:var(--faint)">est.</span></label><span class="val" id="v-churn">3</span></div>
+            <input id="s-churn" type="range" min="1" max="6" value="3">
+          </div>
+        </div>
+
+        <div class="calc-out">
+          <div class="out-hero">
+            <div class="k">New recurring revenue you keep</div>
+            <div class="big mono tnum" id="o-net">$0</div>
+            <div class="sub">Add-on revenue + retention upside, after our platform fee — every month.</div>
+          </div>
+          <div class="out-grid">
+            <div class="out-cell"><div class="k">Add-on revenue / mo</div><div class="n gain mono tnum" id="o-addon">$0</div></div>
+            <div class="out-cell"><div class="k">Retention upside / mo</div><div class="n gain mono tnum" id="o-ret">$0</div></div>
+            <div class="out-cell"><div class="k">Members re-engaged / mo</div><div class="n ember mono tnum" id="o-saved">0</div></div>
+            <div class="out-cell"><div class="k">Our platform fee / mo</div><div class="n mono tnum" id="o-fee" style="color:var(--mut)">$0</div></div>
+          </div>
+          <p class="out-note" id="o-annual">That's <span class="mono" style="color:var(--gain)">$0</span> in new revenue a year. Our fee: $199 / club + $2 / active member.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="proof">
+      <div class="pf reveal"><div class="big ember mono">~10%</div><div class="cap">of a human PT session's cost to the member — so the add-on sells itself, and still routes members to your paid trainers.</div></div>
+      <div class="pf reveal"><div class="big mono">30–50%</div><div class="cap">annual attrition at a typical club, almost all of it members who quietly stopped showing up. That's the pool Fit&nbsp;Connect works.</div></div>
+      <div class="pf reveal"><div class="big gain mono">1 club</div><div class="cap">is all you risk to prove it. We run a 60–90 day pilot and measure retention against a comparable location.</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="how" class="divider">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Two systems, one branded app</span>
+      <h2 class="display">A coach members open daily. A loop that works while they don't.</h2>
+      <p>Members see your brand, never ours. You see everything on one owner dashboard.</p>
+    </div>
+    <div class="agents">
+      <div class="agent reveal">
+        <span class="tag">Member-facing</span>
+        <h3>The Coach</h3>
+        <div class="who">in their pocket, 24/7</div>
+        <p>A real personal trainer that knows each club's floor — it never prescribes a machine you don't have.</p>
+        <ul>
+          <li>Builds a program from goals + the equipment at their home gym</li>
+          <li>Swaps exercises live when a rack is taken</li>
+          <li>Answers training questions, grounded in their own plan</li>
+        </ul>
+      </div>
+      <div class="agent reveal">
+        <span class="tag">Behind the scenes</span>
+        <h3>The Accountability loop</h3>
+        <div class="who">the retention engine</div>
+        <p>Reads the check-in feed nightly, scores who's drifting, and wins them back before they cancel.</p>
+        <ul>
+          <li class="g">A churn-risk score for every member, every night</li>
+          <li class="g">Warm, personal nudges — only to those who opted in</li>
+          <li class="g">Any injury or pain signal is handed straight to a human</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="product" class="divider">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">The owner dashboard</span>
+      <h2 class="display">Your whole roster, ranked by who's about to quit.</h2>
+      <p>The screen that runs the retention loop — every member scored, nudged, and escalated in one place.</p>
+    </div>
+    <div class="mock reveal">
+      <div class="mock-bar">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="title">Rutland · churn radar</span>
+        <span class="pillbtn">▶ Run sweep</span>
+      </div>
+      <table class="roster">
+        <thead><tr><th>Member</th><th>Risk</th><th class="hidecol">Score</th><th class="hidecol">Last visit</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td class="name">Marcus Lee</td><td><span class="band high">HIGH</span></td><td class="hidecol score">0.95</td><td class="hidecol">24d ago</td><td class="reason">Ghosted for 3+ weeks · escalated to trainer</td></tr>
+          <tr><td class="name">Sofia Nilsson</td><td><span class="band high">HIGH</span></td><td class="hidecol score">1.00</td><td class="hidecol">never</td><td class="reason">Signed up, never badged in</td></tr>
+          <tr><td class="name">Priya Anand</td><td><span class="band medium">MEDIUM</span></td><td class="hidecol score">0.54</td><td class="hidecol">8d ago</td><td class="reason">Was regular, slipping · nudge sent</td></tr>
+          <tr><td class="name">Dev Patel</td><td><span class="band low">LOW</span></td><td class="hidecol score">0.20</td><td class="hidecol">today</td><td class="reason">On pace with a 2×/week goal</td></tr>
+          <tr><td class="name">Hannah Brooks</td><td><span class="band low">LOW</span></td><td class="hidecol score">0.04</td><td class="hidecol">1d ago</td><td class="reason">Consistent · returning-member plan</td></tr>
+          <tr><td class="name">Jordan Reyes</td><td><span class="band low">LOW</span></td><td class="hidecol score">0.00</td><td class="hidecol">today</td><td class="reason">Steady 3×/week</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="trust" class="divider">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Why it isn't just another chatbot</span>
+      <h2 class="display">Built to pass the questions your lawyer will ask.</h2>
+    </div>
+    <div class="trust">
+      <div class="t reveal"><h4>It knows your gyms</h4><p>Equipment, classes, and policies are loaded per location — advice is always grounded in what's actually on the floor.</p></div>
+      <div class="t reveal"><h4>Private by design</h4><p>Member health data is scrubbed before it reaches the model, with Canadian PIPEDA / BC&nbsp;PIPA handling and <span class="mono">ca-central</span> data residency.</p></div>
+      <div class="t reveal"><h4>Safe scope</h4><p>Fitness and wellness coaching only — never medical advice. Any injury signal escalates to your staff automatically.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="pilot" class="divider">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Low-risk start</span>
+      <h2 class="display">One location. Sixty days. Then decide.</h2>
+      <p>We prove the retention numbers at a single club before you commit the group.</p>
+    </div>
+    <div class="steps">
+      <div class="step reveal"><div class="idx">STEP 01</div><h4>Connect the check-in feed</h4><p>An export from your club-management / key-fob system. A CSV is enough to start — it's the one dependency.</p></div>
+      <div class="step reveal"><div class="idx">STEP 02</div><h4>Run one club, 60–90 days</h4><p>We seed the location, launch the member app, and run the accountability loop against live attendance.</p></div>
+      <div class="step reveal"><div class="idx">STEP 03</div><h4>Measure, then roll out</h4><p>Compare retention to a similar club. If it holds, we scale to every location and add the PT-upsell funnel.</p></div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="cta reveal">
+    <h2 class="display">See your own roster ranked by who's about to quit.</h2>
+    <p>A 30-minute walkthrough of the owner dashboard and the member app — with the revenue and retention math run against your real numbers.</p>
+    <div class="row">
+      <a class="btn btn-primary" href="mailto:trevora722@gmail.com?subject=Fit%20Connect%20demo%20for%20our%20clubs">Book a 30-minute demo →</a>
+      <span class="fine">No commitment. The pilot is a single location.</span>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap foot-in">
+    <div class="brand"><span class="glyph"></span>Fit&nbsp;Connect</div>
+    <span>AI coaching &amp; retention for multi-location gyms.</span>
+    <div class="res">
+      <span class="chip">PIPEDA / BC&nbsp;PIPA</span>
+      <span class="chip">data · ca-central</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function cssv(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+  /* ---------- scroll reveal ---------- */
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target);}});},{threshold:.12});
+  document.querySelectorAll(".reveal").forEach(function(el){reduce?el.classList.add("in"):io.observe(el);});
+
+  /* ---------- hero count-up ---------- */
+  function tween(el,to,fmt,dur){
+    if(reduce){el.textContent=fmt(to);return;}
+    var t0=null,from=0;
+    function step(ts){if(!t0)t0=ts;var p=Math.min((ts-t0)/(dur||1100),1);var e=1-Math.pow(1-p,3);
+      el.textContent=fmt(from+(to-from)*e);if(p<1)requestAnimationFrame(step);}
+    requestAnimationFrame(step);
+  }
+  var counted=false;
+  var co=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting&&!counted){counted=true;
+    document.querySelectorAll("[data-count]").forEach(function(el){
+      var to=+el.getAttribute("data-count");tween(el,to,function(v){return Math.round(v).toLocaleString();},1200);});}});},{threshold:.3});
+  var ro=document.querySelector(".readout");if(ro)co.observe(ro);
+
+  /* ---------- ROI calculator ---------- */
+  var money=new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0});
+  var ids=["clubs","members","adopt","price","dues","churn"];
+  var S={};ids.forEach(function(id){S[id]=document.getElementById("s-"+id);});
+  var prev={};
+  function fillTrack(el){var min=+el.min,max=+el.max,val=+el.value;el.style.setProperty("--fill",((val-min)/(max-min)*100)+"%");}
+  function setNum(el,to,fmt){
+    var from=prev[el.id]!==undefined?prev[el.id]:to;prev[el.id]=to;
+    if(reduce||Math.abs(to-from)<1){el.textContent=fmt(to);return;}
+    var t0=null;function step(ts){if(!t0)t0=ts;var p=Math.min((ts-t0)/380,1);var e=1-Math.pow(1-p,3);
+      el.textContent=fmt(from+(to-from)*e);if(p<1)requestAnimationFrame(step);}requestAnimationFrame(step);
+  }
+  function calc(){
+    var clubs=+S.clubs.value, mPer=+S.members.value, adopt=+S.adopt.value/100,
+        price=+S.price.value, dues=+S.dues.value, churnPts=+S.churn.value;
+    var base=clubs*mPer;
+    var opted=Math.round(base*adopt);
+    var addon=opted*price;                                   // exact monthly add-on revenue
+    var savedYr=base*(churnPts/100);                          // members saved per year
+    var savedMo=savedYr/12;
+    var retMo=savedYr*dues*0.5/12;   // conservative: half-year of retained dues, spread monthly
+    var fee=clubs*199+opted*2;
+    var net=addon+retMo-fee;
+
+    // labels
+    document.getElementById("v-clubs").textContent=clubs;
+    document.getElementById("v-members").textContent=mPer.toLocaleString();
+    document.getElementById("v-adopt").textContent=(+S.adopt.value)+"%";
+    document.getElementById("v-price").textContent="$"+price;
+    document.getElementById("v-dues").textContent="$"+dues;
+    document.getElementById("v-churn").textContent=churnPts;
+    ids.forEach(function(id){fillTrack(S[id]);});
+
+    setNum(document.getElementById("o-net"),net,function(v){return money.format(v);});
+    setNum(document.getElementById("o-addon"),addon,function(v){return money.format(v);});
+    setNum(document.getElementById("o-ret"),retMo,function(v){return money.format(v);});
+    setNum(document.getElementById("o-saved"),savedMo,function(v){return Math.round(v).toLocaleString();});
+    setNum(document.getElementById("o-fee"),fee,function(v){return money.format(v);});
+    document.getElementById("o-annual").innerHTML='That\'s <span class="mono" style="color:var(--gain)">'+money.format(net*12)+'</span> in new revenue a year. Our fee: $199 / club + $2 / active member.';
+  }
+  ids.forEach(function(id){S[id].addEventListener("input",calc);});
+  calc();
+
+  /* ---------- retention radar ---------- */
+  var cv=document.getElementById("radar");
+  if(cv){
+    var ctx=cv.getContext("2d"), W=0,H=0,dpr=1, dots=[], sweep=0, raf=null, t=0;
+    function resize(){
+      dpr=window.devicePixelRatio||1;W=cv.clientWidth;H=cv.clientHeight;
+      cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+    function seed(){
+      dots=[];var cx=W/2,cy=H/2,R=Math.min(W,H)/2-16;
+      for(var i=0;i<34;i++){
+        var ang=Math.random()*Math.PI*2, rad=Math.pow(Math.random(),.6)*R;
+        dots.push({ang:ang,rad:rad,base:rad,R:R,risk:Math.random(),
+          drift:0.04+Math.random()*0.07, phase:Math.random()*6.28, recover:0});
+      }
+    }
+    function frame(){
+      t+=0.016; sweep+=0.012; if(sweep>Math.PI*2)sweep-=Math.PI*2;
+      var cx=W/2, cy=H/2, R=Math.min(W,H)/2-16;
+      var ember=cssv("--ember")||"#FF6A3D", gain=cssv("--gain")||"#37D98A",
+          steel=cssv("--steel")||"#4E6178", line=cssv("--line")||"#28303F", ring=cssv("--ring")||"rgba(255,106,61,.5)";
+      ctx.clearRect(0,0,W,H);
+      // rings
+      ctx.strokeStyle=line;ctx.lineWidth=1;
+      for(var r=1;r<=3;r++){ctx.beginPath();ctx.arc(cx,cy,R*r/3,0,Math.PI*2);ctx.stroke();}
+      ctx.beginPath();ctx.moveTo(cx-R,cy);ctx.lineTo(cx+R,cy);ctx.moveTo(cx,cy-R);ctx.lineTo(cx,cy+R);ctx.stroke();
+      // sweep wedge
+      var grad=ctx.createConicGradient?ctx.createConicGradient(sweep,cx,cy):null;
+      if(grad){grad.addColorStop(0,"rgba(255,106,61,.22)");grad.addColorStop(.08,"rgba(255,106,61,0)");grad.addColorStop(1,"rgba(255,106,61,0)");
+        ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,R,sweep-0.5,sweep);ctx.closePath();ctx.fillStyle=grad;ctx.fill();}
+      // sweep line
+      ctx.strokeStyle=ring;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(sweep)*R,cy+Math.sin(sweep)*R);ctx.stroke();
+      // dots
+      dots.forEach(function(d){
+        // at-risk dots drift outward; recovering dots pull inward
+        if(d.risk>0.62 && d.recover<=0){ d.rad+=d.drift; if(d.rad>d.R){d.rad=d.R;} }
+        if(d.recover>0){ d.recover-=0.016; d.rad+=(d.base-d.rad)*0.05; if(d.recover<0)d.recover=0; }
+        // when the sweep passes a high-risk dot, "nudge" → recover
+        var da=Math.atan2(Math.sin(d.ang-sweep),Math.cos(d.ang-sweep));
+        if(d.risk>0.62 && Math.abs(da)<0.06 && d.recover<=0){ d.recover=1; d.risk=0.3+Math.random()*0.2; }
+        d.ang+=0.0016*(1+d.risk);
+        var x=cx+Math.cos(d.ang)*d.rad, y=cy+Math.sin(d.ang)*d.rad;
+        var pulse=1+Math.sin(t*3+d.phase)*0.12;
+        var color = d.recover>0?gain : (d.risk>0.62?ember:steel);
+        var rr = (d.risk>0.62?3.4:2.6)*pulse;
+        if(d.recover>0){ // recovery halo
+          ctx.beginPath();ctx.arc(x,y,10*(1-d.recover)+4,0,Math.PI*2);
+          ctx.strokeStyle="rgba(55,217,138,"+(d.recover*0.5)+")";ctx.lineWidth=1.5;ctx.stroke();
+        }
+        ctx.beginPath();ctx.arc(x,y,rr,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+        if(d.risk>0.62&&d.recover<=0){ctx.beginPath();ctx.arc(x,y,rr+3,0,Math.PI*2);ctx.strokeStyle="rgba(255,106,61,.35)";ctx.lineWidth=1;ctx.stroke();}
+      });
+      // center hub
+      ctx.beginPath();ctx.arc(cx,cy,4,0,Math.PI*2);ctx.fillStyle=gain;ctx.fill();
+      raf=requestAnimationFrame(frame);
+    }
+    function staticFrame(){
+      var cx=W/2,cy=H/2,R=Math.min(W,H)/2-16,line=cssv("--line"),steel=cssv("--steel"),ember=cssv("--ember"),gain=cssv("--gain");
+      ctx.clearRect(0,0,W,H);ctx.strokeStyle=line;ctx.lineWidth=1;
+      for(var r=1;r<=3;r++){ctx.beginPath();ctx.arc(cx,cy,R*r/3,0,Math.PI*2);ctx.stroke();}
+      dots.forEach(function(d){var x=cx+Math.cos(d.ang)*d.rad,y=cy+Math.sin(d.ang)*d.rad;
+        ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fillStyle=d.risk>0.62?ember:steel;ctx.fill();});
+      ctx.beginPath();ctx.arc(cx,cy,4,0,Math.PI*2);ctx.fillStyle=gain;ctx.fill();
+    }
+    function start(){resize();seed();if(reduce){staticFrame();}else{if(raf)cancelAnimationFrame(raf);frame();}}
+    start();
+    window.addEventListener("resize",function(){resize();seed();if(reduce)staticFrame();});
+    // pause when off-screen (perf)
+    var vis=new IntersectionObserver(function(es){es.forEach(function(e){
+      if(reduce)return;
+      if(e.isIntersecting){if(!raf)frame();}else{if(raf){cancelAnimationFrame(raf);raf=null;}}
+    });},{threshold:0});
+    vis.observe(cv);
+  }
+})();
+</script>
+
+</body>
+</html>

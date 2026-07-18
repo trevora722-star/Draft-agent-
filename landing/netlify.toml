@@ -1,0 +1,7 @@
+# Netlify config for the Fit Connect landing page (static, no build).
+# If you connect this repo to a NEW Netlify site, set the base directory to
+# "landing" in the site's Build settings and this file takes over from there:
+# it publishes the folder as-is with no build command.
+[build]
+  publish = "."
+  command = ""
