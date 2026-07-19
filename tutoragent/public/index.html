@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TutorAgent — your study companion</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📚</text></svg>">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<style>
+  :root {
+    --bg: #faf6f0;
+    --panel: #fffdf9;
+    --ink: #3d3226;
+    --ink-soft: #8a7a68;
+    --accent: #c96f4a;
+    --accent-soft: #f3ddd3;
+    --gold: #e0b64f;
+    --line: #eadfd2;
+    --good: #6a8f5f;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: Georgia, 'Times New Roman', serif;
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; }
+
+  /* ---------- passphrase gate ---------- */
+  #gate {
+    position: fixed; inset: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg); padding: 24px;
+  }
+  .gate-card {
+    width: 100%; max-width: 360px; text-align: center;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 36px 28px;
+    box-shadow: 0 6px 30px rgba(120, 90, 60, .08);
+  }
+  .gate-card h1 { margin: 0 0 6px; font-size: 26px; }
+  .gate-card p { margin: 0 0 22px; color: var(--ink-soft); font-size: 14px; font-style: italic; }
+  .gate-card input {
+    width: 100%; padding: 12px 14px; font-size: 16px; font-family: inherit;
+    border: 1px solid var(--line); border-radius: 10px; background: #fff;
+    color: var(--ink); margin-bottom: 12px;
+  }
+  .gate-card input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .gate-err { color: #b04a3a; font-size: 13px; min-height: 18px; margin-bottom: 8px; }
+
+  .btn {
+    display: inline-block; border: 0; cursor: pointer;
+    background: var(--accent); color: #fff;
+    padding: 12px 22px; border-radius: 10px; font-size: 15px;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn[disabled] { opacity: .5; cursor: default; }
+
+  /* ---------- app shell ---------- */
+  #app { display: none; height: 100dvh; flex-direction: column; }
+  #app.on { display: flex; }
+
+  header.top {
+    padding: 10px 14px 8px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .brand { display: flex; align-items: baseline; gap: 8px; }
+  .brand h1 { margin: 0; font-size: 18px; }
+  .brand span { color: var(--ink-soft); font-size: 12px; font-style: italic; }
+
+  /* dashboard strip */
+  #dash {
+    display: flex; gap: 8px; overflow-x: auto; padding: 8px 0 2px;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  #dash::-webkit-scrollbar { display: none; }
+  .card {
+    flex: 0 0 auto; min-width: 150px; max-width: 220px;
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 10px; font-size: 12px;
+  }
+  .card b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); margin-bottom: 4px; font-weight: 600; }
+  .card .em { color: var(--accent); font-weight: 600; }
+  .card div { line-height: 1.45; }
+
+  /* layout: rail + chat */
+  main { flex: 1; display: flex; min-height: 0; }
+  nav#rail {
+    width: 210px; flex-shrink: 0; border-right: 1px solid var(--line);
+    background: var(--panel); padding: 10px 8px; overflow-y: auto;
+  }
+  .agent-btn {
+    display: flex; align-items: center; gap: 9px; width: 100%;
+    background: none; border: 0; text-align: left; cursor: pointer;
+    padding: 11px 10px; border-radius: 10px; font-size: 14px; color: var(--ink);
+    margin-bottom: 2px;
+  }
+  .agent-btn .ico { font-size: 18px; }
+  .agent-btn:hover { background: var(--bg); }
+  .agent-btn.on { background: var(--accent-soft); color: #7c3f24; font-weight: 600; }
+
+  section#chatwrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #chat {
+    flex: 1; overflow-y: auto; padding: 16px 14px 8px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .msg { max-width: 46em; line-height: 1.55; font-size: 15px; }
+  .msg.user {
+    align-self: flex-end; background: var(--accent-soft);
+    border-radius: 14px 14px 4px 14px; padding: 10px 14px; max-width: 34em;
+  }
+  .msg.bot { align-self: flex-start; padding: 2px 2px 0; }
+  .msg.bot .who { font-size: 11px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 3px; }
+  .msg.meta {
+    align-self: center; font-size: 12px; color: var(--good);
+    background: #eef3ec; border: 1px solid #d8e4d4; border-radius: 999px; padding: 4px 12px;
+  }
+  .msg.bot p { margin: 0 0 .7em; }
+  .msg.bot p:last-child { margin-bottom: 0; }
+  .msg.bot pre { background: #f4ede3; border-radius: 8px; padding: 10px; overflow-x: auto; font-size: 13px; }
+  .msg.bot code { background: #f4ede3; border-radius: 4px; padding: 1px 4px; font-size: .92em; }
+  .msg.bot pre code { background: none; padding: 0; }
+  .msg.bot ul, .msg.bot ol { margin: 0 0 .7em; padding-left: 1.3em; }
+  .msg.bot blockquote { margin: 0 0 .7em; padding-left: .9em; border-left: 3px solid var(--gold); color: var(--ink-soft); }
+  .typing { color: var(--ink-soft); font-style: italic; font-size: 13px; }
+
+  .welcome {
+    align-self: center; text-align: center; color: var(--ink-soft);
+    font-size: 14px; max-width: 30em; margin-top: 8vh; font-style: italic; line-height: 1.7;
+  }
+  .welcome .big { font-size: 34px; font-style: normal; }
+
+  /* composer */
+  #composer {
+    display: flex; gap: 8px; align-items: flex-end;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line); background: var(--panel);
+  }
+  #composer textarea {
+    flex: 1; resize: none; border: 1px solid var(--line); border-radius: 12px;
+    padding: 11px 13px; font-size: 16px; font-family: inherit; color: var(--ink);
+    background: #fff; max-height: 130px; min-height: 44px; line-height: 1.4;
+  }
+  #composer textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .iconbtn {
+    flex-shrink: 0; width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line);
+    background: #fff; font-size: 19px; cursor: pointer; color: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #send { background: var(--accent); color: #fff; border: 0; }
+  #send[disabled] { opacity: .45; }
+  #attach-note { font-size: 12px; color: var(--good); padding: 0 14px 6px; background: var(--panel); display: none; }
+
+  .rail-foot { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+  .rail-foot button {
+    width: 100%; background: none; border: 0; text-align: left; cursor: pointer;
+    color: var(--ink-soft); font-size: 12.5px; padding: 8px 10px; border-radius: 8px; font-family: inherit;
+  }
+  .rail-foot button:hover { background: var(--bg); }
+
+  /* mobile */
+  @media (max-width: 720px) {
+    nav#rail {
+      position: static; width: 100%; display: flex; overflow-x: auto; padding: 6px;
+      border-right: 0; border-bottom: 1px solid var(--line);
+    }
+    main { flex-direction: column; }
+    .agent-btn { flex: 0 0 auto; width: auto; font-size: 13px; padding: 8px 10px; margin: 0 2px 0 0; }
+    .agent-btn .label { white-space: nowrap; }
+    .rail-foot { display: none; }
+    .msg { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <form class="gate-card" id="gate-form">
+    <div style="font-size:40px">📚</div>
+    <h1>TutorAgent</h1>
+    <p>your pocket study companion</p>
+    <input type="password" id="gate-pass" placeholder="passphrase" autocomplete="current-password" autofocus>
+    <div class="gate-err" id="gate-err"></div>
+    <button class="btn" type="submit">Let's study</button>
+  </form>
+</div>
+
+<div id="app">
+  <header class="top">
+    <div class="brand"><h1>📚 TutorAgent</h1><span>you've got this</span></div>
+    <div id="dash"></div>
+  </header>
+  <main>
+    <nav id="rail"></nav>
+    <section id="chatwrap">
+      <div id="chat"></div>
+      <div id="attach-note"></div>
+      <form id="composer">
+        <button type="button" class="iconbtn" id="attach" title="Attach a file">📎</button>
+        <textarea id="input" rows="1" placeholder="Ask me anything…"></textarea>
+        <button type="submit" class="iconbtn" id="send" title="Send">➤</button>
+      </form>
+      <input type="file" id="file-photo" accept="image/*" capture="environment" hidden>
+      <input type="file" id="file-pdf" accept="application/pdf" hidden>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var AGENTS = [
+    { key: 'onboarding', name: 'Set Up My Courses',      ico: '🗂️', hello: "Hi! I'm here to set up your courses. Tell me what you're taking this term — or in September, upload a course outline PDF with the 📎 button and I'll calibrate everything to your actual class." },
+    { key: 'coach',      name: 'Explain It To Me',       ico: '💡', hello: "What topic is giving you trouble? Tell me what it is and what you already know about it, and we'll build from there." },
+    { key: 'problem',    name: 'Help Me With a Problem', ico: '✏️', hello: "Stuck on a problem? Show me your work so far — type it out or snap a photo with the 📎 button — and we'll work through it one step at a time." },
+    { key: 'lab',        name: 'Lab Reports',            ico: '🧪', hello: "Working on a lab report? Paste a draft section for feedback, or tell me which section you're starting and I'll give you a skeleton with questions to answer." },
+    { key: 'quiz',       name: 'Quiz Me',                ico: '🎯', hello: "Ready to practice? Say “quiz me” and I'll start with whatever's due for review — or name a topic." },
+    { key: 'progress',   name: 'My Progress',            ico: '🌱', hello: "Want to see how you're doing? Ask me anything — “how was my week?”, “what should I focus on?”, “what's coming up?”" }
+  ];
+
+  var current = 'coach';
+  var histories = {};   // agent -> [{cls, html|text}]
+  var busy = false;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var chat = $('chat'), input = $('input'), sendBtn = $('send');
+
+  // ---------- markdown / latex rendering ----------
+  // marked + KaTeX come from CDNs; if either fails to load (flaky phone
+  // connection), fall back to plain escaped text so the app keeps working.
+  if (window.marked) marked.setOptions({ breaks: true });
+  function renderMarkdown(el, text) {
+    // strip machine tags the agents emit for the server
+    var clean = text.replace(/<(setup_courses|quiz_result|update_course)>[\s\S]*?<\/\1>/g, '').trim();
+    if (!window.marked) {
+      el.innerHTML = '<p>' + esc(clean).replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+      return;
+    }
+    el.innerHTML = marked.parse(clean);
+    if (window.renderMathInElement) {
+      try {
+        renderMathInElement(el, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false },
+            { left: '\\(', right: '\\)', display: false },
+            { left: '\\[', right: '\\]', display: true }
+          ],
+          throwOnError: false
+        });
+      } catch (e) {}
+    }
+  }
+
+  // ---------- auth gate ----------
+  function showApp() {
+    $('gate').style.display = 'none';
+    $('app').classList.add('on');
+    loadDashboard();
+    switchAgent(current);
+  }
+
+  fetch('/api/me').then(function (r) { return r.json(); }).then(function (me) {
+    if (me.authed) showApp();
+  });
+
+  $('gate-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    $('gate-err').textContent = '';
+    fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ passphrase: $('gate-pass').value })
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (res.ok) showApp();
+        else $('gate-err').textContent = res.d.error || 'Login failed.';
+      })
+      .catch(function () { $('gate-err').textContent = 'Could not reach the server.'; });
+  });
+
+  // ---------- dashboard strip ----------
+  function loadDashboard() {
+    fetch('/api/dashboard').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d) return;
+      var dash = $('dash');
+      dash.innerHTML = '';
+      var c1 = document.createElement('div'); c1.className = 'card';
+      c1.innerHTML = '<b>Next up</b>' + (d.next_dates.length
+        ? d.next_dates.map(function (x) { return '<div><span class="em">' + esc(x.date.slice(5)) + '</span> ' + esc(x.course) + ' ' + esc(x.type) + '</div>'; }).join('')
+        : '<div>No dates yet — upload outlines to fill this in.</div>');
+      dash.appendChild(c1);
+      var c2 = document.createElement('div'); c2.className = 'card';
+      c2.innerHTML = '<b>This week’s topics</b>' + (d.current_topics.length
+        ? d.current_topics.map(function (x) { return '<div><span class="em">' + esc(x.course) + '</span> ' + esc((x.topics[0] || '—')) + '</div>'; }).join('')
+        : '<div>No courses yet — start in Set Up My Courses.</div>');
+      dash.appendChild(c2);
+      var c3 = document.createElement('div'); c3.className = 'card';
+      c3.innerHTML = '<b>Reviews due today</b>' + (d.due_reviews.length
+        ? d.due_reviews.slice(0, 4).map(function (x) { return '<div>' + esc(x.course) + ': ' + esc(x.topic) + '</div>'; }).join('')
+        : '<div>Nothing due — nice. 🌿</div>');
+      dash.appendChild(c3);
+    }).catch(function () {});
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  // ---------- agent rail ----------
+  var rail = $('rail');
+  AGENTS.forEach(function (a) {
+    var b = document.createElement('button');
+    b.className = 'agent-btn'; b.dataset.key = a.key;
+    b.innerHTML = '<span class="ico">' + a.ico + '</span><span class="label">' + esc(a.name) + '</span>';
+    b.addEventListener('click', function () { switchAgent(a.key); });
+    rail.appendChild(b);
+  });
+  var foot = document.createElement('div');
+  foot.className = 'rail-foot';
+  foot.innerHTML = '<button id="btn-digest">📬 Preview weekly digest</button>' +
+                   '<button id="btn-close">✅ Wrap up this session</button>' +
+                   '<button id="btn-logout">👋 Sign out</button>';
+  rail.appendChild(foot);
+  foot.querySelector('#btn-digest').addEventListener('click', function () { window.open('/api/digest/preview', '_blank'); });
+  foot.querySelector('#btn-close').addEventListener('click', closeSession);
+  foot.querySelector('#btn-logout').addEventListener('click', function () {
+    fetch('/api/logout', { method: 'POST' }).then(function () { location.reload(); });
+  });
+
+  function agentByKey(k) { for (var i = 0; i < AGENTS.length; i++) if (AGENTS[i].key === k) return AGENTS[i]; return AGENTS[0]; }
+
+  function switchAgent(key) {
+    current = key;
+    Array.prototype.forEach.call(rail.querySelectorAll('.agent-btn'), function (b) {
+      b.classList.toggle('on', b.dataset.key === key);
+    });
+    redraw();
+    var a = agentByKey(key);
+    input.placeholder = 'Message ' + a.name + '…';
+    if (key === 'onboarding') $('attach').title = 'Upload a course outline PDF';
+    else $('attach').title = 'Snap a photo of your work';
+  }
+
+  function redraw() {
+    chat.innerHTML = '';
+    var h = histories[current] || [];
+    if (!h.length) {
+      var a = agentByKey(current);
+      var w = document.createElement('div');
+      w.className = 'welcome';
+      w.innerHTML = '<div class="big">' + a.ico + '</div>' + esc(a.hello);
+      chat.appendChild(w);
+      return;
+    }
+    h.forEach(function (m) { chat.appendChild(m.el); });
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function addMsg(cls, opts) {
+    if (!histories[current]) histories[current] = [];
+    if (!histories[current].length) chat.innerHTML = '';
+    var el = document.createElement('div');
+    el.className = 'msg ' + cls;
+    if (opts && opts.text != null) el.textContent = opts.text;
+    if (opts && opts.html != null) el.innerHTML = opts.html;
+    histories[current].push({ el: el });
+    chat.appendChild(el);
+    chat.scrollTop = chat.scrollHeight;
+    return el;
+  }
+
+  // ---------- chat send / SSE ----------
+  $('composer').addEventListener('submit', function (e) { e.preventDefault(); send(); });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  input.addEventListener('input', function () {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 130) + 'px';
+  });
+
+  function send() {
+    var text = input.value.trim();
+    if (!text || busy) return;
+    busy = true; sendBtn.disabled = true;
+    input.value = ''; input.style.height = 'auto';
+    $('attach-note').style.display = 'none';
+
+    addMsg('user', { text: text });
+    var agent = agentByKey(current);
+    var botEl = addMsg('bot', { html: '<div class="who">' + esc(agent.name) + '</div><div class="body typing">thinking…</div>' });
+    var body = botEl.querySelector('.body');
+    var acc = '';
+    var streamedAgent = current;
+
+    fetch('/api/agent/' + current, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: text })
+    }).then(function (res) {
+      if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || ('HTTP ' + res.status)); });
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var buf = '';
+      function pump() {
+        return reader.read().then(function (r) {
+          if (r.done) return;
+          buf += decoder.decode(r.value, { stream: true });
+          var parts = buf.split('\n\n');
+          buf = parts.pop();
+          parts.forEach(function (part) {
+            var line = part.split('\n').filter(function (l) { return l.indexOf('data: ') === 0; }).map(function (l) { return l.slice(6); }).join('');
+            if (!line) return;
+            var ev;
+            try { ev = JSON.parse(line); } catch (e) { return; }
+            if (ev.type === 'text') {
+              acc += ev.text;
+              body.classList.remove('typing');
+              renderMarkdown(body, acc);
+              chat.scrollTop = chat.scrollHeight;
+            } else if (ev.type === 'meta' && ev.events) {
+              ev.events.forEach(function (msg) {
+                var prev = current; current = streamedAgent;
+                addMsg('meta', { text: msg });
+                current = prev;
+              });
+              loadDashboard();
+            } else if (ev.type === 'error') {
+              body.classList.remove('typing');
+              body.innerHTML = '<em>⚠️ ' + esc(ev.error) + '</em>';
+            }
+          });
+          return pump();
+        });
+      }
+      return pump();
+    }).catch(function (err) {
+      body.classList.remove('typing');
+      body.innerHTML = '<em>⚠️ ' + esc(err.message) + '</em>';
+    }).then(function () {
+      busy = false; sendBtn.disabled = false;
+      if (!acc) return;
+      renderMarkdown(body, acc);
+    });
+  }
+
+  // ---------- attachments ----------
+  $('attach').addEventListener('click', function () {
+    if (current === 'onboarding') $('file-pdf').click();
+    else $('file-photo').click();
+  });
+
+  $('file-photo').addEventListener('change', function () {
+    var f = this.files[0]; this.value = '';
+    if (!f) return;
+    var fd = new FormData();
+    fd.append('file', f);
+    fd.append('agent', current);
+    note('Uploading photo…');
+    fetch('/api/upload/work-photo', { method: 'POST', body: fd })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (res.ok) note('📷 Photo attached — it will go with your next message.');
+        else note('⚠️ ' + (res.d.error || 'Upload failed.'));
+      })
+      .catch(function () { note('⚠️ Upload failed.'); });
+  });
+
+  $('file-pdf').addEventListener('change', function () {
+    var f = this.files[0]; this.value = '';
+    if (!f) return;
+    var fd = new FormData();
+    fd.append('file', f);
+    note('Reading your outline… this takes ~20 seconds.');
+    addMsg('meta', { text: 'Processing outline: ' + f.name });
+    fetch('/api/upload/outline', { method: 'POST', body: fd })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (res.ok) {
+          note('');
+          addMsg('meta', { text: '✅ ' + res.d.course + ' enriched: ' + res.d.topics + ' topics, ' + res.d.key_dates + ' dates' + (res.d.textbook ? ', textbook captured' : '') });
+          loadDashboard();
+          // nudge the agent to talk through what landed
+          input.value = 'I just uploaded my outline — what did you find?';
+          send();
+        } else {
+          note('⚠️ ' + (res.d.error || 'Outline processing failed.'));
+        }
+      })
+      .catch(function () { note('⚠️ Outline processing failed.'); });
+  });
+
+  function note(msg) {
+    var n = $('attach-note');
+    n.textContent = msg;
+    n.style.display = msg ? 'block' : 'none';
+  }
+
+  // ---------- session close ----------
+  function closeSession() {
+    var h = histories[current] || [];
+    if (!h.length) { note('Nothing to wrap up in this agent yet.'); return; }
+    note('Saving session summary…');
+    fetch('/api/session/close', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ agent: current })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      note('');
+      if (d.logged) {
+        addMsg('meta', { text: '📝 Session saved: ' + (d.notes || 'logged') });
+        histories[current] = histories[current] || [];
+      }
+      loadDashboard();
+    }).catch(function () { note('⚠️ Could not save the session.'); });
+  }
+})();
+</script>
+</body>
+</html>
