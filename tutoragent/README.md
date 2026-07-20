@@ -92,12 +92,24 @@ pm2 start server.js --name tutoragent
 Put nginx/caddy in front for TLS. The session cookie is `secure` behind HTTPS automatically
 (`x-forwarded-proto` aware).
 
-**Frontend:** served statically by Express at `/` — nothing extra needed. To host it on
-Netlify instead, deploy `public/` and proxy `/api/*` to the droplet in `netlify.toml`:
+**Frontend:** served statically by Express at `/` — nothing extra needed on the droplet.
 
-```toml
-[[redirects]]
-  from = "/api/*"
-  to = "https://your-droplet-domain/api/:splat"
-  status = 200
-```
+**Netlify (whole app, no droplet needed):** the repo-root `netlify.toml` deploys
+`public/` as the static site and the entire API as one streaming Netlify Functions v2
+handler (`netlify-functions/api.mjs`), sharing all logic with the Express server via
+`src/handlers.js`. Steps:
+
+1. Netlify → **Add new site → Import an existing project** → pick this repo → set the
+   branch to deploy to `claude/tutoragent-platform-build-0ignzn`.
+2. **Site configuration → Environment variables** → add `ANTHROPIC_API_KEY`,
+   `APP_PASSPHRASE`, and the NocoDB trio (`NOCODB_URL`, `NOCODB_API_TOKEN`,
+   `NOCODB_BASE_ID`). NocoDB is effectively required on Netlify — functions are
+   stateless, so the in-memory fallback resets on every request. Add the Resend and
+   Spaces keys for digest/file features.
+3. Deploy. The weekly digest runs as a scheduled function (`digest-cron.mjs`,
+   Mondays 01:00 UTC ≈ Sunday 5pm Pacific — Netlify cron has no timezone support).
+
+Serverless design notes: conversation history lives on the client and is sent with each
+turn (both backends work this way now); auth is a stateless HMAC-signed cookie, so it
+survives cold starts and server restarts alike; work photos are downscaled client-side
+(~1600px JPEG) before being attached as vision blocks.

@@ -228,7 +228,10 @@
   ];
 
   var current = 'coach';
-  var histories = {};   // agent -> [{cls, html|text}]
+  var histories = {};    // agent -> rendered chat elements
+  var convos = {};       // agent -> API-shaped history [{role, content}] sent with each turn
+  var pendingImage = {}; // agent -> {media_type, data} (downscaled base64, attached to next turn)
+  var agentStart = {};   // agent -> ms timestamp of first message (session duration)
   var busy = false;
 
   var $ = function (id) { return document.getElementById(id); };
@@ -405,10 +408,21 @@
     var acc = '';
     var streamedAgent = current;
 
+    // Build this turn and append it to the client-held history.
+    if (!convos[current]) convos[current] = [];
+    if (!agentStart[current]) agentStart[current] = Date.now();
+    var img = pendingImage[current];
+    delete pendingImage[current];
+    var turnContent = img
+      ? [{ type: 'image', media_type: img.media_type, data: img.data }, { type: 'text', text: text }]
+      : text;
+    convos[current].push({ role: 'user', content: turnContent });
+    if (convos[current].length > 40) convos[current].splice(0, convos[current].length - 40);
+
     fetch('/api/agent/' + current, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: text })
+      body: JSON.stringify({ message: text, history: convos[streamedAgent] })
     }).then(function (res) {
       if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || ('HTTP ' + res.status)); });
       var reader = res.body.getReader();
@@ -453,6 +467,18 @@
       busy = false; sendBtn.disabled = false;
       if (!acc) return;
       renderMarkdown(body, acc);
+      // Record the assistant turn, then shrink any image blocks in older turns
+      // so future request payloads stay small (the assistant's written analysis
+      // of the photo lives on in the history).
+      var conv = convos[streamedAgent] || [];
+      conv.push({ role: 'assistant', content: acc });
+      for (var i = 0; i < conv.length - 2; i++) {
+        if (Array.isArray(conv[i].content)) {
+          conv[i].content = conv[i].content.map(function (b) {
+            return b.type === 'image' ? { type: 'text', text: '[photo of handwritten work shared earlier]' } : b;
+          });
+        }
+      }
     });
   }
 
@@ -465,18 +491,46 @@
   $('file-photo').addEventListener('change', function () {
     var f = this.files[0]; this.value = '';
     if (!f) return;
-    var fd = new FormData();
-    fd.append('file', f);
-    fd.append('agent', current);
-    note('Uploading photo…');
-    fetch('/api/upload/work-photo', { method: 'POST', body: fd })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-      .then(function (res) {
-        if (res.ok) note('📷 Photo attached — it will go with your next message.');
-        else note('⚠️ ' + (res.d.error || 'Upload failed.'));
-      })
-      .catch(function () { note('⚠️ Upload failed.'); });
+    note('Preparing photo…');
+    // Downscale client-side (phone photos are 4-8MB; the model reads ~1600px
+    // just as well) so chat payloads stay small and fast on mobile data.
+    downscaleImage(f, 1600).then(function (out) {
+      pendingImage[current] = { media_type: out.media_type, data: out.base64 };
+      note('📷 Photo attached — it will go with your next message.');
+      // Archive to Spaces in the background; chat works either way.
+      var fd = new FormData();
+      fd.append('file', out.blob, f.name || 'photo.jpg');
+      fetch('/api/upload/work-photo', { method: 'POST', body: fd }).catch(function () {});
+    }).catch(function () { note('⚠️ Could not read that photo.'); });
   });
+
+  function downscaleImage(file, maxDim) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          canvas.toBlob(function (blob) {
+            if (!blob) return reject(new Error('encode failed'));
+            var reader = new FileReader();
+            reader.onload = function () {
+              resolve({ blob: blob, media_type: 'image/jpeg', base64: String(reader.result).split(',')[1] });
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          }, 'image/jpeg', 0.85);
+        } catch (e) { reject(e); }
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('decode failed')); };
+      img.src = url;
+    });
+  }
 
   $('file-pdf').addEventListener('change', function () {
     var f = this.files[0]; this.value = '';
@@ -510,18 +564,21 @@
 
   // ---------- session close ----------
   function closeSession() {
-    var h = histories[current] || [];
-    if (!h.length) { note('Nothing to wrap up in this agent yet.'); return; }
+    var conv = convos[current] || [];
+    if (!conv.length) { note('Nothing to wrap up in this agent yet.'); return; }
     note('Saving session summary…');
+    var mins = agentStart[current] ? Math.max(1, Math.round((Date.now() - agentStart[current]) / 60000)) : 1;
     fetch('/api/session/close', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ agent: current })
+      body: JSON.stringify({ agent: current, history: conv, duration_min: mins })
     }).then(function (r) { return r.json(); }).then(function (d) {
       note('');
       if (d.logged) {
+        // Start fresh: the summary is in the database; the next visit is a new session.
+        convos[current] = [];
+        delete agentStart[current];
         addMsg('meta', { text: '📝 Session saved: ' + (d.notes || 'logged') });
-        histories[current] = histories[current] || [];
       }
       loadDashboard();
     }).catch(function () { note('⚠️ Could not save the session.'); });

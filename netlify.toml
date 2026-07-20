@@ -1,72 +1,28 @@
-# Netlify deploy config — multi-tenant NPO agent demo.
+# Netlify deploy config — TutorAgent (branch: claude/tutoragent-platform-build-0ignzn).
 #
-# Usage:
-#   1. Push this branch to GitHub.
-#   2. In Netlify: Add new site → Import an existing project → pick the repo.
-#   3. Set ANTHROPIC_API_KEY in Site settings → Environment variables.
-#   4. Trigger a deploy. Done.
+# Deploy steps:
+#   1. Netlify → Add new site → Import an existing project → pick this repo,
+#      and set the branch to deploy to claude/tutoragent-platform-build-0ignzn.
+#      (Or, on an existing site: Site configuration → Build & deploy → Branches.)
+#   2. Site configuration → Environment variables → add:
+#        ANTHROPIC_API_KEY   (required for tutoring)
+#        APP_PASSPHRASE      (required for login)
+#        NOCODB_URL, NOCODB_API_TOKEN, NOCODB_BASE_ID
+#            (strongly recommended on Netlify: functions are stateless, so
+#             without NocoDB every request starts from an empty in-memory DB)
+#        RESEND_API_KEY, DIGEST_TO_EMAIL          (weekly digest)
+#        DO_SPACES_KEY, DO_SPACES_SECRET, DO_SPACES_BUCKET, DO_SPACES_REGION
+#                                                 (PDF/photo archival, optional)
+#   3. Deploy. The frontend is served from tutoragent/public; the whole API is
+#      one streaming Functions v2 handler at /api/* (tutoragent/netlify-functions).
 #
-# The static site is the demo.html page in `public/`. The four /api/demo/*
-# endpoints are Python Netlify Functions backed by Claude Haiku 4.5 (chosen
-# so a full grant draft fits inside the 10s sync function timeout).
+# The previous NPO-demo Netlify config lives on its own branch; this branch's
+# config replaces it for TutorAgent deploys.
 
 [build]
-  publish = "public"
-  functions = "netlify/functions"
+  publish = "tutoragent/public"
+  command = "cd tutoragent && npm install --no-audit --no-fund"
 
 [functions]
-  # Each function bundle ships with the npo_agent source tree alongside it.
-  # _shared.py prepends the bundled path to sys.path on cold start.
-  included_files = ["src/npo_agent/**"]
-
-[functions."demo_info"]
-  # Light: just SQL lookups + JSON serialization.
-  timeout = 10
-
-[functions."demo_scrub"]
-  # No LLM call — pure regex scrub.
-  timeout = 10
-
-[functions."demo_draft"]
-  # Heaviest endpoint. Haiku 4.5 + max_tokens=4000 + no thinking
-  # typically returns in 3–6s; 10s ceiling gives headroom for cold-start
-  # SDK init.
-  timeout = 10
-
-[functions."demo_ask"]
-  # Short RAG answer; ~2–4s.
-  timeout = 10
-
-# ---- routing ---------------------------------------------------------------
-# Pretty URLs: the demo.html page calls /api/demo/info, /api/demo/draft, etc.
-# These rewrites map them onto the underlying function names.
-
-[[redirects]]
-  from = "/api/demo/info"
-  to = "/.netlify/functions/demo_info"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/demo/preview-scrub"
-  to = "/.netlify/functions/demo_scrub"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/demo/draft"
-  to = "/.netlify/functions/demo_draft"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/demo/ask"
-  to = "/.netlify/functions/demo_ask"
-  status = 200
-  force = true
-
-# Root → demo UI.
-[[redirects]]
-  from = "/"
-  to = "/demo.html"
-  status = 200
+  directory = "tutoragent/netlify-functions"
+  node_bundler = "esbuild"
