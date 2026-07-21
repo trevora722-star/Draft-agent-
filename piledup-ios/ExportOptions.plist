@@ -7,7 +7,14 @@
 	<key>destination</key>
 	<string>upload</string>
 	<key>signingStyle</key>
-	<string>automatic</string>
+	<string>manual</string>
+	<key>signingCertificate</key>
+	<string>Apple Distribution</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.pileupgame.app</key>
+		<string>PiledUp CI AppStore</string>
+	</dict>
 	<key>teamID</key>
 	<string>__TEAM_ID__</string>
 	<key>uploadSymbols</key>

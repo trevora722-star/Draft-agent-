@@ -117,6 +117,7 @@ if resp.status_code >= 400:
     sys.exit(1)
 
 data = resp.json()["data"]
+cert_id = data["id"]
 with open("dist.cer", "wb") as f:
     f.write(base64.b64decode(data["attributes"]["certificateContent"]))
 subprocess.run(
@@ -132,6 +133,65 @@ subprocess.run(
 )
 with open(os.environ["GITHUB_ENV"], "a") as f:
     f.write(f"P12_PASSWORD_GEN={pw}\n")
-print(f"Issued Apple Distribution certificate {data['id']} "
+print(f"Issued Apple Distribution certificate {cert_id} "
       f"({data['attributes'].get('name', 'unnamed')}, "
       f"expires {data['attributes'].get('expirationDate', '?')})")
+
+# ---- Provisioning profile ---------------------------------------------
+# Cloud signing (xcodebuild -allowProvisioningUpdates creating profiles)
+# needs an Admin key, so build the App Store profile ourselves and sign
+# manually — App Manager keys are allowed to do this via the API.
+import json
+
+with open("capacitor.config.json") as f:
+    BUNDLE_ID = json.load(f)["appId"]
+PROFILE_NAME = "PiledUp CI AppStore"
+JSON_H = {**headers, "Content-Type": "application/json"}
+
+r = requests.get(f"{API}/bundleIds", headers=headers,
+                 params={"filter[identifier]": BUNDLE_ID}, timeout=60)
+r.raise_for_status()
+matches = [b for b in r.json()["data"]
+           if b["attributes"]["identifier"] == BUNDLE_ID]
+if matches:
+    bundle_res_id = matches[0]["id"]
+else:
+    r = requests.post(f"{API}/bundleIds", headers=JSON_H, timeout=60,
+                      json={"data": {"type": "bundleIds",
+                            "attributes": {"identifier": BUNDLE_ID,
+                                           "name": "PiledUp",
+                                           "platform": "IOS"}}})
+    if r.status_code >= 400:
+        print(f"::error::Could not register bundle id {BUNDLE_ID}: {r.text}")
+        sys.exit(1)
+    bundle_res_id = r.json()["data"]["id"]
+
+# Remove stale CI profiles (they reference certificates from earlier runs).
+r = requests.get(f"{API}/profiles", headers=headers,
+                 params={"filter[name]": PROFILE_NAME}, timeout=60)
+if r.ok:
+    for prof in r.json().get("data", []):
+        requests.delete(f"{API}/profiles/{prof['id']}", headers=headers,
+                        timeout=60)
+
+r = requests.post(f"{API}/profiles", headers=JSON_H, timeout=60,
+                  json={"data": {
+                      "type": "profiles",
+                      "attributes": {"name": PROFILE_NAME,
+                                     "profileType": "IOS_APP_STORE"},
+                      "relationships": {
+                          "bundleId": {"data": {"type": "bundleIds",
+                                                "id": bundle_res_id}},
+                          "certificates": {"data": [{"type": "certificates",
+                                                     "id": cert_id}]}}}})
+if r.status_code >= 400:
+    print(f"::error::Could not create provisioning profile: {r.text}")
+    sys.exit(1)
+prof = r.json()["data"]["attributes"]
+prof_dir = os.path.expanduser("~/Library/MobileDevice/Provisioning Profiles")
+os.makedirs(prof_dir, exist_ok=True)
+prof_path = os.path.join(prof_dir, f"{prof['uuid']}.mobileprovision")
+with open(prof_path, "wb") as f:
+    f.write(base64.b64decode(prof["profileContent"]))
+print(f"Installed provisioning profile '{PROFILE_NAME}' ({prof['uuid']}) "
+      f"for {BUNDLE_ID}")
