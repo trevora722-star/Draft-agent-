@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PiledUp</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b27; --edge:#2a3245; --ink:#e8ecf4; --dim:#8b94a8;
+    --accent:#ffcf40; --magic:#b57bff;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:radial-gradient(1200px 800px at 50% -10%, #1a2236 0%, var(--bg) 60%);
+    color:var(--ink); font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    display:flex; flex-direction:column; align-items:center; padding:12px; gap:10px;
+    -webkit-tap-highlight-color:transparent; overflow-x:hidden;
+  }
+  h1{font-size:1.6rem; letter-spacing:2px;}
+  h1 .up{color:var(--accent);}
+  .pro-badge{
+    display:inline-block; font-size:.65rem; vertical-align:middle; margin-left:8px;
+    background:linear-gradient(135deg,#ffcf40,#ff8a3d); color:#231a00;
+    padding:2px 8px; border-radius:10px; font-weight:800; letter-spacing:1px;
+  }
+  #layout{display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; justify-content:center;}
+  .panel{
+    background:var(--panel); border:1px solid var(--edge); border-radius:12px;
+    padding:12px; min-width:190px;
+  }
+  .panel h3{font-size:.75rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--dim); margin-bottom:8px;}
+  #stage{position:relative;}
+  canvas{display:block; border-radius:10px;}
+  #board{border:1px solid var(--edge); background:#0a0e16;}
+  .stat{display:flex; justify-content:space-between; font-size:.95rem; padding:3px 0;}
+  .stat b{color:var(--accent); font-variant-numeric:tabular-nums;}
+  button{
+    font:inherit; color:var(--ink); background:#232b3d; border:1px solid var(--edge);
+    border-radius:9px; padding:9px 12px; cursor:pointer; width:100%; margin-top:8px;
+    transition:transform .06s, background .15s;
+  }
+  button:hover{background:#2c3650;}
+  button:active{transform:scale(.97);}
+  button:disabled{opacity:.4; cursor:not-allowed;}
+  #magicBtn{
+    background:linear-gradient(135deg,#6a2fd0,#b57bff); border-color:#b57bff;
+    font-weight:800; letter-spacing:.5px; font-size:1rem;
+  }
+  #magicBtn:not(:disabled){box-shadow:0 0 18px rgba(181,123,255,.55); animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 10px rgba(181,123,255,.35);}50%{box-shadow:0 0 24px rgba(181,123,255,.8);}}
+  #proBtn{background:linear-gradient(135deg,#ffcf40,#ff8a3d); color:#231a00; font-weight:800; border:none;}
+  select,input[type=range]{width:100%; margin-top:4px; font:inherit;}
+  select{background:#232b3d; color:var(--ink); border:1px solid var(--edge); border-radius:8px; padding:7px;}
+  label{font-size:.8rem; color:var(--dim); display:block; margin-top:10px;}
+  .swatches{display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-top:6px;}
+  .swatches input{width:100%; height:30px; border:none; border-radius:6px; background:none; padding:0; cursor:pointer;}
+  .locked{opacity:.45; pointer-events:none; filter:grayscale(.4);}
+  .locknote{font-size:.72rem; color:var(--accent); margin-top:6px;}
+  #floaters{position:absolute; inset:0; pointer-events:none; overflow:hidden;}
+  .floater{
+    position:absolute; left:50%; transform:translateX(-50%); font-weight:900;
+    font-size:1.5rem; white-space:nowrap; text-shadow:0 2px 12px rgba(0,0,0,.8);
+    animation:rise 1.4s ease-out forwards;
+  }
+  @keyframes rise{from{opacity:1; margin-top:0;} to{opacity:0; margin-top:-90px;}}
+  #overlay{
+    position:absolute; inset:0; background:rgba(8,10,16,.82); border-radius:10px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+    text-align:center; padding:16px;
+  }
+  #overlay.hidden{display:none;}
+  #overlay h2{font-size:1.6rem;}
+  #overlay button{width:auto; padding:10px 26px;}
+  #touchpad{display:none; gap:8px; width:100%; max-width:420px;}
+  #touchpad button{font-size:1.3rem; padding:14px 0; margin-top:0;}
+  @media (pointer:coarse){ #touchpad{display:flex;} }
+  .lvlrow{display:flex; justify-content:space-between; font-size:.8rem; padding:2px 0; color:var(--dim);}
+  .lvlrow.pro{color:#ffcf40;}
+  .lvlrow.now{color:#7dffa8; font-weight:700;}
+  small.hint{color:var(--dim); font-size:.72rem; display:block; margin-top:6px; line-height:1.4;}
+</style>
+</head>
+<body>
+<h1>PILED<span class="up">UP</span><span id="proBadge" class="pro-badge" style="display:none">PRO</span></h1>
+
+<div id="layout">
+
+  <div class="panel" id="leftPanel">
+    <h3>Stats</h3>
+    <div class="stat"><span>Score</span><b id="score">0</b></div>
+    <div class="stat"><span>Lines</span><b id="lines">0</b></div>
+    <div class="stat"><span>Level</span><b id="levelName">1</b></div>
+    <div class="stat"><span>Next 100pt tier</span><b id="tier">100</b></div>
+    <h3 style="margin-top:14px">Magic</h3>
+    <button id="magicBtn" disabled>✨ Magic Click ×<span id="charges">0</span></button>
+    <small class="hint">Every 100 pts earns a Magic Click — blast away the bottom two rows of your pile!</small>
+    <h3 style="margin-top:14px">Next</h3>
+    <canvas id="next" width="96" height="96"></canvas>
+    <button id="pauseBtn">⏸ Pause</button>
+  </div>
+
+  <div id="stage">
+    <canvas id="board" width="300" height="540"></canvas>
+    <div id="floaters"></div>
+    <div id="overlay">
+      <h2>PILEDUP</h2>
+      <p id="overlayMsg">Stack it. Clear it. Don't get piled up.</p>
+      <button id="startBtn">▶ Play</button>
+    </div>
+  </div>
+
+  <div class="panel" id="rightPanel">
+    <h3>Mode</h3>
+    <div class="stat"><span>Edition</span><b id="edition">Free</b></div>
+    <button id="proBtn">🔓 Unlock PRO</button>
+
+    <h3 style="margin-top:14px">Colors</h3>
+    <label>Color scheme
+      <select id="scheme"></select>
+    </label>
+    <div id="customWrap" style="display:none">
+      <label>Pick your 7 block colors</label>
+      <div class="swatches" id="swatches"></div>
+    </div>
+
+    <div id="proPanel">
+      <h3 style="margin-top:14px">PRO: Sound &amp; Speed</h3>
+      <div id="proControls" class="locked">
+        <label><input type="checkbox" id="soundOn" checked> Sound effects</label>
+        <label>Game speed <b id="speedVal">1.0×</b>
+          <input type="range" id="speed" min="50" max="200" value="100">
+        </label>
+      </div>
+      <div class="locknote" id="proNote">🔒 PRO only — unlock to enable</div>
+
+      <h3 style="margin-top:14px">Levels</h3>
+      <div id="levelList"></div>
+    </div>
+  </div>
+</div>
+
+<div id="touchpad">
+  <button id="tLeft">◀</button>
+  <button id="tRot">⟳</button>
+  <button id="tDown">▼</button>
+  <button id="tDrop">⤓</button>
+  <button id="tRight">▶</button>
+</div>
+<small class="hint">← → move · ↑ rotate · ↓ soft drop · Space hard drop · P pause</small>
+
+<script>
+"use strict";
+/* ============================== CONFIG ============================== */
+const COLS = 10, ROWS = 18, CELL = 30;
+
+/* Team-color palettes: 7 block colors each, drawn from the team's kit. */
+const TEAM_PALETTES = {
+  "Classic (default)":            ["#4fc3f7","#ffd54f","#ba68c8","#81c784","#e57373","#64b5f6","#ffb74d"],
+  "Kansas City Chiefs":           ["#E31837","#FFB81C","#B31329","#FFD25F","#8A0F23","#FFC94D","#E85A70"],
+  "Green Bay Packers":            ["#203731","#FFB612","#2E5248","#FFD25F","#1A2C27","#E0A50F","#4A7A6A"],
+  "Dallas Cowboys":               ["#041E42","#869397","#0B3B7A","#B0BEC5","#5C6F7B","#123C71","#A5ACAF"],
+  "Philadelphia Eagles":          ["#004C54","#A5ACAF","#0A6E77","#C9CED1","#02363C","#57828A","#7F8B8E"],
+  "Pittsburgh Steelers":          ["#FFB612","#101820","#E0A50F","#3A3F47","#FFD25F","#22272E","#C79100"],
+  "San Francisco 49ers":          ["#AA0000","#B3995D","#8A0000","#D4C08A","#C93A3A","#9A7F3F","#E0B7B7"],
+  "Seattle Seahawks":             ["#002244","#69BE28","#A5ACAF","#0A3B6E","#8CD64A","#37516F","#4E9B1E"],
+  "Denver Broncos":               ["#FB4F14","#002244","#FF7A45","#0A3B6E","#C93E0F","#37516F","#FFA07A"],
+  "Miami Dolphins":               ["#008E97","#FC4C02","#005778","#FF7A45","#00B5C0","#0A6E77","#F0824A"],
+  "Chicago Bears":                ["#0B162A","#C83803","#1E2F4F","#E05A2B","#432818","#C87E5A","#8898AC"],
+  "Chicago Bulls":                ["#CE1141","#000000","#A50D34","#3A3A3A","#E85A70","#6E0A24","#B2B2B2"],
+  "Chicago Cubs":                 ["#0E3386","#CC3433","#1A4FB0","#E05A59","#0A2661","#A32827","#7A9BD4"],
+  "Los Angeles Lakers":           ["#552583","#FDB927","#3E1A63","#FFD25F","#7A3EB1","#E0A50F","#B490D8"],
+  "Los Angeles Dodgers":          ["#005A9C","#EF3E42","#0A76C8","#C42F33","#003D6B","#F0716F","#7AB8E0"],
+  "Boston Celtics":               ["#007A33","#BA9653","#0A9E45","#D4B87A","#005224","#9A7F3F","#5ABF85"],
+  "Boston Red Sox":               ["#BD3039","#0C2340","#E05A59","#1E3A66","#8A2028","#37516F","#D48A8A"],
+  "New York Yankees":             ["#0C2340","#C4CED3","#1E3A66","#E8EEF1","#37516F","#8898AC","#003087"],
+  "New York Knicks":              ["#006BB6","#F58426","#0A85DE","#FF9E4F","#004A80","#C4661A","#7AB8E0"],
+  "Toronto Raptors":              ["#CE1141","#A1A1A4","#000000","#E85A70","#6E0A24","#C3C3C6","#3A3A3A"],
+  "Toronto Maple Leafs":          ["#00205B","#4A7ACC","#12318A","#7A9BD4","#0A163D","#2A55A8","#A8BEE8"],
+  "Detroit Lions":                ["#0076B6","#B0B7BC","#0A94DE","#D2D7DA","#00568A","#7F8B8E","#5AB4E0"],
+  "Minnesota Vikings":            ["#4F2683","#FFC62F","#6A3AA8","#FFD86A","#3A1B61","#E0A50F","#9A72CC"],
+  "Atlanta Braves":               ["#CE1141","#13274F","#E85A70","#1E3A66","#8A0D2E","#37516F","#D48A8A"],
+  "Houston Texans":               ["#03202F","#A71930","#0A4A6E","#C93A50","#021521","#7A1224","#5A87A0"],
+};
+
+const CLEAN_LINES  = ["NICE!","SWEET!","GREAT CLEAR!","ON FIRE!","COMBO!","STACKED!","SMOOTH!"];
+/* PRO edition celebration lines — explicit adult language, as requested. 18+ */
+const ADULT_LINES  = [
+  "FUCK YEAH!","FUCKING FILTHY!","HOLY SHIT!","BITCHIN'!","YOU ABSOLUTE BITCH!",
+  "SEXY AS FUCK!","ORGASMIC!","THAT'S THE GOOD SHIT!","HARD AS FUCK!","WET AND WILD!",
+  "YOU CUNNING CUNT!","DIRTY FUCKING LEGEND!","CLIMAX CLEAR!","BALLS DEEP!","DEEP STROKE!",
+  "STACK ME HARDER, DADDY!","FILTHY LITTLE COMBO!","ABSOFUCKINGLUTELY!",
+];
+const ADULT_OVER   = ["Well, fuck.","Piled up and fucked over.","Gravity's a real bitch.","That pile came faster than you did."];
+const MAGIC_LINES_FREE = ["✨ MAGIC! ✨"];
+const MAGIC_LINES_PRO  = ["✨ POOF, BITCHES! ✨","✨ FUCKING MAGIC! ✨","✨ SHAZAM, MOTHERFUCKER! ✨","✨ ABRACA-FUCKING-DABRA! ✨"];
+
+/* Free edition: levels 1–5. PRO adds 6–12, each faster; 7+ drops garbage rows. */
+const LEVELS = [
+  {n:1,  name:"1 · Warm-Up",      speed:1.00, pro:false},
+  {n:2,  name:"2 · Rookie",       speed:1.25, pro:false},
+  {n:3,  name:"3 · Steady",       speed:1.55, pro:false},
+  {n:4,  name:"4 · Brisk",        speed:1.90, pro:false},
+  {n:5,  name:"5 · Rush Hour",    speed:2.30, pro:false},
+  {n:6,  name:"6 · Turbo",        speed:2.80, pro:true},
+  {n:7,  name:"7 · Landslide",    speed:3.30, pro:true,  garbage:26},
+  {n:8,  name:"8 · Avalanche",    speed:3.90, pro:true,  garbage:20},
+  {n:9,  name:"9 · Earthquake",   speed:4.60, pro:true,  garbage:15},
+  {n:10, name:"10 · Meltdown",    speed:5.40, pro:true,  garbage:12},
+  {n:11, name:"11 · Apocalypse",  speed:6.30, pro:true,  garbage:9},
+  {n:12, name:"12 · PILEDUP HELL",speed:7.50, pro:true,  garbage:7},
+];
+
+const SHAPES = [
+  [[1,1,1,1]],            // I
+  [[1,1],[1,1]],          // O
+  [[0,1,0],[1,1,1]],      // T
+  [[0,1,1],[1,1,0]],      // S
+  [[1,1,0],[0,1,1]],      // Z
+  [[1,0,0],[1,1,1]],      // J
+  [[0,0,1],[1,1,1]],      // L
+];
+
+/* ============================== STATE ============================== */
+const store = {
+  get pro(){ return localStorage.getItem("pu_pro")==="1"; },
+  set pro(v){ localStorage.setItem("pu_pro", v?"1":"0"); },
+  get scheme(){ return localStorage.getItem("pu_scheme") || "Classic (default)"; },
+  set scheme(v){ localStorage.setItem("pu_scheme", v); },
+  get custom(){ try{ return JSON.parse(localStorage.getItem("pu_custom")); }catch(e){ return null; } },
+  set custom(v){ localStorage.setItem("pu_custom", JSON.stringify(v)); },
+};
+
+let board, piece, nextPiece, score, lines, levelIdx, over, paused, running=false;
+let charges=0, lastTier=0, dropTimer=0, garbageTimer=0, lastTime=0;
+let colors = TEAM_PALETTES[store.scheme] || TEAM_PALETTES["Classic (default)"];
+let speedMult = 1.0;
+let particles = [];
+
+/* ============================== DOM ============================== */
+const $ = id => document.getElementById(id);
+const ctx = $("board").getContext("2d");
+const nctx = $("next").getContext("2d");
+
+/* ============================== AUDIO (PRO) ============================== */
+let actx = null;
+function beep(freq, dur=0.08, type="square", vol=0.16){
+  if(!store.pro || !$("soundOn").checked) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime + dur);
+  }catch(e){}
+}
+const sfx = {
+  move: () => beep(220, .04, "square", .08),
+  rotate: () => beep(330, .05, "square", .1),
+  drop: () => beep(140, .09, "triangle", .2),
+  clear: () => { beep(523,.09); setTimeout(()=>beep(659,.09),70); setTimeout(()=>beep(784,.12),140); },
+  magic: () => { beep(880,.1,"sine",.2); setTimeout(()=>beep(1175,.1,"sine",.2),90); setTimeout(()=>beep(1568,.18,"sine",.2),180); },
+  levelup: () => { beep(392,.1); setTimeout(()=>beep(523,.1),90); setTimeout(()=>beep(659,.16),180); },
+  gameover: () => { beep(330,.2,"sawtooth",.15); setTimeout(()=>beep(220,.25,"sawtooth",.15),180); setTimeout(()=>beep(147,.4,"sawtooth",.15),380); },
+  tier: () => { beep(1047,.07,"sine",.18); setTimeout(()=>beep(1319,.12,"sine",.18),70); },
+};
+
+/* ============================== GAME CORE ============================== */
+function newBoard(){ return Array.from({length:ROWS}, () => Array(COLS).fill(0)); }
+
+function randomPiece(){
+  const t = Math.floor(Math.random()*SHAPES.length);
+  const shape = SHAPES[t].map(r=>r.slice());
+  return { t, shape, x: Math.floor((COLS - shape[0].length)/2), y: -shape.length+1 };
+}
+
+function collides(p, dx=0, dy=0, shape=p.shape){
+  for(let y=0;y<shape.length;y++) for(let x=0;x<shape[y].length;x++){
+    if(!shape[y][x]) continue;
+    const nx=p.x+x+dx, ny=p.y+y+dy;
+    if(nx<0||nx>=COLS||ny>=ROWS) return true;
+    if(ny>=0 && board[ny][nx]) return true;
+  }
+  return false;
+}
+
+function rotate(shape){
+  return shape[0].map((_,i)=>shape.map(r=>r[i]).reverse());
+}
+
+function lockPiece(){
+  piece.shape.forEach((row,y)=>row.forEach((v,x)=>{
+    if(v && piece.y+y>=0) board[piece.y+y][piece.x+x] = piece.t+1;
+  }));
+  sfx.drop();
+  const cleared = sweep();
+  piece = nextPiece; nextPiece = randomPiece();
+  if(collides(piece)) return gameOver();
+  if(!cleared) addScore(1); // small survival trickle so magic tiers stay reachable
+}
+
+function sweep(){
+  let cleared = 0;
+  for(let y=ROWS-1;y>=0;y--){
+    if(board[y].every(v=>v)){
+      spawnParticles(y);
+      board.splice(y,1);
+      board.unshift(Array(COLS).fill(0));
+      cleared++; y++;
+    }
+  }
+  if(cleared){
+    const lvl = LEVELS[levelIdx].n;
+    addScore([0,40,100,300,1200][cleared] * lvl);
+    lines += cleared;
+    celebrate(pick(store.pro ? ADULT_LINES : CLEAN_LINES), cleared>=3 ? "#ff8a3d" : "#7dffa8");
+    sfx.clear();
+    maybeLevelUp();
+  }
+  return cleared;
+}
+
+function addScore(pts){
+  score += Math.round(pts);
+  const tier = Math.floor(score/100);
+  if(tier > lastTier){
+    charges += (tier - lastTier);
+    lastTier = tier;
+    celebrate("✨ +MAGIC CLICK", "#b57bff");
+    sfx.tier();
+  }
+  updateHUD();
+}
+
+function maybeLevelUp(){
+  const maxIdx = store.pro ? LEVELS.length-1 : 4;
+  const targetIdx = Math.min(Math.floor(lines/10), maxIdx);
+  if(targetIdx > levelIdx){
+    levelIdx = targetIdx;
+    celebrate("LEVEL UP → " + LEVELS[levelIdx].name, "#ffcf40");
+    sfx.levelup();
+    garbageTimer = 0;
+    renderLevelList();
+  }
+}
+
+/* Magic Click: vaporize the bottom two occupied rows of the pile. */
+function magicClick(){
+  if(charges<=0 || over || !running || paused) return;
+  let removed = 0;
+  for(let y=ROWS-1; y>=0 && removed<2; y--){
+    if(board[y].some(v=>v)){
+      spawnParticles(y, true);
+      board.splice(y,1);
+      board.unshift(Array(COLS).fill(0));
+      removed++; y++; // recheck same index after splice
+    }
+  }
+  if(removed){
+    charges--;
+    celebrate(pick(store.pro ? MAGIC_LINES_PRO : MAGIC_LINES_FREE), "#b57bff");
+    sfx.magic();
+  }
+  updateHUD();
+}
+
+function pushGarbage(){
+  const hole = Math.floor(Math.random()*COLS);
+  const row = Array.from({length:COLS}, (_,x)=> x===hole ? 0 : 1 + Math.floor(Math.random()*7));
+  board.shift(); board.push(row);
+  if(collides(piece)) piece.y--;
+  celebrate("⚠ GARBAGE!", "#e57373");
+  beep(110,.12,"sawtooth",.14);
+}
+
+function gameOver(){
+  over = true; running = false;
+  sfx.gameover();
+  $("overlayMsg").textContent = (store.pro ? pick(ADULT_OVER) + " " : "") +
+    `Final score ${score} · ${lines} lines · reached ${LEVELS[levelIdx].name}`;
+  $("overlay").querySelector("h2").textContent = "GAME OVER";
+  $("startBtn").textContent = "↻ Play Again";
+  $("overlay").classList.remove("hidden");
+}
+
+function startGame(){
+  board = newBoard(); piece = randomPiece(); nextPiece = randomPiece();
+  score = 0; lines = 0; levelIdx = 0; charges = 0; lastTier = 0;
+  over = false; paused = false; running = true;
+  dropTimer = 0; garbageTimer = 0; particles = [];
+  $("overlay").classList.add("hidden");
+  renderLevelList(); updateHUD();
+}
+
+/* ============================== LOOP ============================== */
+function gravityMs(){
+  return Math.max(45, 800 / (LEVELS[levelIdx].speed * speedMult));
+}
+
+function tick(time){
+  requestAnimationFrame(tick);
+  const dt = time - lastTime; lastTime = time;
+  if(running && !paused && !over){
+    dropTimer += dt;
+    if(dropTimer > gravityMs()){
+      dropTimer = 0;
+      if(!collides(piece,0,1)) piece.y++;
+      else lockPiece();
+    }
+    const g = LEVELS[levelIdx].garbage;
+    if(store.pro && g){
+      garbageTimer += dt;
+      if(garbageTimer > g*1000){ garbageTimer = 0; pushGarbage(); }
+    }
+  }
+  draw(dt);
+}
+
+/* ============================== RENDER ============================== */
+function drawCell(c, x, y, colorIdx, ghost=false){
+  const col = colors[(colorIdx-1) % colors.length];
+  const px = x*CELL, py = y*CELL;
+  if(ghost){
+    c.strokeStyle = col; c.globalAlpha = .35;
+    c.strokeRect(px+2, py+2, CELL-4, CELL-4);
+    c.globalAlpha = 1;
+    return;
+  }
+  c.fillStyle = col;
+  c.fillRect(px+1, py+1, CELL-2, CELL-2);
+  c.fillStyle = "rgba(255,255,255,.25)";
+  c.fillRect(px+1, py+1, CELL-2, 5);
+  c.fillStyle = "rgba(0,0,0,.28)";
+  c.fillRect(px+1, py+CELL-6, CELL-2, 5);
+}
+
+function draw(dt){
+  ctx.clearRect(0,0,COLS*CELL,ROWS*CELL);
+  ctx.strokeStyle = "rgba(255,255,255,.04)";
+  for(let x=1;x<COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,ROWS*CELL); ctx.stroke(); }
+  board?.forEach((row,y)=>row.forEach((v,x)=>{ if(v) drawCell(ctx,x,y,v); }));
+  if(piece && running && !over){
+    let gy = 0; while(!collides(piece,0,gy+1)) gy++;
+    piece.shape.forEach((row,y)=>row.forEach((v,x)=>{
+      if(v && piece.y+y+gy>=0) drawCell(ctx, piece.x+x, piece.y+y+gy, piece.t+1, true);
+    }));
+    piece.shape.forEach((row,y)=>row.forEach((v,x)=>{
+      if(v && piece.y+y>=0) drawCell(ctx, piece.x+x, piece.y+y, piece.t+1);
+    }));
+  }
+  // particles
+  particles = particles.filter(p=>p.life>0);
+  particles.forEach(p=>{
+    p.x += p.vx*dt/16; p.y += p.vy*dt/16; p.vy += .12*dt/16; p.life -= dt;
+    ctx.globalAlpha = Math.max(0, p.life/600);
+    ctx.fillStyle = p.col;
+    ctx.fillRect(p.x, p.y, p.s, p.s);
+    ctx.globalAlpha = 1;
+  });
+  // next preview
+  nctx.clearRect(0,0,96,96);
+  if(nextPiece && running){
+    const s = nextPiece.shape, off = 16;
+    s.forEach((row,y)=>row.forEach((v,x)=>{
+      if(!v) return;
+      nctx.fillStyle = colors[nextPiece.t % colors.length];
+      nctx.fillRect(off+x*20, off+y*20, 18, 18);
+    }));
+  }
+}
+
+function spawnParticles(rowY, magic=false){
+  for(let i=0;i<26;i++){
+    particles.push({
+      x: Math.random()*COLS*CELL, y: rowY*CELL + CELL/2,
+      vx: (Math.random()-.5)*5, vy: -Math.random()*4-1,
+      s: magic ? 5 : 3, life: 600,
+      col: magic ? "#b57bff" : colors[Math.floor(Math.random()*colors.length)],
+    });
+  }
+}
+
+function celebrate(text, color="#7dffa8"){
+  const el = document.createElement("div");
+  el.className = "floater"; el.textContent = text; el.style.color = color;
+  el.style.top = (ROWS*CELL*(0.25 + Math.random()*0.35)) + "px";
+  $("floaters").appendChild(el);
+  setTimeout(()=>el.remove(), 1400);
+}
+
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+/* ============================== HUD / SETTINGS ============================== */
+function updateHUD(){
+  $("score").textContent = score ?? 0;
+  $("lines").textContent = lines ?? 0;
+  $("levelName").textContent = LEVELS[levelIdx ?? 0].name;
+  $("tier").textContent = ((lastTier??0)+1)*100;
+  $("charges").textContent = charges ?? 0;
+  $("magicBtn").disabled = !(charges>0 && running && !paused && !over);
+}
+
+function renderLevelList(){
+  const wrap = $("levelList"); wrap.innerHTML = "";
+  LEVELS.forEach((lv,i)=>{
+    const div = document.createElement("div");
+    div.className = "lvlrow" + (lv.pro?" pro":"") + (i===levelIdx && running ? " now":"");
+    const lock = lv.pro && !store.pro ? " 🔒" : (lv.garbage ? " ☢" : "");
+    div.innerHTML = `<span>${lv.name}${lock}</span><span>${lv.speed.toFixed(1)}× spd</span>`;
+    wrap.appendChild(div);
+  });
+}
+
+function applyProUI(){
+  const pro = store.pro;
+  $("edition").textContent = pro ? "PRO 🎉" : "Free";
+  $("proBadge").style.display = pro ? "" : "none";
+  $("proBtn").style.display = pro ? "none" : "";
+  $("proControls").classList.toggle("locked", !pro);
+  $("proNote").style.display = pro ? "none" : "";
+  renderLevelList();
+}
+
+function buildSchemeSelect(){
+  const sel = $("scheme");
+  Object.keys(TEAM_PALETTES).forEach(name=>{
+    const o = document.createElement("option");
+    o.value = name; o.textContent = name;
+    sel.appendChild(o);
+  });
+  const custom = document.createElement("option");
+  custom.value = "__custom"; custom.textContent = "🎨 Custom colors…";
+  sel.appendChild(custom);
+  sel.value = store.scheme === "__custom" ? "__custom" : (TEAM_PALETTES[store.scheme] ? store.scheme : "Classic (default)");
+  applyScheme(sel.value);
+  sel.addEventListener("change", ()=>{ store.scheme = sel.value; applyScheme(sel.value); });
+}
+
+function applyScheme(name){
+  if(name === "__custom"){
+    colors = store.custom || colors.slice();
+    $("customWrap").style.display = "";
+    buildSwatches();
+  } else {
+    colors = TEAM_PALETTES[name];
+    $("customWrap").style.display = "none";
+  }
+}
+
+function buildSwatches(){
+  const wrap = $("swatches"); wrap.innerHTML = "";
+  const current = store.custom || TEAM_PALETTES["Classic (default)"];
+  colors = current.slice();
+  current.forEach((col,i)=>{
+    const inp = document.createElement("input");
+    inp.type = "color"; inp.value = col;
+    inp.addEventListener("input", ()=>{
+      colors[i] = inp.value;
+      store.custom = colors;
+    });
+    wrap.appendChild(inp);
+  });
+}
+
+/* ============================== INPUT ============================== */
+function move(dx){ if(!collides(piece,dx,0)){ piece.x+=dx; sfx.move(); } }
+function softDrop(){ if(!collides(piece,0,1)){ piece.y++; addScore(1); } }
+function hardDrop(){ while(!collides(piece,0,1)) piece.y++; lockPiece(); }
+function doRotate(){
+  const r = rotate(piece.shape);
+  for(const kick of [0,-1,1,-2,2]){
+    if(!collides(piece,kick,0,r)){ piece.shape=r; piece.x+=kick; sfx.rotate(); return; }
+  }
+}
+function togglePause(){
+  if(!running || over) return;
+  paused = !paused;
+  $("pauseBtn").textContent = paused ? "▶ Resume" : "⏸ Pause";
+  updateHUD();
+}
+
+document.addEventListener("keydown", e=>{
+  if(!running || over) return;
+  if(e.key==="p"||e.key==="P") return togglePause();
+  if(paused) return;
+  switch(e.key){
+    case "ArrowLeft": case "a": move(-1); break;
+    case "ArrowRight": case "d": move(1); break;
+    case "ArrowDown": case "s": softDrop(); break;
+    case "ArrowUp": case "w": doRotate(); break;
+    case " ": e.preventDefault(); hardDrop(); break;
+  }
+});
+
+$("tLeft").onclick = ()=>running&&!paused&&move(-1);
+$("tRight").onclick = ()=>running&&!paused&&move(1);
+$("tDown").onclick = ()=>running&&!paused&&softDrop();
+$("tRot").onclick = ()=>running&&!paused&&doRotate();
+$("tDrop").onclick = ()=>running&&!paused&&hardDrop();
+$("magicBtn").onclick = magicClick;
+$("pauseBtn").onclick = togglePause;
+$("startBtn").onclick = startGame;
+
+$("proBtn").onclick = ()=>{
+  store.pro = true;
+  applyProUI();
+  celebrate(pick(ADULT_LINES), "#ffcf40");
+  sfx.levelup();
+};
+
+$("speed").addEventListener("input", e=>{
+  speedMult = e.target.value/100;
+  $("speedVal").textContent = speedMult.toFixed(1)+"×";
+});
+
+/* ============================== BOOT ============================== */
+buildSchemeSelect();
+applyProUI();
+board = newBoard();
+updateHUD();
+requestAnimationFrame(t=>{ lastTime=t; tick(t); });
+</script>
+</body>
+</html>
