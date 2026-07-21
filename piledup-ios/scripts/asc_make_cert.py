@@ -1,15 +1,24 @@
 #!/usr/bin/env python3
-"""Mint an Apple Distribution signing certificate via the App Store Connect API.
+"""Provision Apple signing for CI: certificate + App Store profile.
 
-Runs on the CI Mac so no local Mac or Xcode is ever needed: generates a fresh
-private key + CSR, asks Apple to issue a distribution certificate for it, and
-bundles both into dist.p12 for the keychain. The p12 password is exported to
-GITHUB_ENV as P12_PASSWORD_GEN.
+Runs on the CI Mac so no local Mac or Xcode is ever needed.
+
+Certificate: reuses the keystore restored from the ci-keystore branch when
+present and still valid; otherwise generates a fresh key + CSR and asks the
+App Store Connect API to issue a distribution certificate (auto-revoking
+stale ones if Apple reports the quota is full). The p12 password is exported
+to GITHUB_ENV as P12_PASSWORD_GEN; CREATED_NEW_CERT=1 signals the workflow
+to persist the new keystore.
+
+Profile: (re)creates the "PiledUp CI AppStore" App Store provisioning
+profile for the app's bundle id, tied to the active certificate, and
+installs it where xcodebuild looks.
 
 Requires env: ASC_KEY_ID, ASC_ISSUER_ID, and the .p8 at
 ~/private_keys/AuthKey_<ASC_KEY_ID>.p8
 """
 import base64
+import json
 import os
 import re
 import secrets
@@ -21,6 +30,8 @@ import jwt
 import requests
 
 API = "https://api.appstoreconnect.apple.com/v1"
+PROFILE_NAME = "PiledUp CI AppStore"
+META_FILE = "certmeta.json"
 
 
 def normalize_p8(raw: str) -> str:
@@ -54,13 +65,14 @@ if UUID_RE.match(key_id) and KEYID_RE.match(issuer):
     print("::warning::ASC_KEY_ID and ASC_ISSUER_ID look swapped — auto-swapping.")
     key_id, issuer = issuer, key_id
 elif not KEYID_RE.match(key_id):
-    print(f"::error::ASC_KEY_ID doesn't look like an App Store Connect Key ID "
-          f"(expected 10 characters like 2X9R4HXF34). Check the secret value.")
+    print("::error::ASC_KEY_ID doesn't look like an App Store Connect Key ID "
+          "(expected 10 characters like 2X9R4HXF34). Check the secret value.")
     sys.exit(1)
 elif not UUID_RE.match(issuer):
     print("::error::ASC_ISSUER_ID doesn't look like an Issuer ID (expected a "
           "36-character dashed UUID from the top of the API keys page).")
     sys.exit(1)
+
 p8_path = os.path.expanduser(f"~/private_keys/AuthKey_{key_id}.p8")
 with open(p8_path) as f:
     p8 = normalize_p8(f.read())
@@ -78,75 +90,128 @@ token = jwt.encode(
     headers={"kid": key_id},
 )
 headers = {"Authorization": f"Bearer {token}"}
+JSON_H = {**headers, "Content-Type": "application/json"}
 
-subprocess.run(
-    ["openssl", "req", "-new", "-newkey", "rsa:2048", "-nodes",
-     "-keyout", "dist.key", "-out", "dist.csr",
-     "-subj", "/CN=PiledUp CI Distribution/O=PiledUp CI"],
-    check=True,
-)
-with open("dist.csr") as f:
-    csr = f.read()
 
-resp = requests.post(
-    f"{API}/certificates",
-    headers={**headers, "Content-Type": "application/json"},
-    json={"data": {"type": "certificates",
-                   "attributes": {"certificateType": "DISTRIBUTION",
-                                  "csrContent": csr}}},
-    timeout=60,
-)
-if resp.status_code == 401:
-    print("::error::Apple rejected the API credentials (401). Check that: "
-          "(1) ASC_KEY_ID matches the X's in your downloaded AuthKey_XXXXXXXXXX.p8 "
-          "filename, (2) ASC_ISSUER_ID is the Issuer ID from the top of the same "
-          "App Store Connect API page, (3) the key is a TEAM key (not an "
-          "Individual key) and has not been revoked, and (4) ASC_KEY_P8 is the "
-          ".p8 file matching that Key ID.")
-    print(resp.text)
-    sys.exit(1)
-if resp.status_code >= 400:
-    print(f"::error::App Store Connect refused to issue a certificate "
-          f"(HTTP {resp.status_code}): {resp.text}")
-    if "maximum" in resp.text.lower() or "already" in resp.text.lower():
-        print("::error::Your team likely hit Apple's distribution-certificate "
-              "limit. Revoke an unused one at "
-              "https://developer.apple.com/account/resources/certificates "
-              "and re-run. (Revoking does NOT affect builds already on "
-              "TestFlight or the App Store.)")
-    sys.exit(1)
+def github_env(line: str) -> None:
+    with open(os.environ["GITHUB_ENV"], "a") as f:
+        f.write(line + "\n")
 
-data = resp.json()["data"]
-cert_id = data["id"]
-with open("dist.cer", "wb") as f:
-    f.write(base64.b64decode(data["attributes"]["certificateContent"]))
-subprocess.run(
-    ["openssl", "x509", "-inform", "DER", "-in", "dist.cer", "-out", "dist.pem"],
-    check=True,
-)
 
-pw = secrets.token_hex(12)
-subprocess.run(
-    ["openssl", "pkcs12", "-export", "-inkey", "dist.key", "-in", "dist.pem",
-     "-out", "dist.p12", "-passout", f"pass:{pw}"],
-    check=True,
-)
-with open(os.environ["GITHUB_ENV"], "a") as f:
-    f.write(f"P12_PASSWORD_GEN={pw}\n")
-print(f"Issued Apple Distribution certificate {cert_id} "
-      f"({data['attributes'].get('name', 'unnamed')}, "
-      f"expires {data['attributes'].get('expirationDate', '?')})")
+def create_certificate() -> str:
+    """Issue a fresh distribution certificate; returns its resource id."""
+    subprocess.run(
+        ["openssl", "req", "-new", "-newkey", "rsa:2048", "-nodes",
+         "-keyout", "dist.key", "-out", "dist.csr",
+         "-subj", "/CN=PiledUp CI Distribution/O=PiledUp CI"],
+        check=True,
+    )
+    with open("dist.csr") as f:
+        csr = f.read()
+
+    def attempt():
+        return requests.post(
+            f"{API}/certificates", headers=JSON_H, timeout=60,
+            json={"data": {"type": "certificates",
+                           "attributes": {"certificateType": "DISTRIBUTION",
+                                          "csrContent": csr}}})
+
+    resp = attempt()
+    if resp.status_code == 409 and "current Distribution certificate" in resp.text:
+        # Quota full — revoke existing distribution certs (orphans from
+        # earlier CI runs, or Xcode-managed ones Xcode can re-create).
+        # Revocation never affects builds already on TestFlight/App Store.
+        print("Distribution certificate quota is full — revoking existing "
+              "distribution certificates to free a slot.")
+        r = requests.get(f"{API}/certificates", headers=headers, timeout=60,
+                         params={"filter[certificateType]":
+                                 "DISTRIBUTION,IOS_DISTRIBUTION",
+                                 "limit": 200})
+        r.raise_for_status()
+        revoked_any = False
+        for cert in r.json().get("data", []):
+            cid = cert["id"]
+            name = cert["attributes"].get("displayName") or cert["attributes"].get("name")
+            d = requests.delete(f"{API}/certificates/{cid}", headers=headers,
+                                timeout=60)
+            if d.status_code in (200, 204):
+                revoked_any = True
+                print(f"Revoked distribution certificate {cid} ({name}).")
+            else:
+                print(f"::warning::Could not revoke certificate {cid} "
+                      f"(HTTP {d.status_code}).")
+        if not revoked_any:
+            print("::error::Apple's certificate quota is full and this API "
+                  "key isn't allowed to revoke certificates (that needs an "
+                  "Admin key). One-time fix: revoke the unused Apple "
+                  "Distribution certificate(s) at "
+                  "https://developer.apple.com/account/resources/certificates "
+                  "then re-run. After one successful run the pipeline saves "
+                  "and reuses its certificate, so this won't recur.")
+            sys.exit(1)
+        resp = attempt()
+
+    if resp.status_code == 401:
+        print("::error::Apple rejected the API credentials (401). Check that: "
+              "(1) ASC_KEY_ID matches the X's in your downloaded AuthKey_XXXXXXXXXX.p8 "
+              "filename, (2) ASC_ISSUER_ID is the Issuer ID from the top of the same "
+              "App Store Connect API page, (3) the key is a TEAM key (not an "
+              "Individual key) and has not been revoked, and (4) ASC_KEY_P8 is the "
+              ".p8 file matching that Key ID.")
+        print(resp.text)
+        sys.exit(1)
+    if resp.status_code >= 400:
+        print(f"::error::App Store Connect refused to issue a certificate "
+              f"(HTTP {resp.status_code}): {resp.text}")
+        sys.exit(1)
+
+    data = resp.json()["data"]
+    with open("dist.cer", "wb") as f:
+        f.write(base64.b64decode(data["attributes"]["certificateContent"]))
+    subprocess.run(
+        ["openssl", "x509", "-inform", "DER", "-in", "dist.cer",
+         "-out", "dist.pem"],
+        check=True,
+    )
+    pw = secrets.token_hex(12)
+    subprocess.run(
+        ["openssl", "pkcs12", "-export", "-inkey", "dist.key", "-in",
+         "dist.pem", "-out", "dist.p12", "-passout", f"pass:{pw}"],
+        check=True,
+    )
+    with open(META_FILE, "w") as f:
+        json.dump({"cert_id": data["id"], "p12_password": pw}, f)
+    github_env(f"P12_PASSWORD_GEN={pw}")
+    github_env("CREATED_NEW_CERT=1")
+    print(f"Issued Apple Distribution certificate {data['id']} "
+          f"(expires {data['attributes'].get('expirationDate', '?')})")
+    return data["id"]
+
+
+cert_id = None
+if os.environ.get("RESTORED_KEYSTORE") == "1" and os.path.exists(META_FILE) \
+        and os.path.exists("dist.p12"):
+    with open(META_FILE) as f:
+        meta = json.load(f)
+    r = requests.get(f"{API}/certificates/{meta['cert_id']}", headers=headers,
+                     timeout=60)
+    if r.status_code == 200:
+        cert_id = meta["cert_id"]
+        github_env(f"P12_PASSWORD_GEN={meta['p12_password']}")
+        print(f"Reusing saved distribution certificate {cert_id}.")
+    else:
+        print("Saved certificate no longer exists on Apple's side — "
+              "issuing a fresh one.")
+
+if cert_id is None:
+    cert_id = create_certificate()
 
 # ---- Provisioning profile ---------------------------------------------
 # Cloud signing (xcodebuild -allowProvisioningUpdates creating profiles)
 # needs an Admin key, so build the App Store profile ourselves and sign
 # manually — App Manager keys are allowed to do this via the API.
-import json
-
 with open("capacitor.config.json") as f:
     BUNDLE_ID = json.load(f)["appId"]
-PROFILE_NAME = "PiledUp CI AppStore"
-JSON_H = {**headers, "Content-Type": "application/json"}
 
 r = requests.get(f"{API}/bundleIds", headers=headers,
                  params={"filter[identifier]": BUNDLE_ID}, timeout=60)
@@ -166,7 +231,7 @@ else:
         sys.exit(1)
     bundle_res_id = r.json()["data"]["id"]
 
-# Remove stale CI profiles (they reference certificates from earlier runs).
+# Remove stale CI profiles (they may reference revoked certificates).
 r = requests.get(f"{API}/profiles", headers=headers,
                  params={"filter[name]": PROFILE_NAME}, timeout=60)
 if r.ok:

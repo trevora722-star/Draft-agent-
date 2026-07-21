@@ -13,6 +13,9 @@ on:
     branches:
       - testflight-release
 
+permissions:
+  contents: write  # lets the run save its encrypted signing keystore branch
+
 jobs:
   testflight:
     runs-on: macos-15
@@ -53,7 +56,24 @@ jobs:
           mkdir -p ~/private_keys
           printf '%s' "${{ secrets.ASC_KEY_P8 }}" > ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
 
-      - name: Mint Apple Distribution certificate via App Store Connect API
+      - name: Restore saved signing certificate (if any)
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          if git fetch origin ci-keystore --depth=1 2>/dev/null \
+             && git show FETCH_HEAD:dist.enc > dist.enc 2>/dev/null; then
+            if openssl enc -d -aes-256-cbc -pbkdf2 -in dist.enc -out ks.tar -pass env:ASC_KEY_P8 2>/dev/null \
+               && tar xf ks.tar; then
+              echo "RESTORED_KEYSTORE=1" >> "$GITHUB_ENV"
+              echo "Restored saved signing keystore."
+            else
+              echo "Saved keystore could not be decrypted (key changed?) — will mint fresh."
+            fi
+          else
+            echo "No saved keystore yet — will mint a fresh certificate."
+          fi
+
+      - name: Provision signing (certificate + profile) via App Store Connect API
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -61,6 +81,22 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/certvenv"
           "$RUNNER_TEMP/certvenv/bin/pip" install --quiet pyjwt cryptography requests
           "$RUNNER_TEMP/certvenv/bin/python" scripts/asc_make_cert.py
+
+      - name: Save signing keystore for future runs
+        if: env.CREATED_NEW_CERT == '1'
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          tar cf ks.tar dist.p12 certmeta.json
+          openssl enc -aes-256-cbc -pbkdf2 -in ks.tar -out dist.enc -pass env:ASC_KEY_P8
+          D="$(mktemp -d)"
+          cp dist.enc "$D"/ && cd "$D"
+          git init -q -b ci-keystore
+          git config user.email "ci@piledup.local"
+          git config user.name "PiledUp CI"
+          git add dist.enc
+          git commit -qm "Update CI signing keystore (encrypted with ASC key)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ci-keystore
 
       - name: Import certificate into a temporary keychain
         run: |
