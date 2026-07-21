@@ -1,9 +1,14 @@
 name: Build & Upload PiledUp to TestFlight
 
-# Manual trigger from the GitHub Actions tab. Requires the secrets listed
-# in piledup-ios/README.md to be configured on the repository first.
+# Runs on any push to the testflight-release branch (so Claude can trigger
+# builds by pushing there), or manually from the GitHub Actions tab.
+# Requires the secrets listed in piledup-ios/README.md to be configured
+# on the repository first.
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - testflight-release
 
 jobs:
   testflight:
