@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>PiledUp</title>
+<link rel="manifest" href="piledup.webmanifest">
+<link rel="apple-touch-icon" href="piledup-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PiledUp">
+<meta name="theme-color" content="#0d1117">
 <style>
   :root{
     --bg:#0d1117; --panel:#161b27; --edge:#2a3245; --ink:#e8ecf4; --dim:#8b94a8;
@@ -72,6 +79,22 @@
   #overlay.hidden{display:none;}
   #overlay h2{font-size:1.6rem;}
   #overlay button{width:auto; padding:10px 26px;}
+  #ageGate{
+    position:fixed; inset:0; background:rgba(5,7,12,.88); z-index:50;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  #ageGate.hidden{display:none;}
+  #ageGate .card{
+    background:var(--panel); border:1px solid var(--edge); border-radius:14px;
+    max-width:360px; padding:22px; text-align:center;
+  }
+  #ageGate .card h2{font-size:1.3rem; margin-bottom:10px;}
+  #ageGate .card p{color:var(--dim); font-size:.9rem; line-height:1.5; margin-bottom:6px;}
+  #ageGate .badge18{
+    display:inline-block; background:#c0273a; color:#fff; font-weight:900;
+    border-radius:50%; width:52px; height:52px; line-height:52px; font-size:1.1rem;
+    margin-bottom:10px;
+  }
   #touchpad{display:none; gap:8px; width:100%; max-width:420px;}
   #touchpad button{font-size:1.3rem; padding:14px 0; margin-top:0;}
   @media (pointer:coarse){ #touchpad{display:flex;} }
@@ -137,6 +160,17 @@
       <h3 style="margin-top:14px">Levels</h3>
       <div id="levelList"></div>
     </div>
+  </div>
+</div>
+
+<div id="ageGate" class="hidden">
+  <div class="card">
+    <span class="badge18">18+</span>
+    <h2>Adults Only</h2>
+    <p>PiledUp PRO contains explicit language and adult humor intended for players 18 years of age or older.</p>
+    <p><b>Are you 18 or older?</b></p>
+    <button id="ageYes" style="background:linear-gradient(135deg,#ffcf40,#ff8a3d); color:#231a00; font-weight:800; border:none;">Yes, I'm 18+ — Unlock PRO</button>
+    <button id="ageNo">No — keep it clean</button>
   </div>
 </div>
 
@@ -603,12 +637,19 @@ $("magicBtn").onclick = magicClick;
 $("pauseBtn").onclick = togglePause;
 $("startBtn").onclick = startGame;
 
+/* PRO contains explicit content, so unlocking requires the 18+ gate. */
 $("proBtn").onclick = ()=>{
+  $("ageGate").classList.remove("hidden");
+  if(running && !paused) togglePause();
+};
+$("ageYes").onclick = ()=>{
+  $("ageGate").classList.add("hidden");
   store.pro = true;
   applyProUI();
   celebrate(pick(ADULT_LINES), "#ffcf40");
   sfx.levelup();
 };
+$("ageNo").onclick = ()=> $("ageGate").classList.add("hidden");
 
 $("speed").addEventListener("input", e=>{
   speedMult = e.target.value/100;
