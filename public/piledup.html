@@ -184,10 +184,16 @@ const TEAM_PALETTES = {
 };
 
 const CLEAN_LINES  = ["NICE!","SWEET!","GREAT CLEAR!","ON FIRE!","COMBO!","STACKED!","SMOOTH!"];
-/* PRO edition celebration lines — adult language, as requested. */
-const ADULT_LINES  = ["DAMN!","HELL YEAH!","HOLY SHIT!","FUCK YEAH!","BADASS!","SHIT HOT!","ABSOLUTE UNIT!","NASTY AS HELL!"];
+/* PRO edition celebration lines — explicit adult language, as requested. 18+ */
+const ADULT_LINES  = [
+  "FUCK YEAH!","FUCKING FILTHY!","HOLY SHIT!","BITCHIN'!","YOU ABSOLUTE BITCH!",
+  "SEXY AS FUCK!","ORGASMIC!","THAT'S THE GOOD SHIT!","HARD AS FUCK!","WET AND WILD!",
+  "YOU CUNNING CUNT!","DIRTY FUCKING LEGEND!","CLIMAX CLEAR!","BALLS DEEP!","DEEP STROKE!",
+  "STACK ME HARDER, DADDY!","FILTHY LITTLE COMBO!","ABSOFUCKINGLUTELY!",
+];
+const ADULT_OVER   = ["Well, fuck.","Piled up and fucked over.","Gravity's a real bitch.","That pile came faster than you did."];
 const MAGIC_LINES_FREE = ["✨ MAGIC! ✨"];
-const MAGIC_LINES_PRO  = ["✨ ABRACA-DAMN-BRA! ✨","✨ HOLY SHIT, MAGIC! ✨","✨ POOF, BITCHES! ✨"];
+const MAGIC_LINES_PRO  = ["✨ POOF, BITCHES! ✨","✨ FUCKING MAGIC! ✨","✨ SHAZAM, MOTHERFUCKER! ✨","✨ ABRACA-FUCKING-DABRA! ✨"];
 
 /* Free edition: levels 1–5. PRO adds 6–12, each faster; 7+ drops garbage rows. */
 const LEVELS = [
@@ -372,7 +378,7 @@ function pushGarbage(){
 function gameOver(){
   over = true; running = false;
   sfx.gameover();
-  $("overlayMsg").textContent = (store.pro ? "Well, shit. " : "") +
+  $("overlayMsg").textContent = (store.pro ? pick(ADULT_OVER) + " " : "") +
     `Final score ${score} · ${lines} lines · reached ${LEVELS[levelIdx].name}`;
   $("overlay").querySelector("h2").textContent = "GAME OVER";
   $("startBtn").textContent = "↻ Play Again";
