@@ -1,0 +1,14 @@
+{
+  "name": "PiledUp",
+  "short_name": "PiledUp",
+  "description": "Stack it. Clear it. Don't get piled up.",
+  "start_url": "/piledup.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "icons": [
+    { "src": "/piledup-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/piledup-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
