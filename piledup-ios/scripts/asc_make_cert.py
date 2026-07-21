@@ -44,8 +44,23 @@ def normalize_p8(raw: str) -> str:
     return f"-----BEGIN PRIVATE KEY-----\n{wrapped}\n-----END PRIVATE KEY-----\n"
 
 
-key_id = os.environ["ASC_KEY_ID"]
-issuer = os.environ["ASC_ISSUER_ID"]
+key_id = os.environ["ASC_KEY_ID"].strip()
+issuer = os.environ["ASC_ISSUER_ID"].strip()
+
+UUID_RE = re.compile(r"^[0-9a-fA-F-]{36}$")
+KEYID_RE = re.compile(r"^[A-Z0-9]{10}$")
+# Users sometimes paste these two into each other's secret — detect and swap.
+if UUID_RE.match(key_id) and KEYID_RE.match(issuer):
+    print("::warning::ASC_KEY_ID and ASC_ISSUER_ID look swapped — auto-swapping.")
+    key_id, issuer = issuer, key_id
+elif not KEYID_RE.match(key_id):
+    print(f"::error::ASC_KEY_ID doesn't look like an App Store Connect Key ID "
+          f"(expected 10 characters like 2X9R4HXF34). Check the secret value.")
+    sys.exit(1)
+elif not UUID_RE.match(issuer):
+    print("::error::ASC_ISSUER_ID doesn't look like an Issuer ID (expected a "
+          "36-character dashed UUID from the top of the API keys page).")
+    sys.exit(1)
 p8_path = os.path.expanduser(f"~/private_keys/AuthKey_{key_id}.p8")
 with open(p8_path) as f:
     p8 = normalize_p8(f.read())
@@ -53,9 +68,11 @@ with open(p8_path) as f:
 with open(p8_path, "w") as f:
     f.write(p8)
 
+# exp must stay comfortably under Apple's 20-minute ceiling; sitting exactly
+# at the limit intermittently 401s when clocks skew.
 now = int(time.time())
 token = jwt.encode(
-    {"iss": issuer, "iat": now - 30, "exp": now + 1200, "aud": "appstoreconnect-v1"},
+    {"iss": issuer, "iat": now - 30, "exp": now + 600, "aud": "appstoreconnect-v1"},
     p8,
     algorithm="ES256",
     headers={"kid": key_id},
@@ -79,6 +96,15 @@ resp = requests.post(
                                   "csrContent": csr}}},
     timeout=60,
 )
+if resp.status_code == 401:
+    print("::error::Apple rejected the API credentials (401). Check that: "
+          "(1) ASC_KEY_ID matches the X's in your downloaded AuthKey_XXXXXXXXXX.p8 "
+          "filename, (2) ASC_ISSUER_ID is the Issuer ID from the top of the same "
+          "App Store Connect API page, (3) the key is a TEAM key (not an "
+          "Individual key) and has not been revoked, and (4) ASC_KEY_P8 is the "
+          ".p8 file matching that Key ID.")
+    print(resp.text)
+    sys.exit(1)
 if resp.status_code >= 400:
     print(f"::error::App Store Connect refused to issue a certificate "
           f"(HTTP {resp.status_code}): {resp.text}")
