@@ -4,7 +4,7 @@ Native iOS wrapper around the PiledUp web game (`www/index.html`), built with
 Capacitor. Two ways to get it onto TestFlight — pick whichever fits.
 
 - **App name:** PiledUp
-- **Bundle ID:** `com.piledup.game` — change it in `capacitor.config.json`
+- **Bundle ID:** `com.pileupgame.app` — change it in `capacitor.config.json`
   AND in Xcode (App target → Signing & Capabilities) if this ID is taken.
 - **Content note:** the PRO mode contains explicit language behind an in-app
   18+ gate. In App Store Connect, set the age rating questionnaire honestly
@@ -48,7 +48,7 @@ cloud Mac. One-time setup — add these **repository secrets**
 | `P12_PASSWORD` | The password you set when exporting the `.p12` |
 
 Then: **one-time in App Store Connect**, create the app record
-(My Apps → **+** → New App → platform iOS, bundle ID `com.piledup.game` —
+(My Apps → **+** → New App → platform iOS, bundle ID `com.pileupgame.app` —
 register the bundle ID first at developer.apple.com → Identifiers if it
 isn't listed).
 
