@@ -58,8 +58,9 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
-          python3 -m pip install --quiet --user pyjwt cryptography requests
-          python3 scripts/asc_make_cert.py
+          python3 -m venv "$RUNNER_TEMP/certvenv"
+          "$RUNNER_TEMP/certvenv/bin/pip" install --quiet pyjwt cryptography requests
+          "$RUNNER_TEMP/certvenv/bin/python" scripts/asc_make_cert.py
 
       - name: Import certificate into a temporary keychain
         run: |
