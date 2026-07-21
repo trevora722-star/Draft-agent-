@@ -11,6 +11,7 @@ Requires env: ASC_KEY_ID, ASC_ISSUER_ID, and the .p8 at
 """
 import base64
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -21,11 +22,36 @@ import requests
 
 API = "https://api.appstoreconnect.apple.com/v1"
 
+
+def normalize_p8(raw: str) -> str:
+    """Rebuild clean PEM framing regardless of how the key was pasted.
+
+    Handles CRLF line endings, stray indentation, a single-line paste, or a
+    paste missing the BEGIN/END banner lines entirely.
+    """
+    m = re.search(r"-----BEGIN [A-Z ]*PRIVATE KEY-----(.*?)-----END", raw, re.S)
+    body = re.sub(r"\s+", "", m.group(1) if m else raw)
+    body = re.sub(r"^.*?KEY-----", "", body)  # leftover banner fragments
+    body = body.replace("-----ENDPRIVATEKEY-----", "")
+    try:
+        base64.b64decode(body, validate=True)
+    except Exception:
+        print("::error::The ASC_KEY_P8 secret does not contain a valid key. "
+              "Re-paste the entire .p8 file contents (including the BEGIN/END "
+              "lines) into the secret and re-run.")
+        sys.exit(1)
+    wrapped = "\n".join(body[i:i + 64] for i in range(0, len(body), 64))
+    return f"-----BEGIN PRIVATE KEY-----\n{wrapped}\n-----END PRIVATE KEY-----\n"
+
+
 key_id = os.environ["ASC_KEY_ID"]
 issuer = os.environ["ASC_ISSUER_ID"]
 p8_path = os.path.expanduser(f"~/private_keys/AuthKey_{key_id}.p8")
 with open(p8_path) as f:
-    p8 = f.read()
+    p8 = normalize_p8(f.read())
+# Rewrite the file too: xcodebuild reads it later via -authenticationKeyPath.
+with open(p8_path, "w") as f:
+    f.write(p8)
 
 now = int(time.time())
 token = jwt.encode(
