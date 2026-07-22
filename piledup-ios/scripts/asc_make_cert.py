@@ -181,6 +181,7 @@ def create_certificate() -> str:
     )
     with open(META_FILE, "w") as f:
         json.dump({"cert_id": data["id"], "p12_password": pw}, f)
+    print(f"::add-mask::{pw}")
     github_env(f"P12_PASSWORD_GEN={pw}")
     github_env("CREATED_NEW_CERT=1")
     print(f"Issued Apple Distribution certificate {data['id']} "
@@ -197,6 +198,7 @@ if os.environ.get("RESTORED_KEYSTORE") == "1" and os.path.exists(META_FILE) \
                      timeout=60)
     if r.status_code == 200:
         cert_id = meta["cert_id"]
+        print(f"::add-mask::{meta['p12_password']}")
         github_env(f"P12_PASSWORD_GEN={meta['p12_password']}")
         print(f"Reusing saved distribution certificate {cert_id}.")
     else:
