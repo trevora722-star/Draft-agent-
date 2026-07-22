@@ -1,0 +1,31 @@
+name: TestFlight status & distribute
+
+# Pushed to the tf-status branch (or run manually) to check the latest
+# build's processing state, answer export compliance, and hand the build
+# to tester groups — all via the App Store Connect API.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - tf-status
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write App Store Connect API key
+        run: |
+          mkdir -p ~/private_keys
+          printf '%s' "${{ secrets.ASC_KEY_P8 }}" > ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+
+      - name: Query and distribute latest build
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet pyjwt cryptography requests
+          "$RUNNER_TEMP/venv/bin/python" piledup-ios/scripts/asc_status.py
