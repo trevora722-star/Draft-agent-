@@ -13,3 +13,5 @@ data/
 *.egg-info/
 dist/
 build/
+node_modules/
+treadagent/node_modules/
