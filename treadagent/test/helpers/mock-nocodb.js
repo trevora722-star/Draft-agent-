@@ -101,11 +101,14 @@ export class MockNocoDB {
 
   seed(name, rows) {
     const t = this.table(name);
+    const inserted = [];
     for (const row of rows) {
       const id = t.nextId++;
-      t.rows.push({ Id: id, ...row });
+      const record = { Id: id, ...row };
+      t.rows.push(record);
+      inserted.push(record);
     }
-    return t.rows;
+    return inserted;
   }
 
   findTableById(tableId) {

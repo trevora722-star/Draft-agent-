@@ -32,6 +32,8 @@ async function getTechCapture(res, qrToken) {
   const { records: tires } = await listRecords("tires", { where: { tire_set_id: tireSet.Id }, all: true });
   const vehicle = await findOne("vehicles", { Id: tireSet.vehicle_id });
   const customer = vehicle ? await findOne("customers", { Id: vehicle.customer_id }) : null;
+  const shop = await findOne("shops", { Id: rackLocation.shop_id });
+  const regulation = shop ? await findOne("regulations", { province: shop.province }) : null;
 
   sendJson(res, 200, {
     rackLocation,
@@ -39,6 +41,14 @@ async function getTechCapture(res, qrToken) {
     vehicle,
     customer: customer ? { first_name: customer.first_name } : null, // 30-second screen needs a first name only, not a full PII payload
     tires: tires.map((t) => ({ id: t.Id, position: t.position })),
+    // For live client-side colour feedback only — agent 2's server-side
+    // classify() on submit is the authoritative status, never this.
+    thresholds: {
+      legal_min_32nds: regulation?.legal_min_32nds ?? 2,
+      winter_designation_min_mm: regulation?.winter_designation_min_mm ?? null,
+      practical_replacement_32nds: 4,
+      season: tireSet.season,
+    },
   });
 }
 

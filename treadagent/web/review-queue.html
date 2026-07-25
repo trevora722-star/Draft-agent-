@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TreadAgent — Review Queue</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #1b1f27; --border: #2a2f3a; --text: #f2f3f5; --muted: #9aa1ac;
+    --low: #1a7f37; --medium: #b8860b; --high: #c0392b;
+    --approve: #1a7f37; --reject: #c0392b;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, Segoe UI, Roboto, sans-serif; }
+  header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  header span.count { font-size: 12px; color: var(--muted); }
+  #shopPicker { font-size: 12px; color: var(--muted); margin-left: auto; }
+  #shopPicker input { width: 60px; padding: 4px 6px; background: #12151b; border: 1px solid var(--border); color: var(--text); border-radius: 6px; }
+
+  main { padding: 16px; max-width: 900px; margin: 0 auto; }
+
+  .risk-group { margin-bottom: 22px; }
+  .risk-group h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .risk-group h2 .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .risk-group.low h2 .dot { background: var(--low); }
+  .risk-group.medium h2 .dot { background: var(--medium); }
+  .risk-group.high h2 .dot { background: var(--high); }
+
+  .bulk-approve-row { margin-bottom: 8px; }
+  .bulk-approve-row button {
+    font-size: 12px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--low);
+    background: transparent; color: var(--low); cursor: pointer;
+  }
+
+  .review-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .review-card.high { border-color: var(--high); }
+  .review-card .meta { font-size: 11px; color: var(--muted); margin-bottom: 6px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .review-card .preview {
+    background: #12151b; border-radius: 8px; padding: 10px; font-size: 13px; line-height: 1.5;
+    white-space: pre-wrap; margin-bottom: 10px; border: 1px solid var(--border);
+  }
+  .review-card .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .review-card input[type="checkbox"].bulk-select { margin-right: 8px; }
+
+  button.approve, button.reject, button.edit {
+    font-size: 13px; font-weight: 700; padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer;
+  }
+  button.approve { background: var(--approve); color: white; }
+  button.reject { background: var(--reject); color: white; }
+  button.edit { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  button:disabled { opacity: 0.5; cursor: default; }
+
+  .reject-notes {
+    display: none; margin-top: 8px;
+  }
+  .reject-notes.open { display: block; }
+  .reject-notes textarea {
+    width: 100%; min-height: 60px; background: #12151b; border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 6px 8px; font-size: 13px; font-family: inherit;
+  }
+  .reject-notes .hint { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  .empty-msg { color: var(--muted); font-size: 13px; text-align: center; padding: 30px 0; }
+  .toast {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: #2a2f3a; color: var(--text); padding: 10px 16px; border-radius: 8px; font-size: 13px;
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Review Queue</h1>
+  <span class="count" id="countLine">Loading…</span>
+  <span id="shopPicker">shop_id <input type="text" id="shopIdInput" value="1" /></span>
+</header>
+
+<main id="main">
+  <div class="empty-msg">Loading…</div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  const RISK_ORDER = ["high", "medium", "low"];
+  let items = [];
+  const els = {
+    main: document.getElementById("main"),
+    countLine: document.getElementById("countLine"),
+    toast: document.getElementById("toast"),
+    shopIdInput: document.getElementById("shopIdInput"),
+  };
+
+  function shopId() { return els.shopIdInput.value || "1"; }
+
+  function showToast(msg) {
+    els.toast.textContent = msg;
+    els.toast.classList.add("show");
+    setTimeout(() => els.toast.classList.remove("show"), 2200);
+  }
+
+  function renderPreview(item) {
+    let payload = {};
+    try { payload = JSON.parse(item.payload_json || "{}"); } catch { /* leave empty */ }
+    const lines = [];
+    if (payload.rendered_subject) lines.push("Subject: " + payload.rendered_subject);
+    if (payload.rendered_body || payload.body) lines.push(payload.rendered_body || payload.body);
+    if (lines.length === 0) lines.push(JSON.stringify(payload, null, 2));
+    return lines.join("\n\n");
+  }
+
+  function render() {
+    els.countLine.textContent = items.length + " pending";
+    if (items.length === 0) {
+      els.main.innerHTML = '<div class="empty-msg">Nothing waiting on review. 🎉</div>';
+      return;
+    }
+
+    const byRisk = { low: [], medium: [], high: [] };
+    for (const item of items) (byRisk[item.risk_level] || byRisk.medium).push(item);
+
+    els.main.innerHTML = "";
+    for (const risk of RISK_ORDER) {
+      const group = byRisk[risk];
+      if (group.length === 0) continue;
+      const groupEl = document.createElement("div");
+      groupEl.className = "risk-group " + risk;
+      groupEl.innerHTML = '<h2><span class="dot"></span>' + risk + " risk (" + group.length + ")</h2>";
+
+      if (risk === "low") {
+        const bulkRow = document.createElement("div");
+        bulkRow.className = "bulk-approve-row";
+        bulkRow.innerHTML = '<button id="bulkApproveBtn">Approve selected low-risk</button>';
+        groupEl.appendChild(bulkRow);
+      }
+
+      for (const item of group) {
+        groupEl.appendChild(renderCard(item, risk));
+      }
+      els.main.appendChild(groupEl);
+    }
+
+    const bulkBtn = document.getElementById("bulkApproveBtn");
+    if (bulkBtn) {
+      bulkBtn.addEventListener("click", async () => {
+        const checked = Array.from(document.querySelectorAll(".bulk-select:checked"));
+        for (const cb of checked) {
+          await decide(Number(cb.dataset.id), "approve", { decidedBy: currentStaffId() });
+        }
+        showToast(checked.length + " approved");
+        load();
+      });
+    }
+  }
+
+  function currentStaffId() {
+    let id = localStorage.getItem("treadagent_staff_id");
+    if (!id) {
+      id = prompt("Your staff name/ID (remembered on this device):") || "staff";
+      localStorage.setItem("treadagent_staff_id", id);
+    }
+    return id;
+  }
+
+  function renderCard(item, risk) {
+    const card = document.createElement("div");
+    card.className = "review-card " + risk;
+    card.innerHTML =
+      '<div class="meta">' +
+        '<span>#' + item.Id + '</span>' +
+        '<span>' + (item.agent_key || "agent") + '</span>' +
+        '<span>' + (item.entity_type || "") + ':' + (item.entity_id || "") + '</span>' +
+        '<span>' + (item.proposed_action || "") + '</span>' +
+      '</div>' +
+      '<div class="preview">' + escapeHtml(renderPreview(item)) + '</div>' +
+      '<div class="actions">' +
+        (risk === "low" ? '<input type="checkbox" class="bulk-select" data-id="' + item.Id + '" title="select for bulk approve" />' : "") +
+        '<button class="approve" data-id="' + item.Id + '">Approve</button>' +
+        '<button class="reject" data-id="' + item.Id + '">Reject</button>' +
+        '<button class="edit" data-id="' + item.Id + '" disabled title="edit-then-approve is a Phase 2 enhancement">Edit</button>' +
+      '</div>' +
+      '<div class="reject-notes" id="reject-notes-' + item.Id + '">' +
+        '<textarea placeholder="Reason for rejecting (required)"></textarea>' +
+        '<div class="hint">Decision notes are required to reject.</div>' +
+        '<button class="reject" style="margin-top:6px" data-confirm-reject="' + item.Id + '">Confirm reject</button>' +
+      '</div>';
+
+    card.querySelector(".approve").addEventListener("click", async () => {
+      await decide(item.Id, "approve", { decidedBy: currentStaffId() });
+      showToast("Approved #" + item.Id);
+      load();
+    });
+    card.querySelector(".reject").addEventListener("click", () => {
+      document.getElementById("reject-notes-" + item.Id).classList.add("open");
+    });
+    card.querySelector("[data-confirm-reject]").addEventListener("click", async () => {
+      const notes = card.querySelector(".reject-notes textarea").value.trim();
+      if (!notes) { showToast("Notes are required to reject."); return; }
+      await decide(item.Id, "reject", { decidedBy: currentStaffId(), notes });
+      showToast("Rejected #" + item.Id);
+      load();
+    });
+
+    return card;
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  async function decide(id, action, body) {
+    try {
+      const res = await fetch("/api/review-queue/" + id + "/" + action, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast("Failed: " + (err.error || res.status));
+      }
+    } catch (err) {
+      showToast("Network error: " + err.message);
+    }
+  }
+
+  async function load() {
+    try {
+      const res = await fetch("/api/review-queue?shopId=" + encodeURIComponent(shopId()));
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      items = await res.json();
+      render();
+    } catch (err) {
+      els.main.innerHTML = '<div class="empty-msg">Could not load review queue: ' + err.message + '</div>';
+    }
+  }
+
+  els.shopIdInput.addEventListener("change", load);
+  load();
+  setInterval(load, 20000);
+})();
+</script>
+</body>
+</html>

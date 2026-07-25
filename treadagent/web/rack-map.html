@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TreadAgent — Rack Map</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #1b1f27; --border: #2a2f3a; --text: #f2f3f5; --muted: #9aa1ac;
+    --empty: #2a2f3a; --occupied: #3a6fd8; --d1: #b8860b; --d2: #d9822b; --d3: #c0392b; --d4: #8b1a1a; --d5: #4a0f0f;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, Segoe UI, Roboto, sans-serif; }
+  header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  header input[type="text"] {
+    flex: 1 1 240px; min-width: 200px; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: #12151b; color: var(--text); font-size: 14px;
+  }
+  .legend { display: flex; gap: 10px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  main { padding: 16px; display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  #siteBlocks { display: flex; flex-direction: column; gap: 20px; }
+  .site-block h2 { font-size: 14px; color: var(--muted); margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .zone-block { margin-bottom: 10px; }
+  .zone-block h3 { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+  .rack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 6px; }
+  .slot {
+    aspect-ratio: 1; border-radius: 6px; border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; cursor: pointer; background: var(--empty); color: var(--muted);
+    position: relative;
+  }
+  .slot.occupied { background: var(--occupied); color: white; }
+  .slot.dormancy-1 { background: var(--d1); color: white; }
+  .slot.dormancy-2 { background: var(--d2); color: white; }
+  .slot.dormancy-3 { background: var(--d3); color: white; }
+  .slot.dormancy-4 { background: var(--d4); color: white; }
+  .slot.dormancy-5 { background: var(--d5); color: white; }
+  .slot.match { outline: 2px solid #fff; }
+
+  aside { display: flex; flex-direction: column; gap: 14px; }
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .panel h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); text-transform: uppercase; }
+  #detail .row { font-size: 13px; margin-bottom: 4px; }
+  #detail .row b { color: var(--muted); font-weight: 500; margin-right: 6px; }
+  #detail .empty-msg { color: var(--muted); font-size: 13px; }
+
+  #consolidationList { font-size: 12px; }
+  #consolidationList .item { padding: 6px 0; border-bottom: 1px solid var(--border); }
+  #consolidationList .item:last-child { border-bottom: none; }
+
+  #shopPicker { font-size: 12px; color: var(--muted); }
+  #shopPicker input { width: 70px; padding: 4px 6px; background: #12151b; border: 1px solid var(--border); color: var(--text); border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Rack Map</h1>
+  <span id="shopPicker">shop_id <input type="text" id="shopIdInput" value="1" /></span>
+  <input type="text" id="search" placeholder="Search by name, plate, or phone…" />
+  <div class="legend">
+    <span><i class="swatch" style="background:var(--empty)"></i>empty</span>
+    <span><i class="swatch" style="background:var(--occupied)"></i>current</span>
+    <span><i class="swatch" style="background:var(--d1)"></i>stage 1</span>
+    <span><i class="swatch" style="background:var(--d2)"></i>stage 2</span>
+    <span><i class="swatch" style="background:var(--d3)"></i>stage 3</span>
+    <span><i class="swatch" style="background:var(--d4)"></i>stage 4</span>
+    <span><i class="swatch" style="background:var(--d5)"></i>stage 5</span>
+  </div>
+</header>
+
+<main>
+  <div id="siteBlocks">Loading…</div>
+
+  <aside>
+    <div class="panel">
+      <h3>Slot detail</h3>
+      <div id="detail"><div class="empty-msg">Click a slot to see its contents.</div></div>
+    </div>
+    <div class="panel">
+      <h3>Consolidation suggestions</h3>
+      <div id="consolidationList" class="empty-msg">—</div>
+    </div>
+  </aside>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  let locations = [];
+  const els = {
+    siteBlocks: document.getElementById("siteBlocks"),
+    detail: document.getElementById("detail"),
+    consolidationList: document.getElementById("consolidationList"),
+    search: document.getElementById("search"),
+    shopIdInput: document.getElementById("shopIdInput"),
+  };
+
+  function shopId() { return els.shopIdInput.value || "1"; }
+
+  function slotClass(loc) {
+    if (!loc.occupied_by_set_id) return "";
+    if (loc.dormancyStage && loc.dormancyStage > 0) return "dormancy-" + loc.dormancyStage;
+    return "occupied";
+  }
+
+  function matchesSearch(loc, query) {
+    if (!query) return false;
+    const t = loc.tireSet;
+    if (!t) return false;
+    const haystack = [t.brand, t.model, t.size].filter(Boolean).join(" ").toLowerCase();
+    return haystack.includes(query.toLowerCase());
+  }
+
+  function render() {
+    const query = els.search.value.trim();
+    const sites = {};
+    for (const loc of locations) {
+      const siteKey = loc.site || "unspecified";
+      sites[siteKey] = sites[siteKey] || {};
+      const zoneKey = loc.zone || "—";
+      sites[siteKey][zoneKey] = sites[siteKey][zoneKey] || [];
+      sites[siteKey][zoneKey].push(loc);
+    }
+
+    els.siteBlocks.innerHTML = "";
+    Object.keys(sites).sort().forEach((siteKey) => {
+      const siteEl = document.createElement("div");
+      siteEl.className = "site-block";
+      siteEl.innerHTML = "<h2>" + siteKey.replace(/_/g, " ") + "</h2>";
+      Object.keys(sites[siteKey]).sort().forEach((zoneKey) => {
+        const zoneEl = document.createElement("div");
+        zoneEl.className = "zone-block";
+        zoneEl.innerHTML = "<h3>Zone " + zoneKey + "</h3>";
+        const grid = document.createElement("div");
+        grid.className = "rack-grid";
+        sites[siteKey][zoneKey].forEach((loc) => {
+          const slot = document.createElement("div");
+          slot.className = "slot " + slotClass(loc) + (matchesSearch(loc, query) ? " match" : "");
+          slot.textContent = [loc.rack, loc.shelf, loc.slot].filter(Boolean).join("-") || loc.Id;
+          slot.title = loc.tireSet ? loc.tireSet.brand + " " + (loc.tireSet.size || "") : "empty";
+          slot.addEventListener("click", () => showDetail(loc));
+          grid.appendChild(slot);
+        });
+        zoneEl.appendChild(grid);
+        siteEl.appendChild(zoneEl);
+      });
+      els.siteBlocks.appendChild(siteEl);
+    });
+
+    if (locations.length === 0) {
+      els.siteBlocks.innerHTML = '<div class="empty-msg">No rack locations for this shop yet.</div>';
+    }
+  }
+
+  function showDetail(loc) {
+    if (!loc.occupied_by_set_id || !loc.tireSet) {
+      els.detail.innerHTML = '<div class="row"><b>Location</b>' + locationLabel(loc) + '</div><div class="empty-msg">Empty slot.</div>';
+      return;
+    }
+    const t = loc.tireSet;
+    els.detail.innerHTML =
+      '<div class="row"><b>Location</b>' + locationLabel(loc) + '</div>' +
+      '<div class="row"><b>Set</b>' + [t.brand, t.model, t.size].filter(Boolean).join(" ") + '</div>' +
+      '<div class="row"><b>Season</b>' + (t.season || "—") + '</div>' +
+      '<div class="row"><b>Status</b>' + (t.status || "—") + '</div>' +
+      '<div class="row"><b>Intake</b>' + (t.intake_date || "—") + '</div>' +
+      (loc.dormancyStage ? '<div class="row"><b>Dormancy</b>stage ' + loc.dormancyStage + '</div>' : "");
+  }
+
+  function locationLabel(loc) {
+    return [loc.site_name, "zone " + loc.zone, [loc.rack, loc.shelf, loc.slot].filter(Boolean).join("-")].filter(Boolean).join(" · ");
+  }
+
+  async function loadConsolidation() {
+    try {
+      // rack-map.html reads suggestConsolidation()'s output via the same
+      // rack-map payload for now — a dedicated endpoint is a small Phase 2
+      // addition; here we approximate client-side from what we already fetched.
+      const bySite = {};
+      for (const loc of locations) {
+        if (!loc.active && loc.active !== undefined) continue;
+        const key = loc.site || "unspecified";
+        bySite[key] = bySite[key] || { total: 0, empty: 0 };
+        bySite[key].total += 1;
+        if (!loc.occupied_by_set_id) bySite[key].empty += 1;
+      }
+      const items = Object.entries(bySite)
+        .filter(([, v]) => v.empty > 0)
+        .map(([site, v]) => '<div class="item">' + site.replace(/_/g, " ") + ": " + v.empty + " of " + v.total + " slots empty — candidate to consolidate occupants and free the rest.</div>");
+      els.consolidationList.innerHTML = items.length ? items.join("") : '<div class="empty-msg">No consolidation candidates right now.</div>';
+    } catch {
+      els.consolidationList.innerHTML = '<div class="empty-msg">Unavailable.</div>';
+    }
+  }
+
+  async function load() {
+    els.siteBlocks.textContent = "Loading…";
+    try {
+      const res = await fetch("/api/rack-map?shopId=" + encodeURIComponent(shopId()));
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      locations = await res.json();
+      render();
+      loadConsolidation();
+    } catch (err) {
+      els.siteBlocks.innerHTML = '<div class="empty-msg">Could not load rack map: ' + err.message + '</div>';
+    }
+  }
+
+  els.search.addEventListener("input", render);
+  els.shopIdInput.addEventListener("change", load);
+  load();
+})();
+</script>
+</body>
+</html>

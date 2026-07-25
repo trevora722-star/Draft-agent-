@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>TreadAgent — Tech Capture</title>
+<style>
+  :root {
+    --ok: #1a7f37;
+    --monitor: #b8860b;
+    --warn: #d9822b;
+    --bad: #c0392b;
+    --bg: #0f1115;
+    --card: #1b1f27;
+    --card-border: #2a2f3a;
+    --text: #f2f3f5;
+    --muted: #9aa1ac;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none;
+  }
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+
+  header {
+    padding: 10px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--card-border);
+    flex: 0 0 auto;
+  }
+  header .title { font-size: 15px; font-weight: 700; }
+  header .sub { font-size: 12px; color: var(--muted); }
+  #connStatus {
+    font-size: 11px; padding: 3px 8px; border-radius: 999px;
+    background: #2a2f3a; color: var(--muted);
+  }
+  #connStatus.online { background: rgba(26,127,55,.2); color: var(--ok); }
+  #connStatus.offline { background: rgba(192,57,43,.2); color: var(--bad); }
+  #connStatus.pending { background: rgba(184,134,11,.2); color: var(--monitor); }
+
+  main { flex: 1 1 auto; display: flex; flex-direction: column; padding: 10px; gap: 8px; overflow: hidden; }
+
+  #loadState, #errorState { padding: 24px; text-align: center; color: var(--muted); }
+  #errorState { color: var(--bad); }
+
+  #grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .tire-card {
+    background: var(--card);
+    border: 2px solid var(--card-border);
+    border-radius: 12px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .tire-card.status-ok { border-color: var(--card-border); }
+  .tire-card.status-monitor { border-color: var(--monitor); }
+  .tire-card.status-replace_recommended,
+  .tire-card.status-below_winter_designation { border-color: var(--warn); }
+  .tire-card.status-below_legal { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad) inset; }
+
+  .tire-card .pos { font-weight: 800; font-size: 15px; letter-spacing: 0.5px; }
+  .tire-card .min-depth { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .tire-card .min-depth b { color: var(--text); font-size: 13px; }
+
+  .positions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    flex: 1 1 auto;
+  }
+  .pos-input { display: flex; flex-direction: column; align-items: stretch; }
+  .pos-input label { font-size: 9px; color: var(--muted); text-align: center; text-transform: uppercase; }
+  .pos-input input {
+    flex: 1 1 auto;
+    min-height: 44px;
+    font-size: 22px;
+    text-align: center;
+    background: #12151b;
+    color: var(--text);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    -moz-appearance: textfield;
+  }
+  .pos-input input::-webkit-outer-spin-button,
+  .pos-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .pos-input input:focus { outline: 2px solid #4a90e2; }
+
+  .photo-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .photo-row label {
+    font-size: 10px; color: var(--muted); border: 1px dashed var(--card-border);
+    border-radius: 6px; padding: 4px 6px; cursor: pointer;
+  }
+  .photo-row input[type="file"] { display: none; }
+  .photo-row .thumb { font-size: 10px; color: var(--ok); }
+
+  footer { flex: 0 0 auto; padding: 8px 10px 14px; }
+  #summaryBar {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; color: var(--muted); margin-bottom: 8px; padding: 0 2px;
+  }
+  #submitBtn {
+    width: 100%; min-height: 58px; font-size: 18px; font-weight: 800;
+    border: none; border-radius: 12px; background: #2f6fed; color: white;
+    cursor: pointer;
+  }
+  #submitBtn:disabled { background: #3a3f4a; color: var(--muted); }
+  #submitBtn.done { background: var(--ok); }
+
+  .pending-note { font-size: 11px; color: var(--monitor); text-align: center; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="title" id="titleLine">TreadAgent — Tech Capture</div>
+    <div class="sub" id="subLine">Loading…</div>
+  </div>
+  <div id="connStatus">…</div>
+</header>
+
+<main>
+  <div id="loadState">Scan a rack tag to begin, or open this page with <code>?qr=&lt;tag&gt;</code>.</div>
+  <div id="errorState" style="display:none"></div>
+  <div id="grid" style="display:none"></div>
+</main>
+
+<footer id="footer" style="display:none">
+  <div id="summaryBar"></div>
+  <button id="submitBtn" disabled>Submit set</button>
+  <div class="pending-note" id="pendingNote" style="display:none"></div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- device-remembered token (no login step) ----
+  const DEVICE_TOKEN_KEY = "treadagent_device_token";
+  let deviceToken = localStorage.getItem(DEVICE_TOKEN_KEY);
+  if (!deviceToken) {
+    deviceToken = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+    localStorage.setItem(DEVICE_TOKEN_KEY, deviceToken);
+  }
+
+  const QUEUE_KEY = "treadagent_capture_queue";
+  const params = new URLSearchParams(location.search);
+  const qrToken = params.get("qr");
+
+  const els = {
+    titleLine: document.getElementById("titleLine"),
+    subLine: document.getElementById("subLine"),
+    connStatus: document.getElementById("connStatus"),
+    loadState: document.getElementById("loadState"),
+    errorState: document.getElementById("errorState"),
+    grid: document.getElementById("grid"),
+    footer: document.getElementById("footer"),
+    summaryBar: document.getElementById("summaryBar"),
+    submitBtn: document.getElementById("submitBtn"),
+    pendingNote: document.getElementById("pendingNote"),
+  };
+
+  let context = null; // { rackLocation, tireSet, vehicle, customer, tires, thresholds }
+  const readingsByTire = {}; // tireId -> { outer, centre, inner, photoAttached }
+
+  function apiFetch(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ "Content-Type": "application/json", "X-Device-Token": deviceToken }, opts.headers || {});
+    return fetch(path, opts);
+  }
+
+  // ---- minimal client-side classification for instant colour feedback  ----
+  // Authoritative classification happens server-side in agent 2 on submit.
+  // This is a UX shortcut only, deliberately simplified.
+  function mmTo32nds(mm) { return mm / (25.4 / 32); }
+  function quickStatus(min32, thresholds) {
+    if (min32 === null) return "unmeasured";
+    if (min32 <= thresholds.legal_min_32nds) return "below_legal";
+    if (
+      thresholds.season === "winter" &&
+      thresholds.winter_designation_min_mm &&
+      min32 < mmTo32nds(thresholds.winter_designation_min_mm)
+    ) return "below_winter_designation";
+    if (min32 <= thresholds.practical_replacement_32nds) return "replace_recommended";
+    if (min32 <= thresholds.practical_replacement_32nds + 2) return "monitor";
+    return "ok";
+  }
+
+  function setConn(state, label) {
+    els.connStatus.className = state;
+    els.connStatus.textContent = label;
+  }
+
+  function updateConnStatus() {
+    const queue = loadQueue();
+    if (queue.length > 0) {
+      setConn("pending", queue.length + " pending");
+    } else if (navigator.onLine) {
+      setConn("online", "online");
+    } else {
+      setConn("offline", "offline");
+    }
+  }
+
+  function loadQueue() {
+    try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]"); } catch { return []; }
+  }
+  function saveQueue(q) { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
+  function enqueueSubmission(item) {
+    const q = loadQueue();
+    q.push(item);
+    saveQueue(q);
+    updateConnStatus();
+  }
+
+  async function flushQueue() {
+    let q = loadQueue();
+    if (q.length === 0) return;
+    const remaining = [];
+    for (const item of q) {
+      try {
+        const res = await apiFetch("/api/tech-capture/submit", { method: "POST", body: JSON.stringify(item.payload) });
+        if (!res.ok) throw new Error("submit failed: " + res.status);
+      } catch (err) {
+        remaining.push(item);
+      }
+    }
+    saveQueue(remaining);
+    updateConnStatus();
+    if (remaining.length === 0) {
+      els.submitBtn.textContent = "Submitted ✓";
+      els.submitBtn.classList.add("done");
+      els.pendingNote.style.display = "none";
+    }
+  }
+
+  window.addEventListener("online", flushQueue);
+  window.addEventListener("offline", updateConnStatus);
+  setInterval(flushQueue, 15000);
+
+  function render() {
+    els.loadState.style.display = "none";
+    els.grid.style.display = "grid";
+    els.footer.style.display = "block";
+
+    els.titleLine.textContent = context.tireSet.brand
+      ? context.tireSet.brand + " " + (context.tireSet.size || "")
+      : "Tire set";
+    els.subLine.textContent =
+      (context.customer ? context.customer.first_name + " — " : "") +
+      (context.vehicle ? context.vehicle.year + " " + context.vehicle.make + " " + context.vehicle.model : "");
+
+    els.grid.innerHTML = "";
+    context.tires.slice(0, 4).forEach((tire) => {
+      readingsByTire[tire.id] = readingsByTire[tire.id] || { outer: null, centre: null, inner: null, photo: false };
+      const card = document.createElement("div");
+      card.className = "tire-card status-unmeasured";
+      card.id = "card-" + tire.id;
+      card.innerHTML =
+        '<div class="pos">' + tire.position + '</div>' +
+        '<div class="min-depth" id="min-' + tire.id + '">min: <b>—</b></div>' +
+        '<div class="positions">' +
+          posInput(tire.id, "outer", "Outer") +
+          posInput(tire.id, "centre", "Centre") +
+          posInput(tire.id, "inner", "Inner") +
+        '</div>' +
+        '<div class="photo-row">' +
+          '<label>📷 photo<input type="file" accept="image/*" capture="environment" data-tire="' + tire.id + '" class="photoInput" /></label>' +
+          '<span class="thumb" id="thumb-' + tire.id + '"></span>' +
+        '</div>';
+      els.grid.appendChild(card);
+    });
+
+    els.grid.querySelectorAll("input[type=number]").forEach((input) => {
+      input.addEventListener("input", onReadingInput);
+    });
+    els.grid.querySelectorAll(".photoInput").forEach((input) => {
+      input.addEventListener("change", (e) => {
+        const tireId = e.target.dataset.tire;
+        readingsByTire[tireId].photo = e.target.files.length > 0;
+        document.getElementById("thumb-" + tireId).textContent = e.target.files.length > 0 ? "attached" : "";
+      });
+    });
+
+    updateSummary();
+  }
+
+  function posInput(tireId, key, label) {
+    return (
+      '<div class="pos-input">' +
+      '<label>' + label + '</label>' +
+      '<input type="number" inputmode="numeric" min="0" max="20" data-tire="' + tireId + '" data-pos="' + key + '" />' +
+      "</div>"
+    );
+  }
+
+  function onReadingInput(e) {
+    const tireId = e.target.dataset.tire;
+    const pos = e.target.dataset.pos;
+    const val = e.target.value === "" ? null : Number(e.target.value);
+    readingsByTire[tireId][pos] = val;
+
+    const r = readingsByTire[tireId];
+    const card = document.getElementById("card-" + tireId);
+    const minEl = document.getElementById("min-" + tireId);
+
+    if (r.outer !== null && r.centre !== null && r.inner !== null) {
+      const min32 = Math.min(r.outer, r.centre, r.inner);
+      const status = quickStatus(min32, context.thresholds);
+      card.className = "tire-card status-" + status;
+      minEl.innerHTML = "min: <b>" + min32 + "/32″</b> (" + status.replace(/_/g, " ") + ")";
+
+      // Auto-advance focus to the next tire's first input once this tire is complete.
+      const allInputs = Array.from(document.querySelectorAll("input[type=number]"));
+      const idx = allInputs.indexOf(e.target);
+      if (idx > -1 && idx < allInputs.length - 1 && e.target.dataset.pos === "inner") {
+        allInputs[idx + 1].focus();
+      }
+    } else {
+      minEl.innerHTML = "min: <b>—</b>";
+    }
+    updateSummary();
+  }
+
+  function updateSummary() {
+    const total = context.tires.length;
+    const complete = Object.values(readingsByTire).filter((r) => r.outer !== null && r.centre !== null && r.inner !== null).length;
+    els.summaryBar.textContent = complete + " / " + total + " tires measured";
+    els.submitBtn.disabled = complete < total;
+  }
+
+  els.submitBtn.addEventListener("click", async () => {
+    els.submitBtn.disabled = true;
+    els.submitBtn.textContent = "Submitting…";
+
+    const season = context.thresholds.season;
+    for (const tire of context.tires) {
+      const r = readingsByTire[tire.id];
+      const payload = {
+        shopId: context.rackLocation.shop_id,
+        tireId: tire.id,
+        reading: {
+          outer_32nds: r.outer,
+          centre_32nds: r.centre,
+          inner_32nds: r.inner,
+          season,
+          photo_ref: r.photo ? "pending-upload" : "",
+        },
+      };
+      enqueueSubmission({ id: crypto.randomUUID ? crypto.randomUUID() : String(Math.random()), payload });
+    }
+
+    els.pendingNote.style.display = "block";
+    els.pendingNote.textContent = "Saved locally — sending…";
+    await flushQueue();
+    els.submitBtn.textContent = loadQueue().length === 0 ? "Submitted ✓" : "Saved offline — will retry";
+    if (loadQueue().length === 0) els.submitBtn.classList.add("done");
+  });
+
+  async function boot() {
+    updateConnStatus();
+    if (!qrToken) return; // static instructional state already shown
+
+    try {
+      const res = await apiFetch("/api/tech-capture/" + encodeURIComponent(qrToken));
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || ("HTTP " + res.status));
+      }
+      context = await res.json();
+      if (!context.tireSet) {
+        els.loadState.style.display = "none";
+        els.errorState.style.display = "block";
+        els.errorState.textContent = context.message || "This rack slot is empty.";
+        return;
+      }
+      render();
+      flushQueue();
+    } catch (err) {
+      els.loadState.style.display = "none";
+      els.errorState.style.display = "block";
+      els.errorState.textContent = "Couldn't load this rack tag: " + err.message + ". Check the connection — readings already saved locally are safe and will retry.";
+    }
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
