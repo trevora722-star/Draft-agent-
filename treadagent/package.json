@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js",
     "provision": "node scripts/provision-nocodb.js",
     "provision:dry-run": "node scripts/provision-nocodb.js --dry-run",
     "seed:demo": "node scripts/seed-demo-shop.js",
