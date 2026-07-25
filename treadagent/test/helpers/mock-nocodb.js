@@ -88,13 +88,13 @@ export class MockNocoDB {
   constructor() {
     this.tables = new Map();
     for (const name of KNOWN_TABLES) {
-      this.tables.set(name, { id: `tbl_${name}`, rows: [], nextId: 1 });
+      this.tables.set(name, { id: `tbl_${name}`, rows: [], nextId: 1, columns: [] });
     }
   }
 
   table(name) {
     if (!this.tables.has(name)) {
-      this.tables.set(name, { id: `tbl_${name}`, rows: [], nextId: 1 });
+      this.tables.set(name, { id: `tbl_${name}`, rows: [], nextId: 1, columns: [] });
     }
     return this.tables.get(name);
   }
@@ -124,6 +124,32 @@ export class MockNocoDB {
     if (metaListMatch && method === "GET") {
       const list = [...this.tables.entries()].map(([name, t]) => ({ id: t.id, table_name: name, title: name }));
       return jsonResponse(200, { list });
+    }
+    if (metaListMatch && method === "POST") {
+      const name = body.table_name;
+      const t = this.table(name);
+      t.columns = body.columns || [];
+      return jsonResponse(200, { id: t.id, table_name: name, title: name, columns: t.columns });
+    }
+
+    const metaTableMatch = url.pathname.match(/^\/api\/v2\/meta\/tables\/([^/]+)$/);
+    if (metaTableMatch && method === "GET") {
+      const found = this.findTableById(metaTableMatch[1]);
+      if (!found) return jsonResponse(404, { msg: "table not found" });
+      return jsonResponse(200, {
+        id: found.table.id,
+        table_name: found.name,
+        title: found.name,
+        columns: found.table.columns,
+      });
+    }
+
+    const columnsMatch = url.pathname.match(/^\/api\/v2\/meta\/tables\/([^/]+)\/columns$/);
+    if (columnsMatch && method === "POST") {
+      const found = this.findTableById(columnsMatch[1]);
+      if (!found) return jsonResponse(404, { msg: "table not found" });
+      found.table.columns.push(body);
+      return jsonResponse(200, body);
     }
 
     const recordsMatch = url.pathname.match(/^\/api\/v2\/tables\/([^/]+)\/records$/);

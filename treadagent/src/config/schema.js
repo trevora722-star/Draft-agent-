@@ -1,0 +1,373 @@
+// The single source of truth for TreadAgent's NocoDB table/field
+// layout (see the DATA MODEL section of the build spec). Consumed by
+// scripts/provision-nocodb.js. Keep this in sync with any field the
+// agents or web UIs read/write — nothing else should invent a table
+// name or column name that isn't listed here.
+//
+// field.type is an internal shorthand mapped to a NocoDB v2 UIDT by
+// the provisioning script:
+//   text | longtext | int | decimal | bool | date | datetime | select
+//
+// `select` fields carry `options: [...]`. Every table automatically
+// gets `created_at` (CreatedTime) and `updated_at` (LastModifiedTime)
+// system columns added by the provisioning script — don't list them
+// here. NocoDB always provides the `Id` primary key automatically.
+
+export const TABLES = [
+  {
+    name: "shops",
+    fields: [
+      { name: "name", type: "text" },
+      { name: "legal_name", type: "text" },
+      { name: "address", type: "text" },
+      { name: "city", type: "text" },
+      { name: "province", type: "text" },
+      { name: "timezone", type: "text" }, // IANA zone, e.g. America/Vancouver
+      { name: "storage_model", type: "select", options: ["on_site", "off_site", "both"] },
+      { name: "bay_count", type: "int" },
+      { name: "capacity_sets", type: "int" },
+      { name: "sms_from", type: "text" },
+      { name: "email_from", type: "text" },
+      { name: "tier", type: "select", options: ["rack", "shop", "multi_site"] },
+      { name: "stripe_customer_id", type: "text" },
+      { name: "quiet_hours_start", type: "text" }, // "HH:MM" shop-local
+      { name: "quiet_hours_end", type: "text" },
+      { name: "tone_profile", type: "text" },
+      { name: "active", type: "bool" },
+    ],
+  },
+  {
+    name: "regulations",
+    fields: [
+      { name: "province", type: "text" },
+      { name: "winter_window_start", type: "text" }, // "MM-DD"
+      { name: "winter_window_end", type: "text" },
+      { name: "route_note", type: "longtext" },
+      { name: "legal_min_32nds", type: "int" },
+      { name: "winter_designation_min_mm", type: "decimal" },
+      { name: "marking_required", type: "text" }, // e.g. "M+S or 3PMSF"
+      { name: "source_url", type: "text" },
+      { name: "verified_on", type: "date" },
+    ],
+  },
+  {
+    name: "customers",
+    fields: [
+      { name: "shop_id", type: "int" },
+      { name: "first_name", type: "text" },
+      { name: "last_name", type: "text" },
+      { name: "phone_e164", type: "text" },
+      { name: "email", type: "text" },
+      { name: "preferred_channel", type: "select", options: ["sms", "email"] },
+      { name: "preferred_language", type: "select", options: ["en", "fr"] },
+      { name: "consent_type", type: "select", options: ["express", "implied", "none"] },
+      { name: "consent_source", type: "text" },
+      { name: "consent_timestamp", type: "datetime" },
+      { name: "consent_evidence_ref", type: "text" },
+      { name: "unsubscribed_at", type: "datetime" },
+      { name: "unsubscribe_channel", type: "text" },
+      { name: "notes", type: "longtext" },
+    ],
+  },
+  {
+    name: "vehicles",
+    fields: [
+      { name: "customer_id", type: "int" },
+      { name: "year", type: "int" },
+      { name: "make", type: "text" },
+      { name: "model", type: "text" },
+      { name: "plate", type: "text" },
+      { name: "vin", type: "text" },
+      { name: "summer_size", type: "text" },
+      { name: "winter_size", type: "text" },
+      { name: "drive_type", type: "text" },
+      { name: "tpms", type: "bool" },
+    ],
+  },
+  {
+    name: "tire_sets",
+    fields: [
+      { name: "vehicle_id", type: "int" },
+      { name: "shop_id", type: "int" },
+      { name: "season", type: "select", options: ["summer", "winter", "all_season"] },
+      { name: "on_wheels", type: "bool" },
+      { name: "wheel_type", type: "text" },
+      { name: "quantity", type: "int" },
+      { name: "brand", type: "text" },
+      { name: "model", type: "text" },
+      { name: "size", type: "text" },
+      { name: "dot_week", type: "int" },
+      { name: "dot_year", type: "int" },
+      {
+        name: "status",
+        type: "select",
+        options: ["in_storage", "on_vehicle", "dormant", "released", "disposed", "resold"],
+      },
+      { name: "rack_location_id", type: "int" },
+      { name: "intake_date", type: "date" },
+      { name: "last_touched_date", type: "date" },
+      { name: "storage_agreement_ref", type: "text" },
+      { name: "storage_fee_cad", type: "decimal" },
+    ],
+  },
+  {
+    name: "tires",
+    fields: [
+      { name: "tire_set_id", type: "int" },
+      { name: "position", type: "select", options: ["LF", "RF", "LR", "RR", "spare"] },
+      { name: "dot_serial", type: "text" },
+      { name: "notes", type: "longtext" },
+      { name: "retired_at", type: "datetime" },
+    ],
+  },
+  {
+    name: "tread_readings",
+    fields: [
+      { name: "tire_id", type: "int" },
+      { name: "reading_date", type: "date" },
+      { name: "outer_32nds", type: "int" },
+      { name: "centre_32nds", type: "int" },
+      { name: "inner_32nds", type: "int" },
+      { name: "min_32nds", type: "int" }, // computed at write time by agents/02-tread.js
+      { name: "measured_by", type: "text" },
+      { name: "gauge_id", type: "text" },
+      { name: "odometer_km", type: "int" },
+      { name: "photo_ref", type: "text" },
+      { name: "flagged", type: "bool" },
+      { name: "flag_reason", type: "longtext" },
+    ],
+  },
+  {
+    name: "wear_projections",
+    fields: [
+      { name: "tire_id", type: "int" },
+      { name: "computed_at", type: "datetime" },
+      { name: "wear_per_1000km_32nds", type: "decimal" },
+      { name: "seasons_remaining", type: "decimal" },
+      { name: "projected_date_3mm", type: "date" },
+      { name: "projected_date_legal_min", type: "date" },
+      { name: "confidence", type: "select", options: ["low", "medium", "high"] },
+    ],
+  },
+  {
+    name: "rack_locations",
+    fields: [
+      { name: "shop_id", type: "int" },
+      { name: "site", type: "select", options: ["on_site", "off_site"] },
+      { name: "site_name", type: "text" },
+      { name: "zone", type: "text" },
+      { name: "aisle", type: "text" },
+      { name: "rack", type: "text" },
+      { name: "shelf", type: "text" },
+      { name: "slot", type: "text" },
+      { name: "capacity_sets", type: "int" },
+      { name: "occupied_by_set_id", type: "int" },
+      { name: "qr_token", type: "text" },
+      { name: "active", type: "bool" },
+    ],
+  },
+  {
+    name: "movements",
+    fields: [
+      { name: "tire_set_id", type: "int" },
+      { name: "from_location_id", type: "int" },
+      { name: "to_location_id", type: "int" },
+      { name: "moved_by", type: "text" },
+      { name: "moved_at", type: "datetime" },
+      { name: "reason", type: "longtext" },
+    ],
+  },
+  {
+    name: "season_campaigns",
+    fields: [
+      { name: "shop_id", type: "int" },
+      { name: "direction", type: "select", options: ["to_winter", "to_summer"] },
+      { name: "year", type: "int" },
+      { name: "window_open", type: "date" },
+      { name: "window_close", type: "date" },
+      { name: "cohort_rule_json", type: "longtext" },
+      { name: "target_count", type: "int" },
+      { name: "status", type: "text" },
+      { name: "created_by", type: "text" },
+    ],
+  },
+  {
+    name: "outreach_messages",
+    fields: [
+      { name: "shop_id", type: "int" },
+      { name: "customer_id", type: "int" },
+      { name: "campaign_id", type: "int" },
+      { name: "channel", type: "select", options: ["sms", "email"] },
+      { name: "template_key", type: "text" },
+      { name: "rendered_subject", type: "text" },
+      { name: "rendered_body", type: "longtext" },
+      { name: "consent_snapshot_json", type: "longtext" },
+      {
+        name: "status",
+        type: "select",
+        options: [
+          "draft",
+          "pending_review",
+          "approved",
+          "rejected",
+          "queued",
+          "sent",
+          "delivered",
+          "failed",
+          "replied",
+          "bounced",
+        ],
+      },
+      { name: "reviewed_by", type: "text" },
+      { name: "reviewed_at", type: "datetime" },
+      { name: "review_notes", type: "longtext" },
+      { name: "sent_at", type: "datetime" },
+      { name: "provider_id", type: "text" },
+      { name: "provider_status", type: "text" },
+      { name: "ledger_hash", type: "text" },
+    ],
+  },
+  {
+    name: "inbound_messages",
+    fields: [
+      { name: "shop_id", type: "int" },
+      { name: "customer_id", type: "int" },
+      { name: "channel", type: "select", options: ["sms", "email"] },
+      { name: "provider_id", type: "text" },
+      { name: "received_at", type: "datetime" },
+      { name: "body", type: "longtext" },
+      { name: "classified_intent", type: "text" },
+      { name: "handled_by", type: "text" },
+      { name: "handled_at", type: "datetime" },
+    ],
+  },
+  {
+    name: "appointments",
+    fields: [
+      { name: "shop_id", type: "int" },
+      { name: "customer_id", type: "int" },
+      { name: "tire_set_id", type: "int" },
+      { name: "slot_start", type: "datetime" },
+      { name: "slot_end", type: "datetime" },
+      {
+        name: "service_type",
+        type: "select",
+        options: ["swap", "swap_and_store", "swap_and_replace", "pickup"],
+      },
+      { name: "status", type: "text" },
+      { name: "source", type: "text" },
+      { name: "reminder_sent_at", type: "datetime" },
+      { name: "no_show", type: "bool" },
+    ],
+  },
+  {
+    name: "capacity_slots",
+    fields: [
+      { name: "shop_id", type: "int" },
+      { name: "date", type: "date" },
+      { name: "start_time", type: "text" },
+      { name: "end_time", type: "text" },
+      { name: "bays_available", type: "int" },
+      { name: "bays_booked", type: "int" },
+      { name: "blocked", type: "bool" },
+      { name: "block_reason", type: "text" },
+    ],
+  },
+  {
+    name: "dormancy_cases",
+    fields: [
+      { name: "tire_set_id", type: "int" },
+      { name: "shop_id", type: "int" },
+      { name: "first_flagged_at", type: "datetime" },
+      { name: "stage", type: "int" }, // 0-5
+      { name: "stage_entered_at", type: "datetime" },
+      { name: "notices_json", type: "longtext" },
+      { name: "statutory_deadline", type: "date" },
+      {
+        name: "resolution",
+        type: "select",
+        options: ["claimed", "disposed", "resold", "waived", "pending"],
+      },
+      { name: "resolution_at", type: "datetime" },
+      { name: "resolved_by", type: "text" },
+      { name: "evidence_bundle_ref", type: "text" },
+      { name: "evidence_bundle_hash", type: "text" },
+    ],
+  },
+  {
+    name: "quotes",
+    fields: [
+      { name: "shop_id", type: "int" },
+      { name: "customer_id", type: "int" },
+      { name: "tire_set_id", type: "int" },
+      { name: "line_items_json", type: "longtext" },
+      { name: "subtotal_cad", type: "decimal" },
+      { name: "tax_cad", type: "decimal" },
+      { name: "total_cad", type: "decimal" },
+      { name: "cost_cad", type: "decimal" },
+      { name: "margin_pct", type: "decimal" },
+      { name: "trigger_reason", type: "text" },
+      {
+        name: "status",
+        type: "select",
+        options: ["draft", "pending_review", "sent", "accepted", "declined", "expired"],
+      },
+      { name: "expires_at", type: "datetime" },
+      { name: "accepted_at", type: "datetime" },
+    ],
+  },
+  {
+    name: "review_queue",
+    fields: [
+      { name: "shop_id", type: "int" },
+      { name: "entity_type", type: "text" },
+      { name: "entity_id", type: "text" },
+      { name: "proposed_action", type: "text" },
+      { name: "agent_key", type: "text" },
+      { name: "risk_level", type: "select", options: ["low", "medium", "high"] },
+      { name: "payload_json", type: "longtext" },
+      { name: "status", type: "select", options: ["pending", "approved", "rejected", "expired"] },
+      { name: "assigned_to", type: "text" },
+      { name: "decided_by", type: "text" },
+      { name: "decided_at", type: "datetime" },
+      { name: "decision_notes", type: "longtext" },
+    ],
+  },
+  {
+    name: "audit_ledger",
+    fields: [
+      { name: "seq", type: "int" },
+      { name: "shop_id", type: "int" },
+      { name: "timestamp_utc", type: "datetime" },
+      { name: "actor_type", type: "select", options: ["agent", "staff", "customer", "system"] },
+      { name: "actor_id", type: "text" },
+      { name: "action", type: "text" },
+      { name: "entity_type", type: "text" },
+      { name: "entity_id", type: "text" },
+      { name: "payload_json", type: "longtext" },
+      { name: "prev_hash", type: "text" },
+      { name: "hash", type: "text" },
+    ],
+  },
+  {
+    name: "agent_runs",
+    fields: [
+      { name: "agent_key", type: "text" },
+      { name: "shop_id", type: "int" },
+      { name: "started_at", type: "datetime" },
+      { name: "ended_at", type: "datetime" },
+      { name: "status", type: "text" },
+      { name: "input_summary", type: "longtext" },
+      { name: "output_summary", type: "longtext" },
+      { name: "records_touched", type: "int" },
+      { name: "tokens_in", type: "int" },
+      { name: "tokens_out", type: "int" },
+      { name: "cost_cad", type: "decimal" },
+      { name: "error", type: "longtext" },
+    ],
+  },
+];
+
+export function tableNames() {
+  return TABLES.map((t) => t.name);
+}
