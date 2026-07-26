@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Share your photo</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 480px; margin: 0 auto;
+         padding: 24px 16px 48px; background: #fdf6f0; color: #3a2e2a; }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  p.sub { color: #7a675f; margin-top: 0; }
+  label { display: block; margin: 16px 0 6px; font-weight: 600; font-size: 0.9rem; }
+  input[type=text] { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d8c8bd;
+                      box-sizing: border-box; font-size: 1rem; }
+  input[type=file] { width: 100%; }
+  button { margin-top: 20px; width: 100%; padding: 14px; border: none; border-radius: 10px;
+           background: #b3785f; color: white; font-size: 1.05rem; font-weight: 600; }
+  button:disabled { opacity: 0.6; }
+  #status { margin-top: 16px; font-size: 0.95rem; }
+  #status.ok { color: #2f7a3d; }
+  #status.err { color: #a3352c; }
+  #preview { margin-top: 12px; max-width: 100%; border-radius: 10px; display: none; }
+</style>
+</head>
+<body>
+  <h1>Share a photo 📸</h1>
+  <p class="sub">Thanks for being here — drop in your favorite moment.</p>
+
+  <form id="upload-form">
+    <label for="file">Photo</label>
+    <input type="file" id="file" accept="image/*" capture="environment" required>
+    <img id="preview" alt="preview">
+
+    <label for="name">Your name (optional)</label>
+    <input type="text" id="name" placeholder="e.g. Sam">
+
+    <label for="caption">Caption (optional)</label>
+    <input type="text" id="caption" placeholder="e.g. First dance!">
+
+    <button type="submit" id="submit-btn">Upload photo</button>
+  </form>
+  <div id="status"></div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const eventId = params.get("event");
+    const token = params.get("token");
+
+    const fileInput = document.getElementById("file");
+    const preview = document.getElementById("preview");
+    fileInput.addEventListener("change", () => {
+      const f = fileInput.files[0];
+      if (f) {
+        preview.src = URL.createObjectURL(f);
+        preview.style.display = "block";
+      }
+    });
+
+    document.getElementById("upload-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const statusEl = document.getElementById("status");
+      const btn = document.getElementById("submit-btn");
+      if (!eventId || !token) {
+        statusEl.textContent = "This upload link looks incomplete — please rescan the QR code.";
+        statusEl.className = "err";
+        return;
+      }
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      btn.disabled = true;
+      statusEl.textContent = "Uploading...";
+      statusEl.className = "";
+
+      const body = new FormData();
+      body.append("token", token);
+      body.append("file", file);
+      const name = document.getElementById("name").value;
+      const caption = document.getElementById("caption").value;
+      if (name) body.append("guest_name", name);
+      if (caption) body.append("caption", caption);
+
+      try {
+        const res = await fetch(`/events/${eventId}/photos`, { method: "POST", body });
+        if (!res.ok) throw new Error(await res.text());
+        statusEl.textContent = "Thanks! Your photo is on its way to the gallery. 🎉";
+        statusEl.className = "ok";
+        document.getElementById("upload-form").reset();
+        preview.style.display = "none";
+      } catch (err) {
+        statusEl.textContent = "Upload failed — please try again.";
+        statusEl.className = "err";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

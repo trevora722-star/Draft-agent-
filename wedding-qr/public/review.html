@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moderator review</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 640px; margin: 0 auto;
+         padding: 24px 16px 48px; background: #fdf6f0; color: #3a2e2a; }
+  h1 { font-size: 1.3rem; }
+  .card { display: flex; gap: 14px; background: white; border-radius: 12px; padding: 12px;
+          margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); align-items: center; }
+  .card img { width: 96px; height: 96px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+  .card .info { flex: 1; font-size: 0.9rem; }
+  .card .actions button { margin-left: 8px; padding: 8px 14px; border: none; border-radius: 8px;
+                           font-weight: 600; }
+  .approve { background: #2f7a3d; color: white; }
+  .reject { background: #a3352c; color: white; }
+  #empty { text-align: center; color: #7a675f; margin-top: 40px; }
+</style>
+</head>
+<body>
+  <h1>Flagged for review</h1>
+  <div id="empty" style="display:none">Nothing pending — the queue is empty.</div>
+  <div id="list"></div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const eventId = params.get("event");
+    const token = params.get("token");
+    const list = document.getElementById("list");
+    const empty = document.getElementById("empty");
+
+    async function load() {
+      const res = await fetch(`/events/${eventId}/review?token=${encodeURIComponent(token)}`);
+      const items = await res.json();
+      list.innerHTML = "";
+      empty.style.display = items.length ? "none" : "block";
+      for (const p of items) {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <img src="${p.thumbnail_url}" alt="">
+          <div class="info">
+            ${p.guest_name ? `<b>${p.guest_name}</b><br>` : ""}
+            ${p.ai_caption || p.guest_caption || ""}
+          </div>
+          <div class="actions">
+            <button class="approve">Approve</button>
+            <button class="reject">Reject</button>
+          </div>`;
+        card.querySelector(".approve").onclick = () => decide(p.id, "approve");
+        card.querySelector(".reject").onclick = () => decide(p.id, "reject");
+        list.appendChild(card);
+      }
+    }
+
+    async function decide(photoId, decision) {
+      await fetch(`/events/${eventId}/photos/${photoId}/review?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision }),
+      });
+      load();
+    }
+
+    load();
+  </script>
+</body>
+</html>
