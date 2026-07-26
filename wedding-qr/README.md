@@ -36,8 +36,14 @@ splitting them keeps the expensive vision call to exactly one per photo.
                │ scan
                ▼
    ┌────────────────────────┐
-   │ Guest upload page       │  mobile web, no login — capability
-   │ (public/upload.html)    │  token in the QR URL scopes to 1 event
+   │ Guest landing page       │  mobile web, no login — capability
+   │ (public/index.html)      │  token in the QR URL scopes to 1 event
+   └───────────┬─────────────┘
+               │ "Share a photo" →  public/upload.html
+               ▼
+   ┌────────────────────────┐
+   │ Guest upload page       │
+   │ (public/upload.html)    │
    └───────────┬─────────────┘
                │ POST photo + optional name/caption
                ▼
@@ -130,8 +136,11 @@ accounts, no PII beyond an optional first name.
 ## API surface
 
 ```
-POST   /events                          create a wedding event → {event_id, guest_token, moderator_token}
-GET    /events/{event_id}/qr.png        QR code PNG encoding the guest upload URL
+POST   /events                          create a wedding event → {event_id, guest_token, moderator_token,
+                                                                   guest_upload_url, dashboard_url}
+GET    /events/{event_id}/info          couple_names/event_date — requires guest_token OR moderator_token;
+                                         moderator_token additionally unlocks guest_upload_url + pending count
+GET    /events/{event_id}/qr.png        QR code PNG encoding the guest landing page URL
 POST   /events/{event_id}/photos        guest upload (multipart: file, guest_name?, caption?) — requires guest_token
 GET    /events/{event_id}/gallery       approved photos, newest first — requires guest_token
 GET    /events/{event_id}/review        flagged/rejected queue — requires moderator_token
@@ -141,11 +150,17 @@ GET    /events/{event_id}/digest        run CurationAgent + NotifierAgent → hi
 
 ## Pages
 
+- `public/index.html` — the guest landing page the QR code actually points at:
+  couple names/date, then "Share a photo" and "View the gallery" buttons.
 - `public/upload.html` — mobile-first, camera-first (`<input capture="environment">`),
   optional name/caption fields, works over the token in the URL query string.
 - `public/gallery.html` — polls the gallery endpoint every few seconds; can be
   left open on a laptop/TV at the reception as a live slideshow.
 - `public/review.html` — approve/reject buttons for the moderator queue.
+- `public/dashboard.html` — private page for the couple/wedding party (linked
+  via `dashboard_url`, built from the `moderator_token`): shows the QR code,
+  a copyable guest upload link, the review-queue count, and a button to
+  generate the highlight reel/digest — one place instead of raw API calls.
 
 ## Why this shape (design decisions)
 

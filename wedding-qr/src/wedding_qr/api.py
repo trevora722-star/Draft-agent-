@@ -66,7 +66,31 @@ def create_event(req: CreateEventRequest):
         "guest_token": event.guest_token,
         "moderator_token": event.moderator_token,
         "guest_upload_url": qr.guest_upload_url(event.id, event.guest_token),
+        "dashboard_url": qr.dashboard_url(event.id, event.moderator_token),
     }
+
+
+@app.get("/events/{event_id}/info")
+def event_info(event_id: str, token: str):
+    """Public-ish event info for the landing page and dashboard.
+
+    Couple names/date aren't sensitive, so either a guest or a moderator
+    token unlocks them — the moderator token additionally unlocks the
+    guest upload link and review-queue count, which the dashboard needs
+    but a guest landing page never should.
+    """
+    event = _require_event(event_id)
+    is_guest = events.check_guest_token(event, token)
+    is_moderator = events.check_moderator_token(event, token)
+    if not (is_guest or is_moderator):
+        raise HTTPException(status_code=403, detail="Invalid token")
+
+    info: dict = {"couple_names": event.couple_names, "event_date": event.event_date}
+    if is_moderator:
+        info["guest_token"] = event.guest_token
+        info["guest_upload_url"] = qr.guest_upload_url(event.id, event.guest_token)
+        info["pending_review_count"] = len(photos.list_review_queue(event_id))
+    return info
 
 
 @app.get("/events/{event_id}/qr.png")

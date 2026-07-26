@@ -29,7 +29,23 @@ def test_full_guest_flow(isolated_settings, sample_jpeg_bytes, monkeypatch):
         event_id = created["event_id"]
         guest_token = created["guest_token"]
         moderator_token = created["moderator_token"]
-        assert "static/upload.html" in created["guest_upload_url"]
+        assert "static/index.html" in created["guest_upload_url"]
+        assert "static/dashboard.html" in created["dashboard_url"]
+
+        guest_info = client.get(
+            f"/events/{event_id}/info", params={"token": guest_token}
+        ).json()
+        assert guest_info["couple_names"] == "Alex & Jordan"
+        assert "guest_upload_url" not in guest_info  # guests don't get moderator-only fields
+
+        mod_info = client.get(
+            f"/events/{event_id}/info", params={"token": moderator_token}
+        ).json()
+        assert mod_info["guest_upload_url"] == created["guest_upload_url"]
+        assert mod_info["pending_review_count"] == 0
+
+        bad_info = client.get(f"/events/{event_id}/info", params={"token": "wrong"})
+        assert bad_info.status_code == 403
 
         qr_resp = client.get(f"/events/{event_id}/qr.png")
         assert qr_resp.status_code == 200

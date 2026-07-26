@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wedding gallery</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 480px; margin: 0 auto;
+         padding: 48px 20px; background: #fdf6f0; color: #3a2e2a; text-align: center; }
+  h1 { font-size: 1.6rem; margin-bottom: 4px; }
+  p.sub { color: #7a675f; margin-top: 0; }
+  .actions { margin-top: 36px; display: flex; flex-direction: column; gap: 14px; }
+  a.btn { display: block; padding: 16px; border-radius: 12px; text-decoration: none;
+          font-weight: 600; font-size: 1.05rem; }
+  a.upload { background: #b3785f; color: white; }
+  a.gallery { background: white; color: #3a2e2a; border: 1px solid #d8c8bd; }
+  #error { margin-top: 40px; color: #a3352c; }
+</style>
+</head>
+<body>
+  <div id="content">
+    <h1 id="title">Loading...</h1>
+    <p class="sub" id="subtitle"></p>
+    <div class="actions" id="actions" style="display:none">
+      <a class="btn upload" id="upload-link">📸 Share a photo</a>
+      <a class="btn gallery" id="gallery-link">🖼️ View the live gallery</a>
+    </div>
+  </div>
+  <div id="error" style="display:none">
+    This link looks incomplete — please rescan the QR code.
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const eventId = params.get("event");
+    const token = params.get("token");
+
+    async function load() {
+      if (!eventId || !token) {
+        document.getElementById("content").style.display = "none";
+        document.getElementById("error").style.display = "block";
+        return;
+      }
+      try {
+        const res = await fetch(`/events/${eventId}/info?token=${encodeURIComponent(token)}`);
+        if (!res.ok) throw new Error();
+        const info = await res.json();
+        const suffix = `?event=${eventId}&token=${encodeURIComponent(token)}`;
+        document.getElementById("title").textContent = `${info.couple_names}'s Wedding`;
+        document.getElementById("subtitle").textContent = info.event_date
+          ? `Share your photos from ${info.event_date}!`
+          : "Share your photos from the big day!";
+        document.getElementById("upload-link").href = `upload.html${suffix}`;
+        document.getElementById("gallery-link").href = `gallery.html${suffix}`;
+        document.getElementById("actions").style.display = "flex";
+      } catch (e) {
+        document.getElementById("content").style.display = "none";
+        document.getElementById("error").style.display = "block";
+      }
+    }
+    load();
+  </script>
+</body>
+</html>
