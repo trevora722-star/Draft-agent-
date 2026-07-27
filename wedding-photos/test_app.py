@@ -15,6 +15,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("WEDDING_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("WEDDING_USERNAME", "guest")
     monkeypatch.setenv("WEDDING_PASSWORD", "sunflower")
+    monkeypatch.setenv("WEDDING_ADMIN_PASSWORD", "rootbeer")
     import app as app_module
     from fastapi.testclient import TestClient
 
@@ -100,3 +101,57 @@ def test_corrupt_image_rejected(client):
     body = res.json()
     assert body["saved"] == []
     assert len(body["errors"]) == 1
+
+
+def test_video_upload_and_playback(client):
+    _login(client)
+    res = client.post(
+        "/api/upload",
+        files={"files": ("first-dance.mp4", b"\x00" * 2048, "video/mp4")},
+        data={"uploader": "Sam"},
+    )
+    body = res.json()
+    assert len(body["saved"]) == 1
+    assert body["saved"][0]["type"] == "video"
+    video_id = body["saved"][0]["id"]
+
+    listed = client.get("/api/photos").json()["photos"]
+    assert listed[0]["type"] == "video"
+
+    res = client.get(f"/photos/{video_id}")
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "video/mp4"
+
+
+def test_guest_cannot_delete_but_admin_can(client, tmp_path):
+    _login(client)
+    res = client.post(
+        "/api/upload",
+        files={"files": ("cake.jpg", _fake_jpeg(), "image/jpeg")},
+    )
+    photo_id = res.json()["saved"][0]["id"]
+
+    # a regular guest gets a 403
+    assert client.delete(f"/api/photos/{photo_id}").status_code == 403
+
+    # the admin password on the same username grants delete rights
+    res = client.post(
+        "/login",
+        data={"username": "guest", "password": "rootbeer"},
+        follow_redirects=False,
+    )
+    assert res.status_code == 303
+    assert client.get("/api/photos").json()["is_admin"] is True
+    assert client.delete(f"/api/photos/{photo_id}").status_code == 200
+
+    # gone from the gallery, but soft-deleted into the trash folder:
+    # the full photo, its thumbnail, and its metadata all survive
+    assert client.get("/api/photos").json()["photos"] == []
+    assert client.get(f"/photos/{photo_id}").status_code == 404
+    trashed = sorted(str(p.relative_to(tmp_path / "trash"))
+                     for p in (tmp_path / "trash").rglob("*") if p.is_file())
+    assert trashed == [
+        f"meta/{photo_id}.json",
+        f"photos/{photo_id}.jpg",
+        f"thumbs/{photo_id}.jpg",
+    ]

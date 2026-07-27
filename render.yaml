@@ -28,6 +28,8 @@ services:
         sync: false  # set in the Render dashboard — the login guests will use
       - key: WEDDING_PASSWORD
         sync: false  # set in the Render dashboard
+      - key: WEDDING_ADMIN_PASSWORD
+        sync: false  # different password, same username -> can delete photos
       - key: WEDDING_TITLE
         value: "Our Wedding Album"  # change to e.g. "Anna & James — June 2026"
       - key: WEDDING_DATA_DIR

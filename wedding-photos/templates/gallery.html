@@ -66,6 +66,17 @@
     width: 190px;
   }
   #name-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #admin-badge {
+    display: none;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--accent-dark);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+  }
   #status {
     text-align: center;
     color: var(--soft);
@@ -92,7 +103,8 @@
     cursor: pointer;
     position: relative;
   }
-  .tile img { width: 100%; display: block; }
+  .tile img, .tile video { width: 100%; display: block; }
+  .tile video { background: #2a2622; min-height: 120px; }
   .tile .who {
     position: absolute;
     left: 0; right: 0; bottom: 0;
@@ -102,8 +114,43 @@
     background: linear-gradient(transparent, rgba(30, 26, 22, 0.65));
     opacity: 0;
     transition: opacity 0.15s;
+    pointer-events: none;
   }
   .tile:hover .who { opacity: 1; }
+  .tile .play {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: rgba(30, 26, 22, 0.55);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    pointer-events: none;
+  }
+  .tile .del {
+    position: absolute;
+    top: 8px; right: 8px;
+    width: 30px; height: 30px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(30, 26, 22, 0.55);
+    color: #fff;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .tile:hover .del { opacity: 1; }
+  .tile .del:hover { background: #94433a; }
+  @media (hover: none) {
+    .tile .del { opacity: 1; }
+    .tile .who { opacity: 1; }
+  }
   .empty {
     text-align: center;
     color: var(--soft);
@@ -129,7 +176,7 @@
     min-height: 0;
     padding: 12px;
   }
-  #lb-img { max-width: 100%; max-height: 100%; border-radius: 6px; }
+  #lb-img, #lb-video { max-width: 100%; max-height: 100%; border-radius: 6px; }
   #lb-bar {
     display: flex;
     justify-content: space-between;
@@ -153,6 +200,8 @@
     font-family: "Helvetica Neue", Arial, sans-serif;
   }
   #lb-bar a:hover, #lb-bar button:hover { background: rgba(255, 255, 255, 0.24); }
+  #lb-delete { display: none; }
+  #lb-delete:hover { background: #94433a !important; }
   .lb-nav {
     position: absolute;
     top: 50%;
@@ -179,16 +228,17 @@
   <header>
     <div class="ornament">✦ ✦ ✦</div>
     <h1>{{TITLE}}</h1>
-    <p class="sub">Share the moments you captured — every photo you add appears for all the guests.</p>
+    <p class="sub">Share the moments you captured — every photo and video you add appears for all the guests.</p>
   </header>
 
   <div class="toolbar">
     <input id="name-input" placeholder="Your name (shown on photos)" maxlength="60">
-    <button class="btn" id="upload-btn">Upload photos</button>
+    <button class="btn" id="upload-btn">Upload photos &amp; videos</button>
     <form method="post" action="/logout" style="display:inline">
       <button class="btn ghost" type="submit">Sign out</button>
     </form>
-    <input id="file-input" type="file" accept="image/*,.heic,.heif" multiple hidden>
+    <span id="admin-badge">Admin</span>
+    <input id="file-input" type="file" accept="image/*,video/*,.heic,.heif,.mp4,.mov,.m4v,.webm" multiple hidden>
   </div>
   <p id="status"></p>
 
@@ -196,12 +246,16 @@
   <p class="empty" id="empty" hidden>No photos yet — be the first to share one!</p>
 
   <div id="lightbox">
-    <div id="lb-img-wrap"><img id="lb-img" alt=""></div>
+    <div id="lb-img-wrap">
+      <img id="lb-img" alt="" hidden>
+      <video id="lb-video" controls playsinline hidden></video>
+    </div>
     <button class="lb-nav" id="lb-prev" aria-label="Previous">‹</button>
     <button class="lb-nav" id="lb-next" aria-label="Next">›</button>
     <div id="lb-bar">
       <span id="lb-caption"></span>
       <span>
+        <button id="lb-delete">Delete</button>
         <a id="lb-download" href="#">Download</a>
         <button id="lb-close">Close</button>
       </span>
@@ -214,12 +268,16 @@
   const status = document.getElementById("status");
   const nameInput = document.getElementById("name-input");
   const fileInput = document.getElementById("file-input");
+  const adminBadge = document.getElementById("admin-badge");
   const lightbox = document.getElementById("lightbox");
   const lbImg = document.getElementById("lb-img");
+  const lbVideo = document.getElementById("lb-video");
   const lbCaption = document.getElementById("lb-caption");
   const lbDownload = document.getElementById("lb-download");
+  const lbDelete = document.getElementById("lb-delete");
 
   let photos = [];
+  let isAdmin = false;
   let lbIndex = 0;
 
   nameInput.value = localStorage.getItem("wedding_uploader") || "";
@@ -240,21 +298,53 @@
     return p.uploader ? `Shared by ${p.uploader}${when ? " · " + when : ""}` : when;
   }
 
+  async function deletePhoto(p) {
+    if (!confirm("Delete this from the album for everyone? (It's moved to a trash folder on the server, not destroyed.)")) return;
+    const res = await fetch("/api/photos/" + p.id, { method: "DELETE" });
+    if (res.status === 401) { location.href = "/login"; return; }
+    if (!res.ok) { setStatus("Delete failed.", "error"); return; }
+    closeLightbox();
+    setStatus("Deleted.", "");
+    await load();
+  }
+
   function render() {
     grid.innerHTML = "";
     empty.hidden = photos.length > 0;
+    adminBadge.style.display = isAdmin ? "inline-block" : "none";
     photos.forEach((p, i) => {
       const tile = document.createElement("div");
       tile.className = "tile";
-      const img = document.createElement("img");
-      img.loading = "lazy";
-      img.src = "/thumbs/" + p.id;
-      img.alt = p.original_name || "wedding photo";
-      tile.appendChild(img);
+      if (p.type === "video") {
+        const vid = document.createElement("video");
+        vid.preload = "metadata";
+        vid.muted = true;
+        vid.playsInline = true;
+        vid.src = "/photos/" + p.id;
+        tile.appendChild(vid);
+        const play = document.createElement("div");
+        play.className = "play";
+        play.textContent = "▶";
+        tile.appendChild(play);
+      } else {
+        const img = document.createElement("img");
+        img.loading = "lazy";
+        img.src = "/thumbs/" + p.id;
+        img.alt = p.original_name || "wedding photo";
+        tile.appendChild(img);
+      }
       const who = document.createElement("div");
       who.className = "who";
       who.textContent = captionFor(p);
       tile.appendChild(who);
+      if (isAdmin) {
+        const del = document.createElement("button");
+        del.className = "del";
+        del.textContent = "✕";
+        del.title = "Delete (admin)";
+        del.addEventListener("click", e => { e.stopPropagation(); deletePhoto(p); });
+        tile.appendChild(del);
+      }
       tile.addEventListener("click", () => openLightbox(i));
       grid.appendChild(tile);
     });
@@ -265,6 +355,7 @@
     if (res.status === 401) { location.href = "/login"; return; }
     const data = await res.json();
     photos = data.photos || [];
+    isAdmin = !!data.is_admin;
     render();
   }
 
@@ -274,7 +365,7 @@
     const files = Array.from(fileInput.files);
     fileInput.value = "";
     if (!files.length) return;
-    setStatus(`Uploading ${files.length} photo${files.length > 1 ? "s" : ""}…`, "busy");
+    setStatus(`Uploading ${files.length} file${files.length > 1 ? "s" : ""}… (videos can take a while)`, "busy");
     const form = new FormData();
     files.forEach(f => form.append("files", f));
     form.append("uploader", nameInput.value.trim());
@@ -284,7 +375,7 @@
       const data = await res.json();
       const saved = (data.saved || []).length;
       const errors = data.errors || [];
-      let msg = saved ? `Added ${saved} photo${saved > 1 ? "s" : ""}. Thank you!` : "";
+      let msg = saved ? `Added ${saved} file${saved > 1 ? "s" : ""}. Thank you!` : "";
       if (errors.length) {
         msg += ` ${errors.length} skipped (${errors[0].file}: ${errors[0].reason}).`;
       }
@@ -298,18 +389,36 @@
   function openLightbox(i) {
     lbIndex = i;
     const p = photos[i];
-    lbImg.src = "/photos/" + p.id;
+    if (p.type === "video") {
+      lbImg.hidden = true;
+      lbImg.src = "";
+      lbVideo.hidden = false;
+      lbVideo.src = "/photos/" + p.id;
+    } else {
+      lbVideo.pause();
+      lbVideo.hidden = true;
+      lbVideo.removeAttribute("src");
+      lbImg.hidden = false;
+      lbImg.src = "/photos/" + p.id;
+    }
     lbCaption.textContent = captionFor(p);
     lbDownload.href = "/photos/" + p.id + "?download=1";
+    lbDelete.style.display = isAdmin ? "inline-block" : "none";
     lightbox.classList.add("open");
   }
-  function closeLightbox() { lightbox.classList.remove("open"); lbImg.src = ""; }
+  function closeLightbox() {
+    lightbox.classList.remove("open");
+    lbImg.src = "";
+    lbVideo.pause();
+    lbVideo.removeAttribute("src");
+  }
   function step(delta) {
     if (!photos.length) return;
     openLightbox((lbIndex + delta + photos.length) % photos.length);
   }
 
   document.getElementById("lb-close").addEventListener("click", closeLightbox);
+  lbDelete.addEventListener("click", () => deletePhoto(photos[lbIndex]));
   document.getElementById("lb-prev").addEventListener("click", e => { e.stopPropagation(); step(-1); });
   document.getElementById("lb-next").addEventListener("click", e => { e.stopPropagation(); step(1); });
   lightbox.addEventListener("click", e => { if (e.target === lightbox || e.target.id === "lb-img-wrap") closeLightbox(); });

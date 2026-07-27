@@ -1,9 +1,12 @@
-"""Wedding photo sharing platform.
+"""Wedding photo & video sharing platform.
 
 A single shared username + password (set via environment variables) gates
 everything: guests log in once, then can view the full gallery and upload
-their own photos. Photos live on disk under WEDDING_DATA_DIR so a mounted
-persistent volume keeps them across restarts.
+their own photos and videos. Signing in with the same username and the
+separate WEDDING_ADMIN_PASSWORD grants an admin session that can delete
+items (they're moved to a trash folder, not destroyed). Media lives on disk
+under WEDDING_DATA_DIR so a mounted persistent volume keeps it across
+restarts.
 
 Run locally:
     pip install -r requirements.txt
@@ -20,6 +23,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import time
 import uuid
 from pathlib import Path
@@ -45,10 +49,18 @@ BASE_DIR = Path(__file__).resolve().parent
 
 SESSION_COOKIE = "wedding_session"
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 30  # stay logged in for 30 days
-MAX_FILE_BYTES = 30 * 1024 * 1024  # 30 MB per photo
+MAX_IMAGE_BYTES = 30 * 1024 * 1024  # 30 MB per photo
+MAX_VIDEO_BYTES = 200 * 1024 * 1024  # 200 MB per video
 THUMB_MAX_DIM = 480
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif"}
 HEIC_EXTENSIONS = {".heic", ".heif"}
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm"}
+VIDEO_MEDIA_TYPES = {
+    ".mp4": "video/mp4",
+    ".m4v": "video/mp4",
+    ".mov": "video/quicktime",
+    ".webm": "video/webm",
+}
 
 LOGIN_ATTEMPT_LIMIT = 20  # per IP within the window below
 LOGIN_ATTEMPT_WINDOW = 15 * 60
@@ -58,6 +70,7 @@ def create_app() -> FastAPI:
     site_title = os.environ.get("WEDDING_TITLE", "Our Wedding Album")
     username = os.environ.get("WEDDING_USERNAME", "guest")
     password = os.environ.get("WEDDING_PASSWORD", "")
+    admin_password = os.environ.get("WEDDING_ADMIN_PASSWORD", "")
     if not password:
         password = "wedding"
         print(
@@ -70,7 +83,8 @@ def create_app() -> FastAPI:
     photos_dir = data_dir / "photos"
     thumbs_dir = data_dir / "thumbs"
     meta_dir = data_dir / "meta"
-    for d in (photos_dir, thumbs_dir, meta_dir):
+    trash_dir = data_dir / "trash"
+    for d in (photos_dir, thumbs_dir, meta_dir, trash_dir):
         d.mkdir(parents=True, exist_ok=True)
 
     secret = _load_secret(data_dir)
@@ -85,22 +99,24 @@ def create_app() -> FastAPI:
 
     # ---- session helpers ---------------------------------------------------
 
-    def make_token() -> str:
+    def make_token(role: str) -> str:
         exp = str(int(time.time()) + SESSION_TTL_SECONDS)
-        sig = hmac.new(secret, exp.encode(), hashlib.sha256).hexdigest()
-        return f"{exp}.{sig}"
+        payload = f"{exp}.{role}"
+        sig = hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
+        return f"{payload}.{sig}"
 
-    def token_valid(token: str | None) -> bool:
-        if not token or "." not in token:
-            return False
-        exp, sig = token.rsplit(".", 1)
-        expected = hmac.new(secret, exp.encode(), hashlib.sha256).hexdigest()
+    def session_role(request: Request) -> str | None:
+        """Return 'guest' or 'admin' for a valid session, else None."""
+        token = request.cookies.get(SESSION_COOKIE)
+        if not token or token.count(".") != 2:
+            return None
+        exp, role, sig = token.split(".")
+        expected = hmac.new(secret, f"{exp}.{role}".encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(sig, expected):
-            return False
-        return exp.isdigit() and int(exp) > time.time()
-
-    def logged_in(request: Request) -> bool:
-        return token_valid(request.cookies.get(SESSION_COOKIE))
+            return None
+        if role not in ("guest", "admin") or not exp.isdigit() or int(exp) <= time.time():
+            return None
+        return role
 
     def too_many_attempts(ip: str) -> bool:
         now = time.time()
@@ -112,13 +128,13 @@ def create_app() -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     def gallery(request: Request):
-        if not logged_in(request):
+        if session_role(request) is None:
             return RedirectResponse("/login", status_code=303)
         return HTMLResponse(gallery_page)
 
     @app.get("/login", response_class=HTMLResponse)
     def login_form(request: Request):
-        if logged_in(request):
+        if session_role(request) is not None:
             return RedirectResponse("/", status_code=303)
         return HTMLResponse(login_page)
 
@@ -135,8 +151,9 @@ def create_app() -> FastAPI:
                 status_code=429,
             )
         user_ok = hmac.compare_digest(form_username.strip(), username)
-        pass_ok = hmac.compare_digest(form_password, password)
-        if not (user_ok and pass_ok):
+        admin_ok = bool(admin_password) and hmac.compare_digest(form_password, admin_password)
+        guest_ok = hmac.compare_digest(form_password, password)
+        if not (user_ok and (admin_ok or guest_ok)):
             login_attempts.setdefault(ip, []).append(time.time())
             return HTMLResponse(
                 login_page.replace(
@@ -148,7 +165,7 @@ def create_app() -> FastAPI:
         response = RedirectResponse("/", status_code=303)
         response.set_cookie(
             SESSION_COOKIE,
-            make_token(),
+            make_token("admin" if admin_ok else "guest"),
             max_age=SESSION_TTL_SECONDS,
             httponly=True,
             samesite="lax",
@@ -165,11 +182,12 @@ def create_app() -> FastAPI:
     def health():
         return {"ok": True}
 
-    # ---- photo API ---------------------------------------------------------
+    # ---- media API ---------------------------------------------------------
 
     @app.get("/api/photos")
     def list_photos(request: Request):
-        if not logged_in(request):
+        role = session_role(request)
+        if role is None:
             return JSONResponse({"error": "not logged in"}, status_code=401)
         photos = []
         for meta_file in meta_dir.glob("*.json"):
@@ -178,7 +196,7 @@ def create_app() -> FastAPI:
             except (OSError, json.JSONDecodeError):
                 continue
         photos.sort(key=lambda p: p.get("uploaded_at", 0), reverse=True)
-        return {"photos": photos}
+        return {"photos": photos, "is_admin": role == "admin"}
 
     @app.post("/api/upload")
     async def upload(
@@ -186,28 +204,59 @@ def create_app() -> FastAPI:
         files: list[UploadFile] = File(...),
         uploader: str = Form(""),
     ):
-        if not logged_in(request):
+        if session_role(request) is None:
             return JSONResponse({"error": "not logged in"}, status_code=401)
         uploader = re.sub(r"\s+", " ", uploader).strip()[:60]
         saved, errors = [], []
         for upload_file in files:
             original_name = upload_file.filename or "photo"
+            ext = Path(original_name).suffix.lower()
             try:
-                saved.append(
-                    await _save_photo(
-                        upload_file, original_name, uploader,
+                if ext in VIDEO_EXTENSIONS:
+                    meta = await _save_video(
+                        upload_file, original_name, uploader, ext,
+                        photos_dir, meta_dir,
+                    )
+                else:
+                    meta = await _save_photo(
+                        upload_file, original_name, uploader, ext,
                         photos_dir, thumbs_dir, meta_dir,
                     )
-                )
+                saved.append(meta)
             except PhotoError as exc:
                 errors.append({"file": original_name, "reason": str(exc)})
         return {"saved": saved, "errors": errors}
 
+    @app.delete("/api/photos/{photo_id}")
+    def delete_photo(request: Request, photo_id: str):
+        role = session_role(request)
+        if role is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        if role != "admin":
+            return JSONResponse({"error": "admin only"}, status_code=403)
+        path = _find_media_file(photos_dir, photo_id)
+        if path is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        # Soft delete: move everything into the trash folder so a mistaken
+        # delete can be undone by moving the files back. Subfolders mirror
+        # the live layout - the photo and its thumbnail share a filename.
+        moves = [
+            (path, "photos"),
+            (thumbs_dir / f"{photo_id}.jpg", "thumbs"),
+            (meta_dir / f"{photo_id}.json", "meta"),
+        ]
+        for src, sub in moves:
+            if src.exists():
+                dest = trash_dir / sub
+                dest.mkdir(exist_ok=True)
+                shutil.move(str(src), dest / src.name)
+        return {"deleted": photo_id}
+
     @app.get("/photos/{photo_id}")
     def photo(request: Request, photo_id: str, download: bool = False):
-        if not logged_in(request):
+        if session_role(request) is None:
             return JSONResponse({"error": "not logged in"}, status_code=401)
-        path = _find_photo_file(photos_dir, photo_id)
+        path = _find_media_file(photos_dir, photo_id)
         if path is None:
             return JSONResponse({"error": "not found"}, status_code=404)
         headers = {}
@@ -221,16 +270,17 @@ def create_app() -> FastAPI:
                     pass
             safe = re.sub(r'[^\w.\- ]', "_", name) or photo_id
             headers["Content-Disposition"] = f'attachment; filename="{safe}"'
-        return FileResponse(path, headers=headers)
+        media_type = VIDEO_MEDIA_TYPES.get(path.suffix.lower())
+        return FileResponse(path, headers=headers, media_type=media_type)
 
     @app.get("/thumbs/{photo_id}")
     def thumb(request: Request, photo_id: str):
-        if not logged_in(request):
+        if session_role(request) is None:
             return JSONResponse({"error": "not logged in"}, status_code=401)
         path = thumbs_dir / f"{photo_id}.jpg"
         if path.exists():
             return FileResponse(path, media_type="image/jpeg")
-        full = _find_photo_file(photos_dir, photo_id)
+        full = _find_media_file(photos_dir, photo_id)
         if full is not None:
             return FileResponse(full)
         return JSONResponse({"error": "not found"}, status_code=404)
@@ -255,7 +305,7 @@ def _load_secret(data_dir: Path) -> bytes:
     return secret
 
 
-def _find_photo_file(photos_dir: Path, photo_id: str) -> Path | None:
+def _find_media_file(photos_dir: Path, photo_id: str) -> Path | None:
     if not re.fullmatch(r"[0-9a-f]{32}", photo_id):
         return None
     for path in photos_dir.glob(f"{photo_id}.*"):
@@ -267,18 +317,18 @@ async def _save_photo(
     upload_file: UploadFile,
     original_name: str,
     uploader: str,
+    ext: str,
     photos_dir: Path,
     thumbs_dir: Path,
     meta_dir: Path,
 ) -> dict:
-    ext = Path(original_name).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise PhotoError("not a supported photo type")
+    if ext not in IMAGE_EXTENSIONS:
+        raise PhotoError("not a supported photo or video type")
     if ext in HEIC_EXTENSIONS and not HEIF_SUPPORTED:
         raise PhotoError("HEIC support isn't installed on this server")
 
-    data = await upload_file.read(MAX_FILE_BYTES + 1)
-    if len(data) > MAX_FILE_BYTES:
+    data = await upload_file.read(MAX_IMAGE_BYTES + 1)
+    if len(data) > MAX_IMAGE_BYTES:
         raise PhotoError("larger than 30 MB")
     if not data:
         raise PhotoError("empty file")
@@ -306,11 +356,48 @@ async def _save_photo(
 
     meta = {
         "id": photo_id,
+        "type": "photo",
         "original_name": original_name,
         "uploader": uploader,
         "uploaded_at": int(time.time()),
         "width": image.width,
         "height": image.height,
+    }
+    (meta_dir / f"{photo_id}.json").write_text(json.dumps(meta))
+    return meta
+
+
+async def _save_video(
+    upload_file: UploadFile,
+    original_name: str,
+    uploader: str,
+    ext: str,
+    photos_dir: Path,
+    meta_dir: Path,
+) -> dict:
+    photo_id = uuid.uuid4().hex
+    dest = photos_dir / f"{photo_id}{ext}"
+    size = 0
+    # Stream to disk in chunks - videos are too big to hold in memory.
+    with dest.open("wb") as out:
+        while chunk := await upload_file.read(1024 * 1024):
+            size += len(chunk)
+            if size > MAX_VIDEO_BYTES:
+                out.close()
+                dest.unlink(missing_ok=True)
+                raise PhotoError("larger than 200 MB")
+            out.write(chunk)
+    if size == 0:
+        dest.unlink(missing_ok=True)
+        raise PhotoError("empty file")
+
+    meta = {
+        "id": photo_id,
+        "type": "video",
+        "original_name": original_name,
+        "uploader": uploader,
+        "uploaded_at": int(time.time()),
+        "size": size,
     }
     (meta_dir / f"{photo_id}.json").write_text(json.dumps(meta))
     return meta
