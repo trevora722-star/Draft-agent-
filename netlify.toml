@@ -1,72 +1,34 @@
-# Netlify deploy config — multi-tenant NPO agent demo.
+# Netlify deploy config — wedding photo album (this branch only).
+#
+# NOTE: on the default branch this file describes the NPO agent demo instead.
+# When creating the site in Netlify, set the production branch to
+# `claude/wedding-photo-platform-mxs50e` to get the wedding album.
 #
 # Usage:
-#   1. Push this branch to GitHub.
-#   2. In Netlify: Add new site → Import an existing project → pick the repo.
-#   3. Set ANTHROPIC_API_KEY in Site settings → Environment variables.
-#   4. Trigger a deploy. Done.
+#   1. In Netlify: Add new site -> Import an existing project -> pick this repo.
+#   2. Site configuration -> Build & deploy -> set the production branch to
+#      claude/wedding-photo-platform-mxs50e.
+#   3. Site configuration -> Environment variables -> add:
+#        WEDDING_USERNAME        login you'll share with guests
+#        WEDDING_PASSWORD        password you'll share with guests
+#        WEDDING_ADMIN_PASSWORD  (optional) different password, same username,
+#                                that can delete photos
+#        WEDDING_TITLE           (optional) e.g. "Anna & James — June 2026"
+#   4. Deploy. Photos are stored in Netlify Blobs (works on the free tier).
 #
-# The static site is the demo.html page in `public/`. The four /api/demo/*
-# endpoints are Python Netlify Functions backed by Claude Haiku 4.5 (chosen
-# so a full grant draft fits inside the 10s sync function timeout).
+# This edition is photos-only: the browser compresses each photo to a
+# high-quality JPEG before upload to fit Netlify's function limits. For
+# videos and full-resolution originals, use the Render deployment instead
+# (see render.yaml and wedding-photos/README.md).
 
 [build]
-  publish = "public"
-  functions = "netlify/functions"
+  publish = "wedding-photos/netlify/public"
 
 [functions]
-  # Each function bundle ships with the npo_agent source tree alongside it.
-  # _shared.py prepends the bundled path to sys.path on cold start.
-  included_files = ["src/npo_agent/**"]
-
-[functions."demo_info"]
-  # Light: just SQL lookups + JSON serialization.
-  timeout = 10
-
-[functions."demo_scrub"]
-  # No LLM call — pure regex scrub.
-  timeout = 10
-
-[functions."demo_draft"]
-  # Heaviest endpoint. Haiku 4.5 + max_tokens=4000 + no thinking
-  # typically returns in 3–6s; 10s ceiling gives headroom for cold-start
-  # SDK init.
-  timeout = 10
-
-[functions."demo_ask"]
-  # Short RAG answer; ~2–4s.
-  timeout = 10
-
-# ---- routing ---------------------------------------------------------------
-# Pretty URLs: the demo.html page calls /api/demo/info, /api/demo/draft, etc.
-# These rewrites map them onto the underlying function names.
+  directory = "wedding-photos/netlify/functions"
+  node_bundler = "esbuild"
 
 [[redirects]]
-  from = "/api/demo/info"
-  to = "/.netlify/functions/demo_info"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/demo/preview-scrub"
-  to = "/.netlify/functions/demo_scrub"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/demo/draft"
-  to = "/.netlify/functions/demo_draft"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/demo/ask"
-  to = "/.netlify/functions/demo_ask"
-  status = 200
-  force = true
-
-# Root → demo UI.
-[[redirects]]
-  from = "/"
-  to = "/demo.html"
+  from = "/login"
+  to = "/login.html"
   status = 200

@@ -1,0 +1,8 @@
+{
+  "name": "wedding-photo-album",
+  "private": true,
+  "description": "Dependencies for the Netlify edition of the wedding photo album (wedding-photos/netlify).",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

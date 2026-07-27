@@ -1,4 +1,6 @@
 __pycache__/
+node_modules/
+.netlify/
 *.pyc
 *.pyo
 .pytest_cache/

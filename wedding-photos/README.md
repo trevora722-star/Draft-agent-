@@ -24,7 +24,45 @@ the files to a `trash/` folder inside the data directory rather than
 destroying them — a mistaken delete can be undone by moving the files back.
 If `WEDDING_ADMIN_PASSWORD` is unset, nobody can delete anything.
 
-## Deploy on Render (recommended)
+## Two ways to deploy
+
+| | **Netlify** (free) | **Render** (~$9.50/mo) |
+|---|---|---|
+| Cost | Free tier works | Starter plan + disk |
+| Photos | Yes — compressed in the browser to high-quality JPEG (max 2400px) before upload | Yes — full-resolution originals, up to 30 MB |
+| Videos | No (over Netlify's upload limits) | Yes, up to 200 MB |
+| Storage | Netlify Blobs | Persistent disk |
+| Always on | Yes | Free plan sleeps; paid doesn't |
+
+Same login, gallery, lightbox, download, and admin-delete features on both.
+
+## Deploy on Netlify (free, photos only)
+
+The `netlify.toml` at the root of this branch configures everything. The
+Netlify edition lives in `wedding-photos/netlify/` (static pages + JS
+functions storing photos in Netlify Blobs).
+
+1. In [Netlify](https://app.netlify.com): **Add new site → Import an
+   existing project**, pick this repo.
+2. In Site configuration → Build & deploy, set the production branch to
+   `claude/wedding-photo-platform-mxs50e`.
+3. In Site configuration → Environment variables, add `WEDDING_USERNAME`,
+   `WEDDING_PASSWORD`, and optionally `WEDDING_ADMIN_PASSWORD` and
+   `WEDDING_TITLE` (same meanings as below).
+4. Deploy, then share the site URL plus the login with the other guests.
+
+Notes for the Netlify edition:
+- Photos are recompressed in the browser before upload (Netlify functions
+  cap request bodies around 6 MB). Quality stays high — 2400px JPEG.
+- iPhone HEIC photos work: iOS converts them to JPEG on upload, and the
+  page decodes and recompresses whatever the browser can read.
+- Deletes are soft: blobs move to `wedding-trash-*` blob stores, restorable
+  from the Netlify dashboard (Blobs tab) or via a function.
+- The gallery page itself is a static shell that anyone can load, but it
+  shows nothing without logging in — every photo, thumbnail, and listing
+  requires the session cookie.
+
+## Deploy on Render (photos + videos, full resolution)
 
 The `render.yaml` at the root of this branch is a one-click Render Blueprint:
 
