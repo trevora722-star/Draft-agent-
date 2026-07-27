@@ -1,38 +1,40 @@
-# Render Blueprint — one-click deploy of the BCSS demo.
+# Render Blueprint — wedding photo sharing platform (this branch only).
+#
+# NOTE: on the default branch this file describes the NPO agent demo instead.
+# When creating the Blueprint in Render, point it at the branch
+# `claude/wedding-photo-platform-mxs50e` to get the wedding album.
 #
 # Usage:
-#   1. Push this branch to GitHub.
-#   2. In Render: New + > Blueprint > point at this repo.
-#   3. Set ANTHROPIC_API_KEY in the dashboard (the only secret you must set).
-#   4. Render gives you a URL like npoagent-bcss-demo.onrender.com — share with her.
+#   1. In Render: New + > Blueprint > pick this repo and this branch.
+#   2. Set WEDDING_USERNAME and WEDDING_PASSWORD when prompted — this is the
+#      login you'll share with the other wedding guests.
+#   3. Render gives you a URL like wedding-photos.onrender.com — share it.
 #
-# Free-tier note: the service sleeps after ~15 min idle and takes ~10s to wake.
-# The persistent disk keeps the seeded tenant + any drafts she generates across
-# restarts; SQLite resets only if you destroy and recreate the service.
+# The attached disk keeps uploaded photos across restarts and deploys.
+# Disks require a paid plan (Starter ~$7/mo + ~$0.25/GB/mo). See
+# wedding-photos/README.md if you want to trial it on the free plan first.
 
 services:
   - type: web
-    name: npoagent-bcss-demo
+    name: wedding-photos
     runtime: python
-    region: oregon  # closest free-tier region; for paid prod, switch to a CA region
-    plan: free
-    buildCommand: pip install -e .
-    startCommand: uvicorn npo_agent.api:app --host 0.0.0.0 --port $PORT
+    plan: starter
+    rootDir: wedding-photos
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
-      - key: ANTHROPIC_API_KEY
-        sync: false  # must be set in the Render dashboard
-      - key: NPO_DEMO_MODE
-        value: "1"
-      - key: NPO_DB_PATH
-        value: /var/data/npo.sqlite
-      - key: NPO_DATA_RESIDENCY
-        value: ca-central
-      - key: NPO_ADMIN_TOKEN
-        generateValue: true  # random per-deploy; not used by the demo UI
+      - key: WEDDING_USERNAME
+        sync: false  # set in the Render dashboard — the login guests will use
+      - key: WEDDING_PASSWORD
+        sync: false  # set in the Render dashboard
+      - key: WEDDING_TITLE
+        value: "Our Wedding Album"  # change to e.g. "Anna & James — June 2026"
+      - key: WEDDING_DATA_DIR
+        value: /var/data
       - key: PYTHON_VERSION
         value: "3.11"
     disk:
-      name: npo-data
+      name: wedding-photo-data
       mountPath: /var/data
-      sizeGB: 1
+      sizeGB: 10
