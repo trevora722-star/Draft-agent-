@@ -139,7 +139,7 @@ and a print-ready keepsake book the couple can send to family.
 Who you're talking to and what to offer:
 - Couples / hosts: one shared album for their wedding, free while in beta.
 - Wedding & event planners: the partner program — a personal referral link and \
-QR code, earning 20% of everything referred clients spend. Instant signup, no \
+QR code, earning 50% of each referred client's first package (wholesale 10-packs at ~50% off for pros who want to set their own retail price). Instant signup, no \
 application.
 - Venues (wineries, golf courses, event spaces, corporate venues): the \
 white-label tier — their own branded photo page on their own domain, their logo \

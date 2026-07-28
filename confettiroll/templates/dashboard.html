@@ -129,13 +129,26 @@
 
     {{EVENTS}}
 
+    <div class="panel">
+      <h2>Packages &amp; credits</h2>
+      <p style="color:var(--soft); font-size:14.5px; margin-bottom:12px">
+        Event credits: <strong>{{CREDITS}}</strong> · everything is free while
+        we're in beta — buying early locks in launch pricing and supports the build.</p>
+      <p>
+        <button class="mini buy-btn" data-package="celebration" type="button">Celebration — $49</button>
+        <button class="mini buy-btn" data-package="heirloom" type="button">Heirloom — $99</button>
+        <button class="mini buy-btn" data-package="wholesale10" type="button">Partner 10-Pack — $245</button>
+      </p>
+      <p id="buy-status" style="color:var(--soft); font-size:14px; margin-top:8px"></p>
+    </div>
+
     {{VENUE_PANEL}}
 
     <div class="panel" style="margin-top:30px">
       <h2>Refer &amp; earn — for wedding &amp; event planners</h2>
       <p style="color:var(--soft); font-size:14.5px; line-height:1.6; margin-bottom:14px">
         Share your link with couples and clients. When someone signs up through
-        it, you earn <strong>20% of everything they spend</strong> — tracked
+        it, you earn <strong>50% of their first package</strong> — tracked
         below and paid out when billing launches (the platform is free during
         the beta).
       </p>
@@ -213,6 +226,19 @@
       status.textContent = "Couldn't generate a kit right now.";
       btn.disabled = false;
     }
+  });
+
+  document.querySelectorAll(".buy-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const status = document.getElementById("buy-status");
+      status.textContent = "Opening checkout…";
+      try {
+        const res = await fetch(`/api/checkout/${btn.dataset.package}`, { method: "POST" });
+        const data = await res.json();
+        if (data.url) { location.href = data.url; return; }
+        status.textContent = data.message || data.error || "Checkout isn't available yet.";
+      } catch { status.textContent = "Checkout isn't available right now."; }
+    });
   });
 
   document.querySelectorAll(".book-btn").forEach(btn => {

@@ -79,6 +79,34 @@ Set `CR_KIOSK_KEY` and open `/kiosk?key=<key>` once on the booth tablet
 - Rate limiting per device, a no-AI fallback message, and an idle reset
   that clears the conversation between visitors.
 
+## Pricing packages & billing (Stripe)
+
+Packages are defined once in `billing.py` and rendered everywhere (landing
+page, dashboard, `/api/packages`):
+
+| Package | Price | What it is |
+|---|---|---|
+| Starter | Free | 1 event, 100 photos, 3-month gallery |
+| Celebration | $49/event | Unlimited media, AI features, live wall, book PDF, 12 months |
+| Heirloom | $99/event | Celebration + printed book + custom domain + 24 months |
+| Partner 10-Pack | $245 | 10 Celebration credits at ~50% off — pros resell at their price |
+| Printed book | $59 | 8×8" hardcover (fulfillment via print-on-demand, next build) |
+| Venue license | $79/mo | White-label unlimited events (subscription — wire when Stripe keys land) |
+
+Set `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` and checkout goes live:
+`POST /api/checkout/<package>` creates a Stripe Checkout Session, and
+`/stripe/webhook` (point a Stripe webhook at it for
+`checkout.session.completed`) records the purchase and grants event
+credits idempotently (`purchases` + `credits` tables; balance shown on
+the dashboard). Without keys, checkout answers `{"beta": true}` and the UI
+says everything is free during the beta.
+
+**Partner economics** (swept across all copy): referral partners earn
+**50% of each referred client's first package**; wholesale 10-packs let
+pros set their own retail; book revenue stays 100% with the platform.
+`CR_PARTNER_RATE` / `CR_REFERRAL_FEE` (default $25/referred event) control
+the outreach pitch copy and dashboard estimates.
+
 ## Booth avatar & partner outreach engine
 
 - **Callie, the booth avatar**: the kiosk chat is now fronted by an animated

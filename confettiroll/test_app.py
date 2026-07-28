@@ -189,7 +189,7 @@ def test_referral_attribution(client):
     dashboard = client.get(f"{BASE}/dashboard").text
     assert "<strong>1</strong> referred signup(s)" in dashboard
     assert "<strong>1</strong> event(s) created by your referrals" in dashboard
-    assert "$10.00" in dashboard
+    assert "$25.00" in dashboard
 
     # a bogus ref code doesn't break signup
     res = client.post(
@@ -255,7 +255,7 @@ def test_recap_owner_only(client, monkeypatch):
 def test_partner_page_and_badges(client):
     page = client.get(f"{BASE}/partners")
     assert page.status_code == 200
-    assert "20%" in page.text and "badge-light.svg" in page.text
+    assert "50%" in page.text and "badge-light.svg" in page.text
     assert client.get(f"{BASE}/static/badge-light.svg").status_code == 200
     assert client.get(f"{BASE}/static/badge-dark.svg").status_code == 200
 
@@ -530,6 +530,53 @@ def test_outreach_engine(client, monkeypatch):
     csv = client.get(f"{BASE}/outreach/prospects.csv", params={"key": "expo-key-1"})
     assert csv.status_code == 200 and "joined" in csv.text
     assert client.get(f"{BASE}/outreach/prospects.csv").status_code == 403
+
+
+def test_packages_and_landing(client):
+    data = client.get(f"{BASE}/api/packages").json()
+    assert data["packages"]["celebration"]["price"] == "$49"
+    assert data["packages"]["wholesale10"]["kind"] == "wholesale"
+    assert data["stripe"] is False
+
+    landing = client.get(f"{BASE}/").text
+    for expected in ("Celebration", "Heirloom", "$49", "$99", "$245",
+                     "$79/month", "Most popular", "Founding beta"):
+        assert expected in landing
+
+
+def test_checkout_and_webhook(client, monkeypatch):
+    import app as app_module
+
+    # checkout requires login; free tier short-circuits; beta mode without Stripe
+    assert client.post(f"{BASE}/api/checkout/celebration").status_code == 401
+    _signup(client)
+    assert client.post(f"{BASE}/api/checkout/starter").json()["beta"] is True
+    assert client.post(f"{BASE}/api/checkout/celebration").json()["beta"] is True
+    assert client.post(f"{BASE}/api/checkout/nope").status_code == 404
+
+    # with Stripe "configured", checkout returns a session URL
+    monkeypatch.setattr(app_module.billing, "stripe_enabled", lambda: True)
+    monkeypatch.setattr(app_module.billing, "create_checkout",
+                        lambda pkg, uid, base, event_id="": f"https://stripe.test/{pkg}/{uid}")
+    res = client.post(f"{BASE}/api/checkout/wholesale10")
+    assert res.json()["url"].startswith("https://stripe.test/wholesale10/")
+    user_id = int(res.json()["url"].rsplit("/", 1)[1])
+
+    # webhook grants credits (idempotently) and records the purchase
+    fake_event = {
+        "type": "checkout.session.completed",
+        "data": {"object": {
+            "id": "cs_test_1", "amount_total": 24500,
+            "metadata": {"user_id": str(user_id), "package": "wholesale10", "event_id": ""},
+        }},
+    }
+    monkeypatch.setattr(app_module.billing, "parse_webhook", lambda payload, sig: fake_event)
+    for _ in range(2):  # Stripe retries deliveries; credits must not double
+        res = client.post(f"{BASE}/stripe/webhook", json={},
+                          headers={"stripe-signature": "sig"})
+        assert res.status_code == 200
+    dashboard = client.get(f"{BASE}/dashboard").text
+    assert "Event credits: <strong>10</strong>" in dashboard
 
 
 def _venue_id(client):

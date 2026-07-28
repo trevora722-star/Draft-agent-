@@ -45,6 +45,7 @@ from PIL import Image, ImageOps
 import qrcode
 
 import ai_agents
+import billing
 import book as book_maker
 
 try:  # iPhone photos arrive as HEIC; convert them so browsers can show them.
@@ -153,6 +154,22 @@ def init_db(db_path: Path) -> None:
                 role TEXT NOT NULL DEFAULT 'other',
                 interest TEXT NOT NULL DEFAULT '',
                 source TEXT NOT NULL DEFAULT 'tradeshow',
+                created_at INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS purchases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                package TEXT NOT NULL,
+                amount_cents INTEGER NOT NULL,
+                stripe_session TEXT NOT NULL DEFAULT '',
+                event_id TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS credits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                delta INTEGER NOT NULL,
+                reason TEXT NOT NULL DEFAULT '',
                 created_at INTEGER NOT NULL
             );
             CREATE TABLE IF NOT EXISTS prospects (
@@ -340,9 +357,9 @@ async def _save_video(upload_file, original_name, uploader, ext, dirs) -> dict:
 
 def create_app() -> FastAPI:
     base_domain = os.environ.get("CR_BASE_DOMAIN", "confettiroll.com").lower()
-    # Estimated planner commission per referred event (20% of a ~$50 package),
+    # Estimated commission per referred event (50% of a ~$49 first package),
     # tracked as pending and payable once billing launches.
-    referral_fee = float(os.environ.get("CR_REFERRAL_FEE", "10"))
+    referral_fee = float(os.environ.get("CR_REFERRAL_FEE", "25"))
     data_dir = Path(os.environ.get("CR_DATA_DIR", BASE_DIR / "data"))
     data_dir.mkdir(parents=True, exist_ok=True)
     db_path = data_dir / "confettiroll.sqlite"
@@ -537,7 +554,14 @@ def create_app() -> FastAPI:
             return venue_page(venue)
         if current_user(request) is not None:
             return RedirectResponse("/dashboard", status_code=303)
-        return page("landing", base=base_domain)
+        return page(
+            "landing", base=base_domain,
+            p_celebration=billing.price_label("celebration"),
+            p_heirloom=billing.price_label("heirloom"),
+            p_pack=billing.price_label("wholesale10"),
+            p_book=billing.price_label("printed_book"),
+            p_venue=f"${billing.VENUE_MONTHLY_CENTS // 100}",
+        )
 
     def venue_page(venue: sqlite3.Row) -> HTMLResponse:
         vdir = venue_dir(data_dir, venue["id"])
@@ -679,6 +703,7 @@ def create_app() -> FastAPI:
                 " (SELECT id FROM users WHERE referred_by = ?)", (user["id"],)
             ).fetchone()["n"]
             venue = user_venue(conn, user["id"])
+            balance = credit_balance(conn, user["id"])
         rows = []
         for ev in events:
             count = len(list((data_dir / "events" / ev["id"] / "meta").glob("*.json"))) \
@@ -813,6 +838,7 @@ def create_app() -> FastAPI:
             error=error_html,
             venue_panel=venue_panel,
             venue_select=venue_select,
+            credits=str(balance),
             ref_code=esc(referral_code),
             ref_link=esc(f"https://{base_domain}/signup?ref={referral_code}"),
             ref_signups=str(ref_signups),
@@ -998,7 +1024,7 @@ def create_app() -> FastAPI:
 
     # ---- partner outreach engine (photographers / planners / venues) -------
 
-    partner_rate = os.environ.get("CR_PARTNER_RATE", "20%")
+    partner_rate = os.environ.get("CR_PARTNER_RATE", "50% of the first sale")
 
     @app.get("/outreach", response_class=HTMLResponse)
     def outreach(request: Request, key: str = ""):
@@ -1283,6 +1309,95 @@ def create_app() -> FastAPI:
                  kit["accent"], venue_id),
             )
         return kit
+
+    # ---- billing: packages, checkout, webhook ------------------------------
+
+    @app.get("/api/packages")
+    def packages():
+        return {
+            "packages": {
+                k: {"name": p["name"], "price": billing.price_label(k),
+                    "tagline": p["tagline"], "features": p["features"],
+                    "kind": p["kind"]}
+                for k, p in billing.PACKAGES.items()
+            },
+            "venue_monthly": f"${billing.VENUE_MONTHLY_CENTS // 100}",
+            "stripe": billing.stripe_enabled(),
+        }
+
+    @app.post("/api/checkout/{package_key}")
+    def checkout(request: Request, package_key: str, event_id: str = ""):
+        user = current_user(request)
+        if user is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        package = billing.PACKAGES.get(package_key)
+        if package is None:
+            return JSONResponse({"error": "unknown package"}, status_code=404)
+        if package["price_cents"] == 0:
+            return {"beta": True, "message": "Starter is free - just create your event!"}
+        if not billing.stripe_enabled():
+            return {"beta": True,
+                    "message": "Everything is free during the beta - paid packages "
+                               "launch soon, and beta users keep their events."}
+        try:
+            url = billing.create_checkout(
+                package_key, user["id"], f"https://{base_domain}", event_id[:64]
+            )
+        except Exception:
+            return JSONResponse({"error": "checkout failed - try again shortly"},
+                                status_code=502)
+        return {"url": url}
+
+    @app.post("/stripe/webhook")
+    async def stripe_webhook(request: Request):
+        if not billing.stripe_enabled():
+            return JSONResponse({"error": "billing disabled"}, status_code=503)
+        payload = await request.body()
+        try:
+            event = billing.parse_webhook(
+                payload, request.headers.get("stripe-signature", "")
+            )
+        except Exception:
+            return JSONResponse({"error": "bad signature"}, status_code=400)
+        if event["type"] == "checkout.session.completed":
+            session = event["data"]["object"]
+            meta = session.get("metadata") or {}
+            package_key = meta.get("package", "")
+            package = billing.PACKAGES.get(package_key)
+            try:
+                user_id = int(meta.get("user_id", "0"))
+            except ValueError:
+                user_id = 0
+            if package and user_id:
+                with db() as conn:
+                    already = conn.execute(
+                        "SELECT 1 FROM purchases WHERE stripe_session = ?",
+                        (session.get("id", ""),),
+                    ).fetchone()
+                    if not already:  # webhooks can be delivered twice
+                        conn.execute(
+                            "INSERT INTO purchases (user_id, package, amount_cents,"
+                            " stripe_session, event_id, created_at) VALUES (?,?,?,?,?,?)",
+                            (user_id, package_key,
+                             session.get("amount_total") or package["price_cents"],
+                             session.get("id", ""), meta.get("event_id", ""),
+                             int(time.time())),
+                        )
+                        if package["credits"]:
+                            conn.execute(
+                                "INSERT INTO credits (user_id, delta, reason, created_at)"
+                                " VALUES (?,?,?,?)",
+                                (user_id, package["credits"],
+                                 f"purchase:{package_key}", int(time.time())),
+                            )
+        return {"received": True}
+
+    def credit_balance(conn: sqlite3.Connection, user_id: int) -> int:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(delta), 0) AS n FROM credits WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        return row["n"]
 
     @app.get("/partners", response_class=HTMLResponse)
     def partners(request: Request):
