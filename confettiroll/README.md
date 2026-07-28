@@ -63,6 +63,22 @@ studio** — no sales call, no configuration by us:
 - Storage: `data/venues/<id>/` (logo.png + photos/), rows in `venues`,
   `events.venue_id` links events.
 
+## Trade show kiosk (virtual booth agent)
+
+Set `CR_KIOSK_KEY` and open `/kiosk?key=<key>` once on the booth tablet
+(the device stays unlocked for a 3-day show weekend). The kiosk shows:
+
+- A pitch panel with the three offers and a QR code to a live demo album
+  (`/kiosk?key=...&event=<slug>` points the QR at any event — pair it with
+  that event's `/stream` on the booth TV for the full effect).
+- **The booth agent**: a Claude-powered chat (quick-reply chips + free
+  text) that identifies whether the visitor is a couple, planner, or venue,
+  pitches the right offering from a grounded product brief, and calls its
+  `save_lead` tool when someone shares contact details. Leads land in the
+  `leads` table; export with `/kiosk/leads.csv?key=<key>`.
+- Rate limiting per device, a no-AI fallback message, and an idle reset
+  that clears the conversation between visitors.
+
 ## Keepsake book (heirloom PDF album)
 
 One click on a dashboard event ("📖 Keepsake book") composes a print-ready

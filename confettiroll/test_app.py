@@ -16,6 +16,7 @@ EVENT = "http://anna-and-james.confettiroll.test"
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("CR_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("CR_BASE_DOMAIN", "confettiroll.test")
+    monkeypatch.setenv("CR_KIOSK_KEY", "expo-key-1")
     import app as app_module
     from fastapi.testclient import TestClient
 
@@ -447,6 +448,47 @@ def test_keepsake_book(client, monkeypatch, tmp_path):
     ids = _re.findall(r'data-event="([0-9a-f]{32})"', client.get(f"{BASE}/dashboard").text)
     other = [i for i in ids if i != event_id][0]
     assert client.post(f"{BASE}/api/events/{other}/book").status_code == 400
+
+
+def test_kiosk_booth_agent(client, monkeypatch):
+    import app as app_module
+
+    # locked until the device is unlocked with the key
+    assert client.get(f"{BASE}/kiosk", follow_redirects=False).status_code == 403
+    assert client.post(f"{BASE}/api/kiosk/chat", json={"messages": []}).status_code == 403
+
+    res = client.get(f"{BASE}/kiosk", params={"key": "expo-key-1"})
+    assert res.status_code == 200
+    assert "Ask me anything" in res.text
+    assert client.get(f"{BASE}/kiosk-qr.png").status_code == 200
+
+    # the booth agent replies and saves leads via its tool
+    monkeypatch.setattr(app_module.ai_agents, "ai_enabled", lambda: True)
+
+    def fake_booth_reply(history, save_lead):
+        if "planner" in history[-1]["content"]:
+            save_lead("Pat Planner", "pat@events.com", "planner", "referral program")
+            return "Saved! The team will reach out about your 20% partner link."
+        return "Welcome to the booth!"
+
+    monkeypatch.setattr(app_module.ai_agents, "booth_reply", fake_booth_reply)
+
+    res = client.post(f"{BASE}/api/kiosk/chat",
+                      json={"messages": [{"role": "user", "content": "hi"}]})
+    assert res.json()["reply"] == "Welcome to the booth!"
+
+    res = client.post(f"{BASE}/api/kiosk/chat",
+                      json={"messages": [{"role": "user", "content": "I'm a planner"}]})
+    assert "20%" in res.json()["reply"]
+
+    # the lead landed and exports as CSV (with the key, not just the cookie)
+    csv = client.get(f"{BASE}/kiosk/leads.csv", params={"key": "expo-key-1"})
+    assert csv.status_code == 200
+    assert "pat@events.com" in csv.text and "planner" in csv.text
+    assert client.get(f"{BASE}/kiosk/leads.csv").status_code == 403
+
+    # malformed chat bodies are rejected
+    assert client.post(f"{BASE}/api/kiosk/chat", json={"messages": "hi"}).status_code == 400
 
 
 def _venue_id(client):

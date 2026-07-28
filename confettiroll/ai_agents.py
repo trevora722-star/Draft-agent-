@@ -125,6 +125,118 @@ def caption_photo(thumb_path: Path) -> dict | None:
         return None
 
 
+BOOTH_SYSTEM = """You are the ConfettiRoll booth assistant at a wedding & events trade show, \
+chatting with visitors on a tablet at the booth.
+
+What ConfettiRoll is: a private photo- and video-sharing platform for events. \
+Guests scan a QR code, enter the event password, and every photo they take lands \
+in one beautiful shared gallery — no app to install. Includes a live big-screen \
+slideshow where new photos appear seconds after upload (it's running on the TV \
+at this booth), AI that captions and organizes every photo so albums are \
+searchable with automatic highlights, a one-click AI-written recap of the day, \
+and a print-ready keepsake book the couple can send to family.
+
+Who you're talking to and what to offer:
+- Couples / hosts: one shared album for their wedding, free while in beta.
+- Wedding & event planners: the partner program — a personal referral link and \
+QR code, earning 20% of everything referred clients spend. Instant signup, no \
+application.
+- Venues (wineries, golf courses, event spaces, corporate venues): the \
+white-label tier — their own branded photo page on their own domain, their logo \
+and photos, unlimited events, with an AI brand agent that writes their page \
+copy. Planned at roughly $79/month once billing launches.
+
+Ground rules:
+- Keep replies to 2-4 short, warm sentences — this is a busy expo floor. No markdown.
+- Answer only from the knowledge above; if asked something you don't know \
+(exact launch dates, integrations, custom contracts), say the team will follow \
+up — a great moment to collect contact info.
+- Early in the conversation, find out whether they're a couple, a planner, or a \
+venue, and tailor everything to that.
+- When the conversation is warm, invite them to leave their name and email so \
+the team can follow up (or set up their venue page / partner link for them). \
+When they share contact details, save them with the save_lead tool, then \
+confirm warmly that the team will be in touch.
+- Stay on topic; politely steer unrelated conversations back to the product or \
+suggest they visit the website."""
+
+BOOTH_LEAD_TOOL = {
+    "name": "save_lead",
+    "description": (
+        "Save a booth visitor's contact details so the team can follow up. "
+        "Call this as soon as a visitor shares their contact info."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "Visitor's name"},
+            "email": {"type": "string", "description": "Visitor's email address"},
+            "role": {
+                "type": "string",
+                "enum": ["couple", "planner", "venue", "other"],
+                "description": "What kind of visitor they are",
+            },
+            "interest": {
+                "type": "string",
+                "description": "One line on what they're interested in (e.g. 'winery, white-label, ~30 weddings/yr')",
+            },
+        },
+        "required": ["name", "email", "role", "interest"],
+        "additionalProperties": False,
+    },
+}
+
+
+def booth_reply(history: list[dict], save_lead) -> str | None:
+    """One booth-agent turn. history = [{role, content}, ...]; save_lead is a
+    callback(name, email, role, interest) that persists the lead."""
+    if not ai_enabled():
+        return None
+    messages = list(history)
+    try:
+        for _ in range(3):
+            response = _get_client().beta.messages.create(
+                model=model(),
+                max_tokens=1024,
+                betas=FALLBACK_BETAS,
+                fallbacks="default",
+                system=BOOTH_SYSTEM,
+                tools=[BOOTH_LEAD_TOOL],
+                messages=messages,
+            )
+            if response.stop_reason == "refusal":
+                return None
+            tool_uses = [b for b in response.content if b.type == "tool_use"]
+            if not tool_uses:
+                return next(
+                    (b.text for b in response.content if b.type == "text"), ""
+                ).strip() or None
+            messages.append({"role": "assistant", "content": response.content})
+            results = []
+            for block in tool_uses:
+                try:
+                    save_lead(
+                        str(block.input.get("name", ""))[:80],
+                        str(block.input.get("email", ""))[:120],
+                        str(block.input.get("role", "other"))[:20],
+                        str(block.input.get("interest", ""))[:300],
+                    )
+                    results.append({
+                        "type": "tool_result", "tool_use_id": block.id,
+                        "content": "Lead saved - the team will follow up.",
+                    })
+                except Exception:
+                    results.append({
+                        "type": "tool_result", "tool_use_id": block.id,
+                        "content": "Couldn't save the lead - apologize and ask them to visit the website.",
+                        "is_error": True,
+                    })
+            messages.append({"role": "user", "content": results})
+        return None
+    except Exception:
+        return None
+
+
 BRAND_KIT_SCHEMA = {
     "type": "object",
     "properties": {

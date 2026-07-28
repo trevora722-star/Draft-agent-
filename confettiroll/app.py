@@ -146,6 +146,15 @@ def init_db(db_path: Path) -> None:
                 custom_domain TEXT UNIQUE,
                 created_at INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS leads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'other',
+                interest TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT 'tradeshow',
+                created_at INTEGER NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS venues (
                 id TEXT PRIMARY KEY,
                 owner_id INTEGER UNIQUE NOT NULL REFERENCES users(id),
@@ -330,7 +339,7 @@ def create_app() -> FastAPI:
     tpl = {
         name: (BASE_DIR / "templates" / f"{name}.html").read_text()
         for name in ("landing", "signup", "login", "dashboard", "guest_login",
-                     "gallery", "partners", "venue", "stream")
+                     "gallery", "partners", "venue", "stream", "kiosk")
     }
 
     app = FastAPI(title="ConfettiRoll", docs_url=None, redoc_url=None)
@@ -471,11 +480,11 @@ def create_app() -> FastAPI:
             return "guest"
         return None
 
-    def too_many_attempts(key: str) -> bool:
+    def too_many_attempts(key: str, limit: int = LOGIN_ATTEMPT_LIMIT) -> bool:
         now = time.time()
         attempts = [t for t in login_attempts.get(key, []) if now - t < LOGIN_ATTEMPT_WINDOW]
         login_attempts[key] = attempts
-        return len(attempts) >= LOGIN_ATTEMPT_LIMIT
+        return len(attempts) >= limit
 
     def record_attempt(key: str) -> None:
         login_attempts.setdefault(key, []).append(time.time())
@@ -868,6 +877,125 @@ def create_app() -> FastAPI:
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         return Response(buf.getvalue(), media_type="image/png")
+
+    # ---- trade show kiosk (virtual booth agent) ----------------------------
+
+    kiosk_key = os.environ.get("CR_KIOSK_KEY", "")
+
+    def make_kiosk_token() -> str:
+        exp = str(int(time.time()) + 60 * 60 * 24 * 3)  # a show weekend
+        payload = f"k.{exp}"
+        return f"{payload}.{sign(payload)}"
+
+    def kiosk_ok(request: Request) -> bool:
+        token = request.cookies.get("cr_kiosk", "")
+        parts = token.split(".")
+        if len(parts) != 3 or parts[0] != "k":
+            return False
+        if not hmac.compare_digest(parts[2], sign(f"k.{parts[1]}")):
+            return False
+        return parts[1].isdigit() and int(parts[1]) > time.time()
+
+    @app.get("/kiosk", response_class=HTMLResponse)
+    def kiosk(request: Request, key: str = "", event: str = ""):
+        if not kiosk_key:
+            return JSONResponse({"error": "kiosk not enabled"}, status_code=404)
+        authed = kiosk_ok(request)
+        if not authed and not hmac.compare_digest(key, kiosk_key):
+            return HTMLResponse(
+                "<p style='font-family:sans-serif;padding:40px'>Kiosk locked — open "
+                "/kiosk?key=&lt;your CR_KIOSK_KEY&gt; once on this device.</p>",
+                status_code=403,
+            )
+        demo_url = f"https://{base_domain}/signup"
+        if event:
+            with db() as conn:
+                ev = conn.execute("SELECT * FROM events WHERE slug = ?", (event,)).fetchone()
+            if ev is not None:
+                demo_url = event_url(ev)
+        response = page(
+            "kiosk",
+            demo_url=esc(demo_url.replace("https://", "")),
+            qr_src=esc(f"/kiosk-qr.png?event={event}" if event else "/kiosk-qr.png"),
+            base=esc(base_domain),
+        )
+        if not authed:
+            response.set_cookie("cr_kiosk", make_kiosk_token(), max_age=60 * 60 * 24 * 3,
+                                httponly=True, samesite="lax")
+        return response
+
+    @app.get("/kiosk-qr.png")
+    def kiosk_qr(request: Request, event: str = ""):
+        if not kiosk_ok(request):
+            return JSONResponse({"error": "kiosk locked"}, status_code=403)
+        target = f"https://{base_domain}/signup"
+        if event:
+            with db() as conn:
+                ev = conn.execute("SELECT * FROM events WHERE slug = ?", (event,)).fetchone()
+            if ev is not None:
+                target = event_url(ev)
+        img = qrcode.make(target)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return Response(buf.getvalue(), media_type="image/png")
+
+    @app.post("/api/kiosk/chat")
+    async def kiosk_chat(request: Request):
+        if not kiosk_ok(request):
+            return JSONResponse({"error": "kiosk locked"}, status_code=403)
+        ip = request.client.host if request.client else "unknown"
+        if too_many_attempts(f"kiosk:{ip}", limit=120):  # a busy booth all afternoon
+            return JSONResponse({"error": "slow down a moment"}, status_code=429)
+        record_attempt(f"kiosk:{ip}")
+        if not ai_agents.ai_enabled():
+            return JSONResponse(
+                {"reply": "Our booth assistant is napping - but grab the QR code, "
+                          "or leave your email with the humans at the booth!"})
+        try:
+            body = await request.json()
+            raw = body.get("messages", [])
+        except Exception:
+            return JSONResponse({"error": "bad request"}, status_code=400)
+        if not isinstance(raw, list):
+            return JSONResponse({"error": "bad request"}, status_code=400)
+        history = []
+        for m in raw[-20:]:
+            if not isinstance(m, dict):
+                continue
+            role = m.get("role")
+            content = str(m.get("content", ""))[:1000].strip()
+            if role in ("user", "assistant") and content:
+                history.append({"role": role, "content": content})
+        if not history or history[-1]["role"] != "user":
+            return JSONResponse({"error": "bad request"}, status_code=400)
+
+        def save_lead(name: str, email: str, role: str, interest: str) -> None:
+            with db() as conn:
+                conn.execute(
+                    "INSERT INTO leads (name, email, role, interest, created_at)"
+                    " VALUES (?,?,?,?,?)",
+                    (name, email, role, interest, int(time.time())),
+                )
+
+        reply = ai_agents.booth_reply(history, save_lead)
+        if reply is None:
+            reply = ("Great question - I'll let the team give you the full answer. "
+                     "Want to leave your name and email so they can follow up?")
+        return {"reply": reply}
+
+    @app.get("/kiosk/leads.csv")
+    def kiosk_leads(key: str = ""):
+        if not kiosk_key or not hmac.compare_digest(key, kiosk_key):
+            return JSONResponse({"error": "kiosk locked"}, status_code=403)
+        with db() as conn:
+            rows = conn.execute("SELECT * FROM leads ORDER BY created_at DESC").fetchall()
+        lines = ["name,email,role,interest,source,created_at"]
+        for r in rows:
+            fields = [str(r[k] or "").replace('"', "'") for k in
+                      ("name", "email", "role", "interest", "source", "created_at")]
+            lines.append(",".join(f'"{f}"' for f in fields))
+        return Response("\n".join(lines), media_type="text/csv",
+                        headers={"Content-Disposition": 'attachment; filename="leads.csv"'})
 
     # ---- venue (white-label) management ------------------------------------
 
