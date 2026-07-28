@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ConfettiRoll — Partner outreach</title>
+<style>
+  :root {
+    --ink: #2c2733; --soft: #7d7488; --pink: #e85d8a; --violet: #7c5cbf;
+    --paper: #fdfbf7; --card: #ffffff; --line: #ece6ef;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: Georgia, serif; }
+  main { max-width: 900px; margin: 0 auto; padding: 30px 24px 80px; }
+  h1 { font-size: 28px; font-weight: normal; margin-bottom: 4px; }
+  .sub { color: var(--soft); font-size: 14.5px; margin-bottom: 22px; }
+  .panel {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px 22px; margin-bottom: 22px;
+  }
+  .panel h2 { font-size: 17px; font-weight: normal; margin-bottom: 10px; }
+  textarea {
+    width: 100%; min-height: 90px; padding: 12px; font-size: 13.5px;
+    font-family: "SF Mono", Menlo, monospace; border: 1px solid var(--line);
+    border-radius: 8px; background: #fdfcfa;
+  }
+  .mini {
+    display: inline-block; font-size: 12.5px; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--pink); border: 1px solid var(--line); border-radius: 999px;
+    padding: 7px 14px; background: none; cursor: pointer; text-decoration: none;
+    font-family: "Helvetica Neue", Arial, sans-serif; margin-right: 6px;
+  }
+  .mini:hover { border-color: var(--pink); }
+  .prospect {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 18px; margin-bottom: 10px;
+  }
+  .phead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ptag {
+    font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    background: #f2ecf6; color: var(--violet); border-radius: 999px; padding: 3px 10px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+  .pmeta { color: var(--soft); font-size: 13.5px; flex: 1; }
+  .status-sel {
+    padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;
+    font-size: 13px; background: #fdfcfa; font-family: inherit;
+  }
+  .pitch { margin-top: 12px; background: #faf7f2; border-radius: 10px; padding: 12px 14px; }
+  .psubj { font-weight: bold; font-size: 14.5px; margin-bottom: 8px; }
+  .pitch pre {
+    white-space: pre-wrap; font-family: inherit; font-size: 14px;
+    line-height: 1.55; margin-bottom: 10px;
+  }
+  .empty { color: var(--soft); font-style: italic; padding: 10px; }
+  .toolrow { margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Partner outreach</h1>
+  <p class="sub">{{COUNT}} prospects · offering partners {{RATE}} · pitches written by the AI, sent by you</p>
+
+  <div class="panel">
+    <h2>Add prospects (one per line: name, business, type, email, city, notes)</h2>
+    <form method="post" action="/api/outreach/prospects">
+      <textarea name="bulk" placeholder="Jess Lee, Golden Hour Photography, photographer, jess@goldenhour.com, Toronto, shoots 30 weddings/yr
+Sam Ortiz, Lakeview Manor, venue, events@lakeviewmanor.com, Muskoka,"></textarea>
+      <div style="margin-top:10px">
+        <button class="mini" type="submit">Add prospects</button>
+        <span style="color:var(--soft); font-size:13px">type = photographer · planner · venue</span>
+      </div>
+    </form>
+  </div>
+
+  <div class="toolrow">
+    <a class="mini" id="export-link" href="#">Export CSV</a>
+  </div>
+
+  {{ROWS}}
+</main>
+<script>
+  document.getElementById("export-link").href =
+    "/outreach/prospects.csv?key=" + (new URLSearchParams(location.search).get("key") || "");
+
+  document.querySelectorAll(".pitch-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      btn.textContent = "Writing…"; btn.disabled = true;
+      try {
+        const res = await fetch(`/api/outreach/prospects/${btn.dataset.id}/pitch`, { method: "POST" });
+        if (!res.ok) { const d = await res.json(); btn.textContent = d.error || "Failed"; return; }
+        location.reload();
+      } catch { btn.textContent = "Failed"; btn.disabled = false; }
+    });
+  });
+
+  document.querySelectorAll(".status-sel").forEach(sel => {
+    sel.addEventListener("change", () => {
+      const form = new FormData();
+      form.append("status", sel.value);
+      fetch(`/api/outreach/prospects/${sel.dataset.id}/status`, { method: "POST", body: form });
+    });
+  });
+
+  document.querySelectorAll(".copy-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const card = btn.closest(".pitch");
+      const text = card.querySelector(".psubj").textContent + "\n\n" + card.querySelector("pre").textContent;
+      navigator.clipboard.writeText(text).then(() => btn.textContent = "Copied!");
+    });
+  });
+</script>
+</body>
+</html>

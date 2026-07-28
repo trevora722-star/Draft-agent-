@@ -237,6 +237,84 @@ def booth_reply(history: list[dict], save_lead) -> str | None:
         return None
 
 
+PITCH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "subject": {
+            "type": "string",
+            "description": "Email subject line, under 60 characters, specific to this prospect. No clickbait, no emoji.",
+        },
+        "body": {
+            "type": "string",
+            "description": "The outreach email body: plain text, 120-170 words, personal, specific to their business type, one clear call to action. Sign off as 'The ConfettiRoll team'. No markdown, no placeholders like [Name].",
+        },
+    },
+    "required": ["subject", "body"],
+    "additionalProperties": False,
+}
+
+
+def write_pitch(prospect: dict, partner_rate: str, signup_url: str) -> dict | None:
+    """Draft a personalized partner-recruitment email for one prospect."""
+    if not ai_enabled():
+        return None
+    kind = prospect.get("type", "planner")
+    angle = {
+        "photographer": (
+            "They shoot the professional photos; we collect the guest photos. "
+            "Position us as complementary, never competitive: recommending us "
+            "makes their delivery look richer, and they earn on every referral."
+        ),
+        "planner": (
+            "Planners recommend vendors constantly; this is a new line item "
+            "that costs their clients little and pays the planner on every "
+            "referral, with a personal link and QR they can put in welcome packets."
+        ),
+        "venue": (
+            "Venues can go beyond referrals: a white-label branded photo page "
+            "on their own domain, unlimited events, a live photo wall for "
+            "their TVs. Referral earnings are the easy first step."
+        ),
+    }.get(kind, "General event professional; keep it broad but concrete.")
+    try:
+        response = _get_client().beta.messages.create(
+            model=model(),
+            max_tokens=1024,
+            betas=FALLBACK_BETAS,
+            fallbacks="default",
+            output_config={"format": {"type": "json_schema", "schema": PITCH_SCHEMA}},
+            messages=[{
+                "role": "user",
+                "content": (
+                    "Write a cold outreach email recruiting an event professional "
+                    "as a ConfettiRoll partner.\n\n"
+                    f"Prospect: {prospect.get('name', '')} at "
+                    f"{prospect.get('business', '')} ({kind}"
+                    + (f", {prospect['city']}" if prospect.get("city") else "") + ")\n"
+                    + (f"Notes: {prospect['notes']}\n" if prospect.get("notes") else "")
+                    + f"\nAngle for this prospect type: {angle}\n\n"
+                    "The offer: ConfettiRoll is a private guest photo-sharing "
+                    "platform for weddings and events (QR code in, one shared "
+                    "album, live big-screen slideshow, AI-organized photos, a "
+                    f"keepsake book). Partners earn {partner_rate} of what their "
+                    f"referred clients spend, tracked from a personal link - "
+                    f"instant self-serve signup at {signup_url}, no application.\n\n"
+                    "Tone: warm, brief, specific to their business; open with "
+                    "something true about their type of work, not flattery. One "
+                    "CTA: sign up at the link (or reply with questions)."
+                ),
+            }],
+        )
+        if response.stop_reason == "refusal":
+            return None
+        pitch = json.loads(next(b.text for b in response.content if b.type == "text"))
+        pitch["subject"] = str(pitch.get("subject", ""))[:120]
+        pitch["body"] = str(pitch.get("body", ""))[:2500]
+        return pitch
+    except Exception:
+        return None
+
+
 BRAND_KIT_SCHEMA = {
     "type": "object",
     "properties": {

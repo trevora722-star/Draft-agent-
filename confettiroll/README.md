@@ -79,6 +79,25 @@ Set `CR_KIOSK_KEY` and open `/kiosk?key=<key>` once on the booth tablet
 - Rate limiting per device, a no-AI fallback message, and an idle reset
   that clears the conversation between visitors.
 
+## Booth avatar & partner outreach engine
+
+- **Callie, the booth avatar**: the kiosk chat is now fronted by an animated
+  SVG character who blinks, bobs, looks up while thinking, and lip-syncs
+  while *speaking replies aloud* via the browser's built-in speech engine
+  (free/offline; 🔊 toggle for loud floors). A 🎙️ mic button (Chrome/Edge)
+  lets visitors talk instead of type. Swapping in a photoreal streaming
+  avatar (HeyGen Interactive Avatar / D-ID Agents) later only touches the
+  kiosk template.
+- **Outreach engine** (`/outreach?key=<CR_KIOSK_KEY>`): a virtual
+  pitch-to-partner system for recruiting photographers, planners, and
+  venues. Paste prospect lists (name, business, type, email, city, notes),
+  and the AI writes a personalized recruitment email per prospect with a
+  type-specific angle (photographers = complementary guest photos; planners
+  = referral income; venues = white-label). One-click copy or open-in-email,
+  status pipeline (new → pitched → replied → joined), CSV export. The
+  offered rate is `CR_PARTNER_RATE` (default "20%") so repositioning to a
+  50% headline offer is an env change plus page copy.
+
 ## Keepsake book (heirloom PDF album)
 
 One click on a dashboard event ("📖 Keepsake book") composes a print-ready

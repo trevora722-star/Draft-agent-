@@ -459,7 +459,9 @@ def test_kiosk_booth_agent(client, monkeypatch):
 
     res = client.get(f"{BASE}/kiosk", params={"key": "expo-key-1"})
     assert res.status_code == 200
-    assert "Ask me anything" in res.text
+    assert "Meet Callie" in res.text          # the avatar host
+    assert 'id="avatar"' in res.text          # animated SVG face
+    assert 'id="tts-toggle"' in res.text      # voice on/off
     assert client.get(f"{BASE}/kiosk-qr.png").status_code == 200
 
     # the booth agent replies and saves leads via its tool
@@ -489,6 +491,45 @@ def test_kiosk_booth_agent(client, monkeypatch):
 
     # malformed chat bodies are rejected
     assert client.post(f"{BASE}/api/kiosk/chat", json={"messages": "hi"}).status_code == 400
+
+
+def test_outreach_engine(client, monkeypatch):
+    import app as app_module
+
+    assert client.get(f"{BASE}/outreach", follow_redirects=False).status_code == 403
+    res = client.get(f"{BASE}/outreach", params={"key": "expo-key-1"})
+    assert res.status_code == 200 and "Partner outreach" in res.text
+
+    # bulk add: two valid rows, one junk row
+    client.post(f"{BASE}/api/outreach/prospects", data={"bulk": (
+        "Jess Lee, Golden Hour Photography, photographer, jess@goldenhour.com, Toronto, 30 weddings/yr\n"
+        "Sam Ortiz, Lakeview Manor, venue, events@lakeviewmanor.com, Muskoka,\n"
+        "junk line without email"
+    )}, follow_redirects=False)
+    page = client.get(f"{BASE}/outreach").text
+    assert "Jess Lee" in page and "Lakeview Manor" in page
+    assert page.count('class="prospect"') == 2
+
+    # AI writes a personalized pitch and status flips to pitched
+    monkeypatch.setattr(app_module.ai_agents, "ai_enabled", lambda: True)
+    monkeypatch.setattr(app_module.ai_agents, "write_pitch",
+                        lambda p, rate, url: {
+                            "subject": f"Guest photos for {p['business']}",
+                            "body": f"Hi {p['name']}, partners earn {rate}. {url}",
+                        })
+    import re as _re
+    pid = _re.search(r'data-id="(\d+)"', page).group(1)
+    res = client.post(f"{BASE}/api/outreach/prospects/{pid}/pitch")
+    assert res.status_code == 200
+    assert "Guest photos for" in res.json()["subject"]
+    page = client.get(f"{BASE}/outreach").text
+    assert "Guest photos for" in page and "pitched" in page
+
+    # status update + CSV export
+    client.post(f"{BASE}/api/outreach/prospects/{pid}/status", data={"status": "joined"})
+    csv = client.get(f"{BASE}/outreach/prospects.csv", params={"key": "expo-key-1"})
+    assert csv.status_code == 200 and "joined" in csv.text
+    assert client.get(f"{BASE}/outreach/prospects.csv").status_code == 403
 
 
 def _venue_id(client):

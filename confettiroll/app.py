@@ -155,6 +155,19 @@ def init_db(db_path: Path) -> None:
                 source TEXT NOT NULL DEFAULT 'tradeshow',
                 created_at INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS prospects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL DEFAULT '',
+                business TEXT NOT NULL DEFAULT '',
+                type TEXT NOT NULL DEFAULT 'planner',
+                email TEXT NOT NULL,
+                city TEXT NOT NULL DEFAULT '',
+                notes TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'new',
+                pitch_subject TEXT NOT NULL DEFAULT '',
+                pitch_body TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS venues (
                 id TEXT PRIMARY KEY,
                 owner_id INTEGER UNIQUE NOT NULL REFERENCES users(id),
@@ -339,7 +352,7 @@ def create_app() -> FastAPI:
     tpl = {
         name: (BASE_DIR / "templates" / f"{name}.html").read_text()
         for name in ("landing", "signup", "login", "dashboard", "guest_login",
-                     "gallery", "partners", "venue", "stream", "kiosk")
+                     "gallery", "partners", "venue", "stream", "kiosk", "outreach")
     }
 
     app = FastAPI(title="ConfettiRoll", docs_url=None, redoc_url=None)
@@ -982,6 +995,134 @@ def create_app() -> FastAPI:
             reply = ("Great question - I'll let the team give you the full answer. "
                      "Want to leave your name and email so they can follow up?")
         return {"reply": reply}
+
+    # ---- partner outreach engine (photographers / planners / venues) -------
+
+    partner_rate = os.environ.get("CR_PARTNER_RATE", "20%")
+
+    @app.get("/outreach", response_class=HTMLResponse)
+    def outreach(request: Request, key: str = ""):
+        if not kiosk_key:
+            return JSONResponse({"error": "operator console not enabled"}, status_code=404)
+        authed = kiosk_ok(request)
+        if not authed and not hmac.compare_digest(key, kiosk_key):
+            return HTMLResponse(
+                "<p style='font-family:sans-serif;padding:40px'>Locked — open "
+                "/outreach?key=&lt;your CR_KIOSK_KEY&gt; once on this device.</p>",
+                status_code=403,
+            )
+        with db() as conn:
+            prospects = conn.execute(
+                "SELECT * FROM prospects ORDER BY created_at DESC"
+            ).fetchall()
+        rows = []
+        for p in prospects:
+            pitch_block = ""
+            if p["pitch_body"]:
+                mailto = (
+                    f"mailto:{esc(p['email'])}?subject={esc(p['pitch_subject'])}"
+                )
+                pitch_block = f"""
+              <div class="pitch">
+                <div class="psubj">{esc(p['pitch_subject'])}</div>
+                <pre>{esc(p['pitch_body'])}</pre>
+                <a class="mini" href="{mailto}">Open in email app</a>
+                <button class="mini copy-btn" data-id="{p['id']}" type="button">Copy</button>
+              </div>"""
+            rows.append(f"""
+            <div class="prospect" data-id="{p['id']}">
+              <div class="phead">
+                <strong>{esc(p['name'] or p['email'])}</strong>
+                <span class="ptag">{esc(p['type'])}</span>
+                <span class="pmeta">{esc(p['business'])}{' · ' + esc(p['city']) if p['city'] else ''} · {esc(p['email'])}</span>
+                <select class="status-sel" data-id="{p['id']}">
+                  {''.join(f'<option value="{s}"{" selected" if p["status"] == s else ""}>{s}</option>'
+                           for s in ('new', 'pitched', 'replied', 'joined', 'pass'))}
+                </select>
+                <button class="mini pitch-btn" data-id="{p['id']}" type="button">✨ Write pitch</button>
+              </div>{pitch_block}
+            </div>""")
+        response = page(
+            "outreach",
+            rows="\n".join(rows) or '<p class="empty">No prospects yet — add some above.</p>',
+            count=str(len(prospects)),
+            rate=esc(partner_rate),
+        )
+        if not authed:
+            response.set_cookie("cr_kiosk", make_kiosk_token(), max_age=60 * 60 * 24 * 3,
+                                httponly=True, samesite="lax")
+        return response
+
+    @app.post("/api/outreach/prospects")
+    def add_prospects(request: Request, bulk: str = Form("")):
+        if not kiosk_ok(request):
+            return RedirectResponse("/outreach", status_code=303)
+        added = 0
+        with db() as conn:
+            for line in bulk.splitlines()[:200]:
+                parts = [f.strip() for f in line.split(",")]
+                if len(parts) < 4 or "@" not in parts[3]:
+                    continue
+                name, business, ptype, email = parts[0], parts[1], parts[2].lower(), parts[3]
+                city = parts[4] if len(parts) > 4 else ""
+                notes = parts[5] if len(parts) > 5 else ""
+                if ptype not in ("photographer", "planner", "venue"):
+                    ptype = "planner"
+                conn.execute(
+                    "INSERT INTO prospects (name, business, type, email, city, notes, created_at)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (name[:80], business[:120], ptype, email[:120], city[:80],
+                     notes[:300], int(time.time())),
+                )
+                added += 1
+        return RedirectResponse("/outreach", status_code=303)
+
+    @app.post("/api/outreach/prospects/{pid}/pitch")
+    def pitch_prospect(request: Request, pid: int):
+        if not kiosk_ok(request):
+            return JSONResponse({"error": "locked"}, status_code=403)
+        if not ai_agents.ai_enabled():
+            return JSONResponse({"error": "AI isn't enabled on this server"}, status_code=503)
+        with db() as conn:
+            p = conn.execute("SELECT * FROM prospects WHERE id = ?", (pid,)).fetchone()
+        if p is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        pitch = ai_agents.write_pitch(dict(p), partner_rate, f"https://{base_domain}/partners")
+        if pitch is None:
+            return JSONResponse({"error": "couldn't write the pitch"}, status_code=502)
+        with db() as conn:
+            conn.execute(
+                "UPDATE prospects SET pitch_subject = ?, pitch_body = ?,"
+                " status = CASE WHEN status = 'new' THEN 'pitched' ELSE status END"
+                " WHERE id = ?",
+                (pitch["subject"], pitch["body"], pid),
+            )
+        return pitch
+
+    @app.post("/api/outreach/prospects/{pid}/status")
+    def prospect_status(request: Request, pid: int, status: str = Form(...)):
+        if not kiosk_ok(request):
+            return JSONResponse({"error": "locked"}, status_code=403)
+        if status not in ("new", "pitched", "replied", "joined", "pass"):
+            return JSONResponse({"error": "bad status"}, status_code=400)
+        with db() as conn:
+            conn.execute("UPDATE prospects SET status = ? WHERE id = ?", (status, pid))
+        return {"ok": True}
+
+    @app.get("/outreach/prospects.csv")
+    def prospects_csv(key: str = ""):
+        if not kiosk_key or not hmac.compare_digest(key, kiosk_key):
+            return JSONResponse({"error": "locked"}, status_code=403)
+        with db() as conn:
+            rows = conn.execute("SELECT * FROM prospects ORDER BY created_at DESC").fetchall()
+        lines = ["name,business,type,email,city,status,pitch_subject,pitch_body"]
+        for r in rows:
+            fields = [str(r[k] or "").replace('"', "'").replace("\n", " / ")
+                      for k in ("name", "business", "type", "email", "city",
+                                "status", "pitch_subject", "pitch_body")]
+            lines.append(",".join(f'"{f}"' for f in fields))
+        return Response("\n".join(lines), media_type="text/csv",
+                        headers={"Content-Disposition": 'attachment; filename="prospects.csv"'})
 
     @app.get("/kiosk/leads.csv")
     def kiosk_leads(key: str = ""):
