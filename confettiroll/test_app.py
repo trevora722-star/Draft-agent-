@@ -372,6 +372,34 @@ def test_venue_ai_brand_kit(client, monkeypatch):
     assert "Fairways and forever memories" in vpage and "#2f6e4f" in vpage
 
 
+def test_live_stream(client):
+    _signup(client)
+    _create_venue(client)
+    _create_event(client, slug="stream-party", venue_id=_venue_id(client),
+                  guest_password="disco9")
+
+    # anonymous viewers are sent to the event login
+    client.cookies.clear()
+    res = client.get("http://stream-party.confettiroll.test/stream", follow_redirects=False)
+    assert res.status_code == 303 and res.headers["location"] == "/login"
+    assert client.get("http://stream-party.confettiroll.test/stream-qr.png").status_code == 401
+
+    # a logged-in guest (or the venue's TV) gets the branded slideshow + QR
+    client.cookies.clear()
+    client.post("http://stream-party.confettiroll.test/login",
+                data={"password": "disco9"}, follow_redirects=False)
+    page = client.get("http://stream-party.confettiroll.test/stream")
+    assert page.status_code == 200
+    assert "SCAN TO ADD YOUR PHOTOS" in page.text
+    assert "Hosted at Silver Oak Winery" in page.text
+    assert "--accent:" in page.text  # venue accent applied
+    qr = client.get("http://stream-party.confettiroll.test/stream-qr.png")
+    assert qr.status_code == 200 and qr.headers["content-type"] == "image/png"
+
+    # /stream on the main site just goes home
+    assert client.get(f"{BASE}/stream", follow_redirects=False).status_code == 303
+
+
 def _venue_id(client):
     import re as _re
     dashboard = client.get(f"{BASE}/dashboard").text

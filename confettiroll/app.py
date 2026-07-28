@@ -329,7 +329,7 @@ def create_app() -> FastAPI:
     tpl = {
         name: (BASE_DIR / "templates" / f"{name}.html").read_text()
         for name in ("landing", "signup", "login", "dashboard", "guest_login",
-                     "gallery", "partners", "venue")
+                     "gallery", "partners", "venue", "stream")
     }
 
     app = FastAPI(title="ConfettiRoll", docs_url=None, redoc_url=None)
@@ -672,6 +672,7 @@ def create_app() -> FastAPI:
               <p class="event-actions">
                 <a class="mini" href="{esc(url)}" target="_blank">Open gallery</a>
                 <a class="mini" href="/api/events/{ev['id']}/qr.png" download="{esc(ev['slug'])}-qr.png">Download QR code</a>
+                <a class="mini" href="{esc(url)}/stream" target="_blank">📺 Live slideshow</a>
                 <button class="mini recap-btn" data-event="{ev['id']}" type="button">✨ AI recap</button>
               </p>
               <div class="recap" id="recap-{ev['id']}" hidden></div>
@@ -1077,6 +1078,48 @@ def create_app() -> FastAPI:
             max_age=SESSION_TTL_SECONDS, httponly=True, samesite="lax",
         )
         return response
+
+    @app.get("/stream", response_class=HTMLResponse)
+    def stream(request: Request):
+        """Live venue slideshow: photos crossfade on a big screen, new uploads
+        jump the queue, a QR code invites guests to join."""
+        event = resolve_event(request)
+        if event is None:
+            return RedirectResponse("/", status_code=303)
+        if gallery_role(request, event) is None:
+            return RedirectResponse("/login", status_code=303)
+        brand = event_brand(event)
+        brand_line = ""
+        if event["venue_id"]:
+            with db() as conn:
+                venue = conn.execute(
+                    "SELECT * FROM venues WHERE id = ?", (event["venue_id"],)
+                ).fetchone()
+            if venue is not None:
+                logo = (
+                    f'<img src="/venue-assets/{venue["id"]}/{esc(venue["logo"])}" alt="">'
+                    if venue["logo"] else ""
+                )
+                brand_line = f'{logo}Hosted at {esc(venue["name"])}'
+        return page(
+            "stream",
+            title=esc(event["title"]),
+            brand_css=brand["brand_css"],
+            brand_line=brand_line,
+            join_url=esc(event_url(event).replace("https://", "")),
+        )
+
+    @app.get("/stream-qr.png")
+    def stream_qr(request: Request):
+        event = resolve_event(request)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if gallery_role(request, event) is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        img = qrcode.make(event_url(event))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return Response(buf.getvalue(), media_type="image/png")
 
     @app.get("/api/photos")
     def list_photos(request: Request, q: str = "", highlights: bool = False):

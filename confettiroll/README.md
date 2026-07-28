@@ -63,6 +63,23 @@ studio** — no sales call, no configuration by us:
 - Storage: `data/venues/<id>/` (logo.png + photos/), rows in `venues`,
   `events.venue_id` links events.
 
+## Live venue stream (big-screen slideshow)
+
+Every event has a live slideshow at `<event host>/stream` — made for the
+TV or projector at the venue:
+
+- Full-screen crossfading slideshow with a slow Ken Burns zoom, showing AI
+  captions and who shared each photo.
+- Polls the album every 7 seconds; **new uploads jump the queue** and flash
+  a "✨ Just added" badge — guests see their photo on the big screen moments
+  after sharing it.
+- A corner panel shows the event QR code and address ("scan to add your
+  photos"), so the screen itself recruits contributors all night.
+- Venue-branded: accent color, logo, and "Hosted at <venue>" line.
+- Same auth as the gallery (guest password or host session); click toggles
+  fullscreen. Reachable from the gallery toolbar and each dashboard event
+  card ("📺 Live slideshow").
+
 ## Partner program pages & assets
 
 - `/partners` — public partner landing page: the transparent "20% on every

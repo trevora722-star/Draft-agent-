@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} — Live</title>
+<style>
+  :root {
+    --accent: #7d8c6f; --accent-dark: #66755a; --soft: #b8b0a6;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background: #14110f;
+    color: #f2ede6;
+    font-family: Georgia, "Times New Roman", serif;
+    overflow: hidden;
+    cursor: none;
+  }
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 1.4s ease;
+  }
+  .slide.visible { opacity: 1; }
+  .slide img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    animation: kenburns 9s ease-in-out forwards;
+  }
+  @keyframes kenburns {
+    from { transform: scale(1); }
+    to { transform: scale(1.06); }
+  }
+  .caption {
+    position: absolute;
+    left: 0; right: 0; bottom: 96px;
+    text-align: center;
+    font-size: 22px;
+    font-style: italic;
+    text-shadow: 0 2px 14px rgba(0,0,0,0.8);
+    padding: 0 40px;
+    z-index: 5;
+  }
+  .fresh {
+    position: absolute;
+    top: 28px; left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #fff;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 10px 24px;
+    border-radius: 999px;
+    opacity: 0;
+    transition: opacity 0.4s;
+    z-index: 6;
+  }
+  .fresh.show { opacity: 1; }
+  .bar {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 16px 26px;
+    background: linear-gradient(transparent, rgba(10, 8, 7, 0.88));
+    z-index: 5;
+  }
+  .bar .title {
+    font-size: 26px;
+    font-style: italic;
+  }
+  .bar .brand { font-size: 14px; color: var(--soft); margin-top: 4px; }
+  .bar .brand img { height: 22px; vertical-align: middle; margin-right: 8px; border-radius: 3px; }
+  .join {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    padding: 10px 16px;
+  }
+  .join img { width: 84px; height: 84px; border-radius: 8px; background: #fff; padding: 4px; }
+  .join .how {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #e8e2d9;
+    max-width: 200px;
+  }
+  .join .how strong { color: #fff; letter-spacing: 1px; }
+  .empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    text-align: center;
+    color: var(--soft);
+    font-size: 22px;
+    font-style: italic;
+    padding: 30px;
+  }
+</style>
+{{BRAND_CSS}}
+</head>
+<body>
+  <div class="slide" id="slide-a"></div>
+  <div class="slide" id="slide-b"></div>
+  <p class="caption" id="caption"></p>
+  <div class="fresh" id="fresh">✨ Just added</div>
+
+  <div class="empty" id="empty">
+    <div style="font-size:40px">✦ ✦ ✦</div>
+    <div>The album is ready — photos appear here the moment guests share them.</div>
+  </div>
+
+  <div class="bar">
+    <div>
+      <div class="title">{{TITLE}}</div>
+      <div class="brand" id="brand-line">{{BRAND_LINE}}</div>
+    </div>
+    <div class="join">
+      <img src="/stream-qr.png" alt="QR code to open this album" onerror="this.remove()">
+      <div class="how"><strong>SCAN TO ADD YOUR PHOTOS</strong><br>{{JOIN_URL}}</div>
+    </div>
+  </div>
+
+<script>
+  const slides = [document.getElementById("slide-a"), document.getElementById("slide-b")];
+  const captionEl = document.getElementById("caption");
+  const freshEl = document.getElementById("fresh");
+  const emptyEl = document.getElementById("empty");
+
+  const DWELL_MS = 8000;
+  let photos = [];            // chronological, photos only
+  const known = new Set();
+  const freshQueue = [];      // new arrivals jump the line
+  let idx = 0, active = 0, started = false;
+
+  function captionFor(p) {
+    const bits = [];
+    if (p.caption) bits.push(p.caption);
+    if (p.uploader) bits.push("shared by " + p.uploader);
+    return bits.join(" — ");
+  }
+
+  function show(p, isFresh) {
+    const nextSlide = slides[1 - active];
+    nextSlide.innerHTML = "";
+    const img = document.createElement("img");
+    img.src = "/photos/" + p.id;
+    img.onload = () => {
+      slides[active].classList.remove("visible");
+      nextSlide.classList.add("visible");
+      active = 1 - active;
+      captionEl.textContent = captionFor(p);
+      freshEl.classList.toggle("show", !!isFresh);
+      emptyEl.style.display = "none";
+    };
+    nextSlide.appendChild(img);
+  }
+
+  function tick() {
+    if (freshQueue.length) {
+      show(freshQueue.shift(), true);
+    } else if (photos.length) {
+      show(photos[idx % photos.length], false);
+      idx++;
+    }
+    setTimeout(tick, DWELL_MS);
+  }
+
+  async function poll() {
+    try {
+      const res = await fetch("/api/photos");
+      if (res.status === 401) { location.href = "/login"; return; }
+      const data = await res.json();
+      const incoming = (data.photos || []).filter(p => p.type !== "video");
+      incoming.slice().reverse().forEach(p => {   // oldest -> newest
+        if (!known.has(p.id)) {
+          known.add(p.id);
+          photos.push(p);
+          if (started) freshQueue.push(p);
+        }
+      });
+      if (!started) {
+        started = true;
+        tick();
+      }
+    } catch {}
+    setTimeout(poll, 7000);
+  }
+  poll();
+
+  document.addEventListener("click", () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
+  });
+</script>
+</body>
+</html>
