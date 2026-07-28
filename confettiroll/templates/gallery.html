@@ -236,6 +236,7 @@
     <input id="name-input" placeholder="Your name (shown on photos)" maxlength="60">
     <button class="btn" id="upload-btn">Upload photos &amp; videos</button>
     <a class="btn ghost" href="/stream" target="_blank" style="text-decoration:none">📺 Live slideshow</a>
+    <a class="btn ghost" href="/book.pdf" id="book-link" style="text-decoration:none" hidden>📖 Keepsake book</a>
     <form method="post" action="/logout" style="display:inline">
       <button class="btn ghost" type="submit">Sign out</button>
     </form>
@@ -373,6 +374,7 @@
     photos = data.photos || [];
     isAdmin = !!data.is_admin;
     document.getElementById("ai-toolbar").hidden = !data.ai_enabled;
+    document.getElementById("book-link").hidden = !data.book;
     render();
   }
 

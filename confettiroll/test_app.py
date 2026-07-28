@@ -400,6 +400,55 @@ def test_live_stream(client):
     assert client.get(f"{BASE}/stream", follow_redirects=False).status_code == 303
 
 
+def test_keepsake_book(client, monkeypatch, tmp_path):
+    import app as app_module
+    monkeypatch.setattr(app_module.ai_agents, "ai_enabled", lambda: True)
+    monkeypatch.setattr(app_module.ai_agents, "generate_recap",
+                        lambda title, photos: "It was a beautiful day from start to finish.")
+
+    _signup(client)
+    _create_event(client)
+    client.post(
+        f"{EVENT}/api/upload",
+        files=[("files", ("dance.jpg", _fake_jpeg(), "image/jpeg")),
+               ("files", ("cake.jpg", _fake_jpeg(), "image/jpeg"))],
+        data={"uploader": "Aunt May"},
+    )
+    import re as _re
+    event_id = _re.search(r'data-event="([0-9a-f]{32})"',
+                          client.get(f"{BASE}/dashboard").text).group(1)
+
+    # owner composes the book
+    res = client.post(f"{BASE}/api/events/{event_id}/book")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["pages"] == 2 and body["url"].endswith("/book.pdf")
+
+    # guests can download it from the event host; anonymous visitors can't
+    pdf = client.get(f"{EVENT}/book.pdf")
+    assert pdf.status_code == 200
+    assert pdf.headers["content-type"] == "application/pdf"
+    assert pdf.content.startswith(b"%PDF")
+    assert "keepsake book" in pdf.headers["content-disposition"]
+    client.cookies.clear()
+    assert client.get(f"{EVENT}/book.pdf").status_code == 401
+
+    # gallery API advertises the book once it exists
+    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    assert client.get(f"{EVENT}/api/photos").json()["book"] is True
+
+    # an event with no photos can't make a book
+    client.post(f"{BASE}/login",
+                data={"email": "host@example.com", "password": "hunter2hunter2"},
+                follow_redirects=False)
+    _create_event(client, slug="empty-event")
+    empty_id = _re.search(r'data-event="([0-9a-f]{32})"[^>]*data-url="https://empty-event',
+                          client.get(f"{BASE}/dashboard").text)
+    ids = _re.findall(r'data-event="([0-9a-f]{32})"', client.get(f"{BASE}/dashboard").text)
+    other = [i for i in ids if i != event_id][0]
+    assert client.post(f"{BASE}/api/events/{other}/book").status_code == 400
+
+
 def _venue_id(client):
     import re as _re
     dashboard = client.get(f"{BASE}/dashboard").text

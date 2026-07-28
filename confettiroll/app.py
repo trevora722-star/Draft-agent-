@@ -45,6 +45,7 @@ from PIL import Image, ImageOps
 import qrcode
 
 import ai_agents
+import book as book_maker
 
 try:  # iPhone photos arrive as HEIC; convert them so browsers can show them.
     from pillow_heif import register_heif_opener
@@ -674,6 +675,7 @@ def create_app() -> FastAPI:
                 <a class="mini" href="/api/events/{ev['id']}/qr.png" download="{esc(ev['slug'])}-qr.png">Download QR code</a>
                 <a class="mini" href="{esc(url)}/stream" target="_blank">📺 Live slideshow</a>
                 <button class="mini recap-btn" data-event="{ev['id']}" type="button">✨ AI recap</button>
+                <button class="mini book-btn" data-event="{ev['id']}" data-url="{esc(url)}" type="button">📖 Keepsake book</button>
               </p>
               <div class="recap" id="recap-{ev['id']}" hidden></div>
             </div>""")
@@ -1079,6 +1081,69 @@ def create_app() -> FastAPI:
         )
         return response
 
+    @app.post("/api/events/{event_id}/book")
+    def make_book(request: Request, event_id: str):
+        """Compose the keepsake book PDF for an event (owner only)."""
+        user = current_user(request)
+        if user is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        with db() as conn:
+            event = conn.execute(
+                "SELECT * FROM events WHERE id = ? AND owner_id = ?",
+                (event_id, user["id"]),
+            ).fetchone()
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        dirs = event_dirs(data_dir, event["id"])
+        photos = []
+        for meta_file in dirs["meta"].glob("*.json"):
+            try:
+                photos.append(json.loads(meta_file.read_text()))
+            except (OSError, json.JSONDecodeError):
+                continue
+        if not any(p.get("type") != "video" for p in photos):
+            return JSONResponse({"error": "no photos in the album yet"}, status_code=400)
+
+        recap_file = data_dir / "events" / event["id"] / "recap.txt"
+        recap = recap_file.read_text() if recap_file.exists() else None
+        if recap is None and ai_agents.ai_enabled():
+            recap = ai_agents.generate_recap(event["title"], photos)
+            if recap:
+                recap_file.write_text(recap)
+
+        venue_name, accent = "", "#7d8c6f"
+        if event["venue_id"]:
+            with db() as conn:
+                venue = conn.execute(
+                    "SELECT * FROM venues WHERE id = ?", (event["venue_id"],)
+                ).fetchone()
+            if venue is not None:
+                venue_name, accent = venue["name"], venue["accent"] or accent
+
+        dest = data_dir / "events" / event["id"] / "book.pdf"
+        pages = book_maker.generate_book(
+            dest, event["title"], event["event_date"], photos, dirs["photos"],
+            recap=recap, venue_name=venue_name, accent=accent,
+            credit=f"Made with love on {base_domain}",
+        )
+        return {"pages": pages, "url": f"{event_url(event)}/book.pdf"}
+
+    @app.get("/book.pdf")
+    def book_pdf(request: Request):
+        event = resolve_event(request)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if gallery_role(request, event) is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        path = data_dir / "events" / event["id"] / "book.pdf"
+        if not path.exists():
+            return JSONResponse({"error": "no book yet"}, status_code=404)
+        safe = re.sub(r"[^\w\- ]", "_", event["title"]) or "keepsake"
+        return FileResponse(
+            path, media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{safe} - keepsake book.pdf"'},
+        )
+
     @app.get("/stream", response_class=HTMLResponse)
     def stream(request: Request):
         """Live venue slideshow: photos crossfade on a big screen, new uploads
@@ -1152,6 +1217,7 @@ def create_app() -> FastAPI:
             "photos": photos,
             "is_admin": role == "admin",
             "ai_enabled": ai_agents.ai_enabled(),
+            "book": (data_dir / "events" / event["id"] / "book.pdf").exists(),
         }
 
     def _caption_task(event_id: str, photo_id: str) -> None:

@@ -63,6 +63,27 @@ studio** — no sales call, no configuration by us:
 - Storage: `data/venues/<id>/` (logo.png + photos/), rows in `venues`,
   `events.venue_id` links events.
 
+## Keepsake book (heirloom PDF album)
+
+One click on a dashboard event ("📖 Keepsake book") composes a print-ready
+square 8×8" PDF album from the whole gallery:
+
+- A cover in the event's accent color (venue-branded when applicable),
+  with title, date, and "Hosted at <venue>".
+- "The Story of the Day" foreword — the AI recap (reused if already
+  generated, generated on the fly when the API key is set).
+- One photo per page, chronological, with the AI caption and "shared by"
+  credit; if the album exceeds 150 photos, the best-scored ones are kept
+  while preserving chronology.
+- A closing "With love and thanks" page naming every contributor.
+
+The owner gets a share URL (`<event host>/book.pdf`); guests with the
+event password can download it from the gallery toolbar, so couples can
+send it to family and the wedding party or hand it to any print shop or
+photo-book service. Built with reportlab; stored at
+`data/events/<id>/book.pdf` and regenerated on demand. Print-on-demand
+fulfillment (Lulu/Peecho API) is the natural next step.
+
 ## Live venue stream (big-screen slideshow)
 
 Every event has a live slideshow at `<event host>/stream` — made for the

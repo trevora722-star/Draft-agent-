@@ -5,3 +5,4 @@ Pillow>=10.0
 pillow-heif>=0.16
 qrcode>=7.4
 anthropic>=0.92.0
+reportlab>=4.0

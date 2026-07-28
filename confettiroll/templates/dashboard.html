@@ -215,6 +215,25 @@
     }
   });
 
+  document.querySelectorAll(".book-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const box = document.getElementById("recap-" + btn.dataset.event);
+      box.hidden = false;
+      box.style.cssText = "margin-top:12px; padding:14px; background:#faf7f2; border-radius:10px; font-size:15px; line-height:1.6";
+      box.textContent = "Composing your keepsake book — cover, story, photos, and thank-yous…";
+      try {
+        const res = await fetch(`/api/events/${btn.dataset.event}/book`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) { box.textContent = data.error || "Couldn't make the book."; return; }
+        box.innerHTML = `📖 Your book is ready — <strong>${data.pages} photo pages</strong>. ` +
+          `<a href="${btn.dataset.url}/book.pdf" style="color:var(--pink)">Download it</a>, then send it to ` +
+          `family and the wedding party, or take it to any print shop. Guests can also download it from the gallery.`;
+      } catch {
+        box.textContent = "Couldn't make the book right now.";
+      }
+    });
+  });
+
   document.querySelectorAll(".recap-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.event;
