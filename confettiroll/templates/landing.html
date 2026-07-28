@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ConfettiRoll — every photo from your event, in one place</title>
+<style>
+  :root {
+    --ink: #2c2733;
+    --soft: #7d7488;
+    --pink: #e85d8a;
+    --gold: #f2b134;
+    --teal: #2ab7a9;
+    --violet: #7c5cbf;
+    --paper: #fdfbf7;
+    --card: #ffffff;
+    --line: #ece6ef;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Georgia, "Times New Roman", serif;
+    overflow-x: hidden;
+  }
+  nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 28px;
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+  .logo { font-size: 22px; font-weight: bold; font-family: "Helvetica Neue", Arial, sans-serif; }
+  .logo .confetti-dot { color: var(--pink); }
+  nav .links a {
+    margin-left: 18px;
+    color: var(--ink);
+    text-decoration: none;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+  }
+  nav .links a.cta {
+    background: var(--pink);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 999px;
+  }
+  .hero {
+    text-align: center;
+    padding: 70px 24px 40px;
+    position: relative;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 46px; font-weight: normal; line-height: 1.15; }
+  h1 em { font-style: italic; color: var(--pink); }
+  .hero p {
+    color: var(--soft);
+    font-size: 19px;
+    margin: 22px auto 34px;
+    max-width: 560px;
+    line-height: 1.5;
+  }
+  .cta-big {
+    display: inline-block;
+    background: var(--pink);
+    color: #fff;
+    text-decoration: none;
+    padding: 16px 38px;
+    border-radius: 999px;
+    font-size: 16px;
+    letter-spacing: 1px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+  .cta-big:hover { filter: brightness(1.07); }
+  .subnote { font-size: 14px; color: var(--soft); margin-top: 14px; }
+  .demo-url {
+    display: inline-block;
+    margin-top: 40px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 26px;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 16px;
+    color: var(--violet);
+    box-shadow: 0 10px 30px rgba(44, 39, 51, 0.07);
+  }
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 18px;
+    max-width: 1000px;
+    margin: 50px auto 70px;
+    padding: 0 24px;
+  }
+  .feature {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 26px 22px;
+  }
+  .feature .icon { font-size: 26px; }
+  .feature h3 { font-size: 18px; margin: 12px 0 8px; font-weight: normal; }
+  .feature p { color: var(--soft); font-size: 14.5px; line-height: 1.5; }
+  .how {
+    text-align: center;
+    padding: 20px 24px 80px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .how h2 { font-size: 30px; font-weight: normal; margin-bottom: 30px; }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .step { padding: 10px; }
+  .step .n {
+    display: inline-flex;
+    width: 38px; height: 38px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--gold);
+    color: #fff;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    margin-bottom: 10px;
+  }
+  .step p { color: var(--soft); font-size: 15px; line-height: 1.5; }
+  footer {
+    text-align: center;
+    color: var(--soft);
+    font-size: 13px;
+    padding: 26px;
+    border-top: 1px solid var(--line);
+  }
+  .confetti {
+    position: absolute;
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    opacity: 0.85;
+    animation: fall linear infinite;
+    top: -20px;
+    z-index: 0;
+    pointer-events: none;
+  }
+  @keyframes fall {
+    to { transform: translateY(110vh) rotate(540deg); }
+  }
+  @media (max-width: 600px) { h1 { font-size: 32px; } }
+</style>
+</head>
+<body>
+  <nav>
+    <div class="logo">Confetti<span class="confetti-dot">●</span>Roll</div>
+    <div class="links">
+      <a href="/login">Sign in</a>
+      <a class="cta" href="/signup">Get started</a>
+    </div>
+  </nav>
+
+  <div class="hero">
+    <h1>Every photo from your event,<br><em>in one place</em></h1>
+    <p>Weddings, birthdays, reunions, launch parties — give your guests one
+    link and a password, and every photo and video they take lands in a
+    beautiful shared gallery.</p>
+    <a class="cta-big" href="/signup">Create your event</a>
+    <p class="subnote">Free while in beta · no app for guests to install</p>
+    <div class="demo-url">your-event.{{BASE}}</div>
+  </div>
+
+  <div class="features">
+    <div class="feature">
+      <div class="icon">🔗</div>
+      <h3>Your own address</h3>
+      <p>Each event gets its own web address — or connect a domain you
+      already own, like photos.smithwedding.com.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🔒</div>
+      <h3>Private by default</h3>
+      <p>Only people with the event password can see or add photos. You
+      choose who gets it.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">📱</div>
+      <h3>Nothing to install</h3>
+      <p>Guests upload straight from their phone's browser — iPhone photos
+      and videos included.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🗑️</div>
+      <h3>You stay in control</h3>
+      <p>As the host you can remove any photo, and deletions go to a trash
+      you can restore from.</p>
+    </div>
+  </div>
+
+  <div class="how">
+    <h2>How it works</h2>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><p>Create your event and pick
+      its web address.</p></div>
+      <div class="step"><div class="n">2</div><p>Share the link and password
+      with guests — or print the QR code on the tables.</p></div>
+      <div class="step"><div class="n">3</div><p>Watch everyone's photos and
+      videos roll into one gallery, ready to download.</p></div>
+    </div>
+  </div>
+
+  <footer>ConfettiRoll — shared albums for celebrations.</footer>
+
+<script>
+  const colors = ["#e85d8a", "#f2b134", "#2ab7a9", "#7c5cbf"];
+  const hero = document.querySelector(".hero");
+  for (let i = 0; i < 18; i++) {
+    const c = document.createElement("div");
+    c.className = "confetti";
+    c.style.left = Math.random() * 100 + "%";
+    c.style.background = colors[i % colors.length];
+    c.style.animationDuration = 6 + Math.random() * 8 + "s";
+    c.style.animationDelay = -Math.random() * 10 + "s";
+    c.style.width = c.style.height = 6 + Math.random() * 7 + "px";
+    hero.appendChild(c);
+  }
+</script>
+</body>
+</html>

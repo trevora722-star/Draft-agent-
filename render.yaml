@@ -15,6 +15,31 @@
 # wedding-photos/README.md if you want to trial it on the free plan first.
 
 services:
+  # ---- ConfettiRoll: the multi-tenant events platform --------------------
+  # After deploying, add confettiroll.com AND *.confettiroll.com as custom
+  # domains on this service (Render dashboard > Settings > Custom Domains)
+  # and create the matching DNS records. See confettiroll/README.md.
+  - type: web
+    name: confettiroll
+    runtime: python
+    plan: starter
+    rootDir: confettiroll
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: CR_BASE_DOMAIN
+        value: confettiroll.com
+      - key: CR_DATA_DIR
+        value: /var/data
+      - key: PYTHON_VERSION
+        value: "3.11"
+    disk:
+      name: confettiroll-data
+      mountPath: /var/data
+      sizeGB: 25
+
+  # ---- Original single-event wedding album (kept for reference) ----------
   - type: web
     name: wedding-photos
     runtime: python

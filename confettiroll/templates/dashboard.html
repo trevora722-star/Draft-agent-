@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ConfettiRoll — Dashboard</title>
+<style>
+  :root {
+    --ink: #2c2733; --soft: #7d7488; --pink: #e85d8a; --gold: #f2b134;
+    --violet: #7c5cbf; --paper: #fdfbf7; --card: #ffffff; --line: #ece6ef;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: Georgia, "Times New Roman", serif; min-height: 100vh;
+  }
+  nav {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 18px 28px; max-width: 1000px; margin: 0 auto;
+  }
+  .logo { font-size: 20px; font-weight: bold; font-family: "Helvetica Neue", Arial, sans-serif; }
+  .logo span { color: var(--pink); }
+  nav .who { font-size: 14px; color: var(--soft); font-family: "Helvetica Neue", Arial, sans-serif; }
+  nav form { display: inline; }
+  nav button {
+    background: none; border: 1px solid var(--line); border-radius: 999px;
+    padding: 8px 16px; margin-left: 10px; cursor: pointer;
+    font-size: 13px; color: var(--soft); font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+  main { max-width: 1000px; margin: 0 auto; padding: 10px 24px 70px; }
+  h1 { font-size: 28px; font-weight: normal; margin: 18px 0 24px; }
+  .panel {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 26px 24px; margin-bottom: 30px;
+  }
+  .panel h2 { font-size: 19px; font-weight: normal; margin-bottom: 16px; }
+  .form-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 14px;
+  }
+  label {
+    display: block; font-size: 12px; letter-spacing: 1.2px;
+    text-transform: uppercase; color: var(--soft); margin-bottom: 5px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+  input {
+    width: 100%; padding: 11px 12px; font-size: 15px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: #fdfcfa; color: var(--ink); font-family: inherit;
+  }
+  input:focus { outline: 2px solid var(--pink); outline-offset: 1px; }
+  .hint { font-size: 12.5px; color: var(--soft); margin-top: 4px; }
+  .slug-preview { font-family: "SF Mono", Menlo, monospace; color: var(--violet); }
+  button.create {
+    margin-top: 18px; padding: 12px 28px; font-size: 14px;
+    letter-spacing: 1.5px; text-transform: uppercase; border: none;
+    border-radius: 999px; background: var(--pink); color: #fff;
+    cursor: pointer; font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+  button.create:hover { filter: brightness(1.07); }
+  .error {
+    margin: 14px 0 0; padding: 10px 12px; border-radius: 8px;
+    background: #f9e9e6; color: #94433a; font-size: 14px;
+  }
+  .event {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 20px 22px; margin-bottom: 14px;
+  }
+  .event-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .event h3 { font-size: 20px; font-weight: normal; }
+  .count { color: var(--soft); font-size: 13.5px; font-family: "Helvetica Neue", Arial, sans-serif; }
+  .event-link { margin: 6px 0 4px; }
+  .event-link a { color: var(--violet); font-family: "SF Mono", Menlo, monospace; font-size: 14.5px; }
+  .event-cred { font-size: 14px; color: var(--soft); }
+  .event-cred code {
+    background: #f6f2ee; padding: 2px 8px; border-radius: 6px;
+    color: var(--ink); font-size: 13.5px;
+  }
+  .event-actions { margin-top: 12px; }
+  .mini {
+    display: inline-block; margin-right: 8px; font-size: 12.5px;
+    letter-spacing: 1px; text-transform: uppercase; text-decoration: none;
+    color: var(--pink); border: 1px solid var(--line); border-radius: 999px;
+    padding: 7px 14px; font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+  .mini:hover { border-color: var(--pink); }
+  .empty { color: var(--soft); font-style: italic; padding: 8px 2px; }
+</style>
+</head>
+<body>
+  <nav>
+    <div class="logo">Confetti<span>●</span>Roll</div>
+    <div class="who">{{USER_NAME}}
+      <form method="post" action="/logout"><button type="submit">Sign out</button></form>
+    </div>
+  </nav>
+  <main>
+    <h1>Your events</h1>
+
+    <div class="panel">
+      <h2>Create a new event</h2>
+      <form method="post" action="/api/events">
+        <div class="form-grid">
+          <div>
+            <label for="title">Event title</label>
+            <input id="title" name="title" placeholder="Anna &amp; James's Wedding" required>
+          </div>
+          <div>
+            <label for="slug">Web address</label>
+            <input id="slug" name="slug" placeholder="anna-and-james" required
+                   pattern="[a-z0-9][a-z0-9-]{1,38}[a-z0-9]">
+            <div class="hint"><span class="slug-preview"><span id="slug-echo">your-event</span>.{{BASE_DOMAIN}}</span></div>
+          </div>
+          <div>
+            <label for="guest_password">Guest password</label>
+            <input id="guest_password" name="guest_password" required minlength="4">
+            <div class="hint">Share this with your guests.</div>
+          </div>
+          <div>
+            <label for="custom_domain">Custom domain <span style="text-transform:none">(optional)</span></label>
+            <input id="custom_domain" name="custom_domain" placeholder="photos.yourdomain.com">
+            <div class="hint">Point a CNAME at us — see the help note below.</div>
+          </div>
+        </div>
+        <button class="create" type="submit">Create event</button>
+        {{ERROR}}
+      </form>
+    </div>
+
+    {{EVENTS}}
+
+    <div class="panel" style="margin-top:30px">
+      <h2>Using a custom domain</h2>
+      <p style="color:var(--soft); font-size:14.5px; line-height:1.6">
+        Enter your domain above (e.g. <code>photos.yourdomain.com</code>), then at
+        your domain registrar add a CNAME record pointing that name at
+        <code>{{BASE_DOMAIN}}</code>. Once DNS updates, your event answers on
+        your domain with HTTPS.
+      </p>
+    </div>
+  </main>
+<script>
+  const title = document.getElementById("title");
+  const slug = document.getElementById("slug");
+  const echo = document.getElementById("slug-echo");
+  let slugTouched = false;
+  const slugify = s => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  title.addEventListener("input", () => {
+    if (!slugTouched) slug.value = slugify(title.value);
+    echo.textContent = slug.value || "your-event";
+  });
+  slug.addEventListener("input", () => { slugTouched = true; echo.textContent = slug.value || "your-event"; });
+  // Suggest a friendly random password
+  const pw = document.getElementById("guest_password");
+  if (!pw.value) {
+    const words = ["confetti", "sparkle", "toast", "dance", "cheers", "bloom", "glow", "jubilee"];
+    pw.value = words[Math.floor(Math.random() * words.length)] + (100 + Math.floor(Math.random() * 900));
+  }
+</script>
+</body>
+</html>

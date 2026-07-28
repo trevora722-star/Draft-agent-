@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+  :root {
+    --ink: #3d3733; --soft: #8a7f76; --accent: #7d8c6f; --accent-dark: #66755a;
+    --paper: #faf7f2; --card: #ffffff; --line: #e8e1d8;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    background:
+      radial-gradient(circle at 15% 20%, #f3ede3 0%, transparent 55%),
+      radial-gradient(circle at 85% 80%, #eef0e8 0%, transparent 55%),
+      var(--paper);
+    color: var(--ink);
+    font-family: Georgia, "Times New Roman", serif;
+  }
+  .card {
+    width: 100%; max-width: 400px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 44px 36px 36px;
+    box-shadow: 0 18px 50px rgba(61, 55, 51, 0.10);
+    text-align: center;
+  }
+  .ornament { font-size: 22px; color: var(--accent); letter-spacing: 8px; }
+  h1 { font-size: 30px; font-weight: normal; font-style: italic; margin: 14px 0 6px; }
+  .sub { color: var(--soft); font-size: 15px; margin-bottom: 28px; }
+  label {
+    display: block; text-align: left; font-size: 13px; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--soft); margin: 18px 0 6px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+  input {
+    width: 100%; padding: 12px 14px; font-size: 16px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: #fdfcfa; color: var(--ink); font-family: inherit;
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    width: 100%; margin-top: 28px; padding: 13px; font-size: 15px;
+    letter-spacing: 2px; text-transform: uppercase; border: none;
+    border-radius: 8px; background: var(--accent); color: #fff;
+    cursor: pointer; font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+  button:hover { background: var(--accent-dark); }
+  .error {
+    margin-top: 18px; padding: 10px 12px; border-radius: 8px;
+    background: #f9e9e6; color: #94433a; font-size: 14px;
+  }
+  .powered { margin-top: 20px; font-size: 12px; color: var(--soft); }
+  .powered a { color: var(--soft); }
+</style>
+</head>
+<body>
+  <form class="card" method="post" action="/login">
+    <div class="ornament">✦ ✦ ✦</div>
+    <h1>{{TITLE}}</h1>
+    <p class="sub">Enter the event password to see and share photos.</p>
+    <label for="password">Event password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit">Enter the album</button>
+    {{ERROR}}
+    <p class="powered">Powered by ConfettiRoll</p>
+  </form>
+</body>
+</html>
