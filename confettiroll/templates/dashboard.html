@@ -145,6 +145,7 @@
       <p>
         <button class="mini buy-btn" data-package="celebration" type="button">Celebration — $49</button>
         <button class="mini buy-btn" data-package="heirloom" type="button">Heirloom — $99</button>
+        <button class="mini buy-btn" data-package="prom" type="button">🎓 Prom Night — $199</button>
         <button class="mini buy-btn" data-package="wholesale10" type="button">Partner 10-Pack — $245</button>
       </p>
       <p id="buy-status" style="color:var(--soft); font-size:14px; margin-top:8px"></p>
@@ -208,10 +209,10 @@
   document.getElementById("event_type").addEventListener("change", e => {
     const prom = e.target.value === "prom";
     document.getElementById("type-hint").textContent = prom
-      ? "Each student gets their own access code — add the class roster after creating the event. Photos are tagged to students, and everyone only sees their own."
+      ? "Each student gets their own access code — add the class roster after creating the event. Photos are uploaded by your designated staff member only, tagged to students, and everyone only sees their own."
       : "Guests share one password for the album.";
     document.getElementById("pw-hint").textContent = prom
-      ? "Kept as a backup — students sign in with personal codes instead."
+      ? "This becomes the staff upload code — give it to the Vice Principal (or whoever runs the camera). Students use personal codes instead."
       : "Share this with your guests.";
   });
   // Suggest a friendly random password

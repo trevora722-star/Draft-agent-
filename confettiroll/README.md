@@ -86,12 +86,15 @@ grad night"). It flips the privacy model of a normal event:
 
 - **Personal codes instead of a shared password.** The organizer pastes the
   class roster on the dashboard; every student gets a 6-character access
-  code (downloadable as a CSV for printing on ticket cards). The shared
-  event password is deliberately not accepted on tagged events.
-- **Photos are tagged to students.** A student's own uploads are tagged to
-  them automatically; chaperones (the event owner) see everything and tag
-  group shots from the gallery (🏷 button → checkbox picker). Tag data
-  lives in each photo's meta JSON (`tagged: [member ids]`).
+  code (downloadable as a CSV for printing on ticket cards). The event
+  password becomes the **staff upload code** instead of a guest password.
+- **Staff-only uploads.** Students can't upload at all. The school's
+  designated staff member (e.g. the Vice Principal) signs in with the
+  upload code and gets a `staff` role: upload photos and tag the students
+  in each shot (🏷 button → checkbox picker) — nothing else (no deletes,
+  no roster, no event-wide book). The event owner (admin) can do all of
+  that too. Tag data lives in each photo's meta JSON
+  (`tagged: [member ids]`).
 - **Tagging gates visibility, not just organization.** A student sees only
   photos they're tagged in — enforced on the listing *and* on the
   photo/thumbnail routes, so an untagged photo ID 404s even if known. The
@@ -102,11 +105,18 @@ grad night"). It flips the privacy model of a normal event:
   keepsake book PDF from their picks (all their tagged photos if they
   haven't picked yet) at `/my-book.pdf` — their night, chosen by them.
 
+**Business model:** the school pays one flat set-up fee per event (the
+Prom Night package, $199 — roster, codes, staff uploads, and every
+student's book builder included; no per-student charges). Students and
+parents order printed keepsake books directly from the platform at the
+regular book price, so the school never handles money and book revenue
+stays 100% with the platform.
+
 Tables: `members` (per-event roster + codes) and `selections` (member ×
 photo picks); personal books are stored at
-`data/events/<id>/books/member-<member id>.pdf`. Sessions use a distinct
-`m.<event>:<member>` token in the guest cookie, so member identity is
-signed the same way as every other session.
+`data/events/<id>/books/member-<member id>.pdf`. Sessions use distinct
+`m.<event>:<member>` (student) and `s.<event>` (staff) tokens in the
+guest cookie, signed the same way as every other session.
 
 ## Pricing packages & billing (Stripe)
 
@@ -118,6 +128,7 @@ page, dashboard, `/api/packages`):
 | Starter | Free | 1 event, 100 photos, 3-month gallery |
 | Celebration | $49/event | Unlimited media, AI features, live wall, book PDF, 12 months |
 | Heirloom | $99/event | Celebration + printed book + custom domain + 24 months |
+| Prom Night | $199/event | School flat fee: tagged safety mode, roster codes, staff uploads, student book builders |
 | Partner 10-Pack | $245 | 10 Celebration credits at ~50% off — pros resell at their price |
 | Printed book | $59 | 8×8" hardcover (fulfillment via print-on-demand, next build) |
 | Venue Boutique | $99/mo | White-label, up to 2 hosted events/month |

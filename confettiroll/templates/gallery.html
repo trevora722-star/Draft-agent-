@@ -333,6 +333,7 @@
   let isAdmin = false;
   let lbIndex = 0;
   let isProm = false;
+  let isStaff = false;
   let memberName = "";
   let picked = new Set();
   let members = [];
@@ -412,7 +413,7 @@
         pick.addEventListener("click", e => { e.stopPropagation(); togglePick(p, pick); });
         tile.appendChild(pick);
       }
-      if (isProm && isAdmin) {
+      if (isProm && (isAdmin || isStaff)) {
         const tag = document.createElement("button");
         tag.className = "tag";
         const n = (p.tagged || []).length;
@@ -483,6 +484,7 @@
     photos = data.photos || [];
     isAdmin = !!data.is_admin;
     isProm = data.mode === "prom";
+    isStaff = !!data.is_staff;
     memberName = data.member_name || "";
     picked = new Set(data.picked || []);
     members = data.members || [];
@@ -490,11 +492,16 @@
     document.getElementById("book-link").hidden = !data.book || (isProm && !isAdmin);
     document.getElementById("mybook-btn").hidden = !(isProm && memberName);
     document.getElementById("stream-link").hidden = isProm && !isAdmin;
-    if (isProm && memberName) {
-      nameInput.value = memberName;
-      nameInput.disabled = true;
+    // On tagged events only staff upload — students view, pick, and print.
+    const memberView = isProm && !!memberName;
+    document.getElementById("upload-btn").hidden = memberView;
+    nameInput.hidden = memberView;
+    if (memberView) {
       document.querySelector(".sub").textContent =
-        `Welcome, ${memberName} — these are your photos. Tap ☆ to pick the ones for your keepsake book, and add your own shots any time.`;
+        `Welcome, ${memberName} — these are your photos from the night. Tap ☆ to pick the ones for your keepsake book.`;
+    } else if (isProm && isStaff) {
+      document.querySelector(".sub").textContent =
+        "Staff view — upload the night's photos and tag the students in each shot so it appears in their personal gallery.";
     } else if (isProm && isAdmin) {
       document.querySelector(".sub").textContent =
         "Host view — you see every photo. Tag students in each shot so it appears in their personal gallery.";

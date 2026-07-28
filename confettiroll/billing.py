@@ -77,6 +77,20 @@ PACKAGES = {
             "Credits never expire",
         ],
     },
+    "prom": {
+        "name": "Prom Night",
+        "price_cents": 19900,
+        "credits": 1,
+        "kind": "event",
+        "tagline": "One flat set-up fee for the school — students order their own books",
+        "features": [
+            "Tagged safety mode: personal student codes",
+            "Staff-only uploads (your Vice Principal runs the camera)",
+            "Every student sees only their own photos",
+            "Personal keepsake book builder for each student",
+            "Students order printed books directly — no money through the school",
+        ],
+    },
     "printed_book": {
         "name": "Printed Keepsake Book",
         "price_cents": 5900,

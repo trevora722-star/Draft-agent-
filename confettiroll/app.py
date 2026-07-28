@@ -427,6 +427,11 @@ def create_app() -> FastAPI:
         payload = f"m.{event_id}:{member_id}.{int(time.time()) + SESSION_TTL_SECONDS}"
         return f"{payload}.{sign(payload)}"
 
+    def make_staff_token(event_id: str) -> str:
+        # Staff uploader (e.g. the Vice Principal) on a tagged event.
+        payload = f"s.{event_id}.{int(time.time()) + SESSION_TTL_SECONDS}"
+        return f"{payload}.{sign(payload)}"
+
     def parse_token(token: str | None, kind: str) -> str | None:
         if not token:
             return None
@@ -555,10 +560,13 @@ def create_app() -> FastAPI:
         if user is not None and user["id"] == event["owner_id"]:
             return "admin"
         if is_tagged_event(event):
-            # Tagged events (proms, grad nights) have no shared password —
-            # every student signs in with their own code.
+            # Tagged events (proms, grad nights): students sign in with their
+            # own code; the designated staff uploader (e.g. the Vice
+            # Principal) signs in with the event's upload code.
             if current_member(request, event) is not None:
                 return "member"
+            if parse_token(request.cookies.get(GUEST_COOKIE), "s") == event["id"]:
+                return "staff"
             return None
         event_id = parse_token(request.cookies.get(GUEST_COOKIE), "g")
         if event_id == event["id"]:
@@ -615,6 +623,7 @@ def create_app() -> FastAPI:
             p_heirloom=billing.price_label("heirloom"),
             p_pack=billing.price_label("wholesale10"),
             p_book=billing.price_label("printed_book"),
+            p_prom=billing.price_label("prom"),
             p_venue_boutique=f"${billing.VENUE_TIERS['boutique']['monthly_cents'] // 100}",
             p_venue_estate=f"${billing.VENUE_TIERS['estate']['monthly_cents'] // 100}",
             p_venue_grand=f"${billing.VENUE_TIERS['grand']['monthly_cents'] // 100}",
@@ -702,7 +711,8 @@ def create_app() -> FastAPI:
 
     def guest_login_page(event: sqlite3.Row, error: str = "") -> HTMLResponse:
         if is_tagged_event(event):
-            sub = "Enter your personal access code to see your photos."
+            sub = ("Students: enter your personal access code to see your "
+                   "photos. Event staff sign in with the upload code.")
             label = "Your access code"
         else:
             sub = "Enter the event password to see and share photos."
@@ -789,8 +799,10 @@ def create_app() -> FastAPI:
                     for m in roster
                 ) or '<tr><td colspan="3" style="color:var(--soft); font-style:italic">No students yet — paste the class list below.</td></tr>'
                 cred_line = (
-                    f'<p class="event-cred">🎓 Tagged event — each student signs in with their own code '
-                    f'and only sees photos they\'re tagged in.</p>'
+                    f'<p class="event-cred">🎓 Tagged event — students sign in with their own codes '
+                    f'and only see photos they\'re tagged in. Photos are uploaded by your designated '
+                    f'staff member (e.g. the Vice Principal) with the upload code: '
+                    f'<code>{esc(ev["guest_password"])}</code></p>'
                 )
                 roster_panel = f"""
               <details style="margin-top:12px">
@@ -1557,14 +1569,22 @@ def create_app() -> FastAPI:
         if too_many_attempts(key):
             return guest_login_page(event, "Too many attempts - please wait a few minutes.")
         if is_tagged_event(event):
-            # Students sign in with their personal code — the shared event
-            # password is deliberately not accepted on tagged events.
+            # Students sign in with their personal code; the event password
+            # is the staff upload code (e.g. the Vice Principal's) and grants
+            # upload-and-tag rights only.
             code = password.strip().lower()
             with db() as conn:
                 member = conn.execute(
                     "SELECT * FROM members WHERE event_id = ? AND code = ?",
                     (event["id"], code),
                 ).fetchone()
+            if member is None and hmac.compare_digest(password, event["guest_password"]):
+                response = RedirectResponse("/", status_code=303)
+                response.set_cookie(
+                    GUEST_COOKIE, make_staff_token(event["id"]),
+                    max_age=SESSION_TTL_SECONDS, httponly=True, samesite="lax",
+                )
+                return response
             if member is None:
                 record_attempt(key)
                 return guest_login_page(event, "That code isn't right - check the card you were given.")
@@ -1724,8 +1744,8 @@ def create_app() -> FastAPI:
         event = resolve_event(request)
         if event is None:
             return JSONResponse({"error": "not found"}, status_code=404)
-        if gallery_role(request, event) != "admin" or not is_tagged_event(event):
-            return JSONResponse({"error": "admin only"}, status_code=403)
+        if gallery_role(request, event) not in ("admin", "staff") or not is_tagged_event(event):
+            return JSONResponse({"error": "staff only"}, status_code=403)
         wanted = {int(m) for m in members.split(",") if m.strip().isdigit()}
         with db() as conn:
             valid = {
@@ -1919,6 +1939,7 @@ def create_app() -> FastAPI:
         out = {
             "photos": photos,
             "is_admin": role == "admin",
+            "is_staff": role == "staff",
             "ai_enabled": ai_agents.ai_enabled(),
             "book": (data_dir / "events" / event["id"] / "book.pdf").exists(),
             "mode": event["event_type"],
@@ -1931,7 +1952,7 @@ def create_app() -> FastAPI:
                 ).fetchall()
             out["member_name"] = member["name"]
             out["picked"] = [row["photo_id"] for row in picked]
-        if role == "admin" and is_tagged_event(event):
+        if role in ("admin", "staff") and is_tagged_event(event):
             with db() as conn:
                 rows = conn.execute(
                     "SELECT id, name FROM members WHERE event_id = ? ORDER BY name",
@@ -1967,11 +1988,14 @@ def create_app() -> FastAPI:
         role = gallery_role(request, event)
         if role is None:
             return JSONResponse({"error": "not logged in"}, status_code=401)
-        member = current_member(request, event) if role == "member" else None
+        if is_tagged_event(event) and role not in ("admin", "staff"):
+            # On tagged events only the designated staff uploader (e.g. the
+            # Vice Principal) adds photos — students view, pick, and print.
+            return JSONResponse(
+                {"error": "photos are added by event staff only"}, status_code=403
+            )
         dirs = event_dirs(data_dir, event["id"])
         uploader = re.sub(r"\s+", " ", uploader).strip()[:60]
-        if member is not None:
-            uploader = member["name"]
         saved, errors = [], []
         for upload_file in files:
             original_name = upload_file.filename or "photo"
@@ -1983,10 +2007,6 @@ def create_app() -> FastAPI:
                     meta = await _save_photo(upload_file, original_name, uploader, ext, dirs)
                     if ai_agents.ai_enabled():
                         background.add_task(_caption_task, event["id"], meta["id"])
-                if member is not None:
-                    # A student's own uploads are tagged to them automatically.
-                    meta["tagged"] = [member["id"]]
-                    (dirs["meta"] / f"{meta['id']}.json").write_text(json.dumps(meta))
                 saved.append(meta)
             except PhotoError as exc:
                 errors.append({"file": original_name, "reason": str(exc)})

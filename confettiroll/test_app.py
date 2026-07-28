@@ -634,23 +634,48 @@ def test_prom_tagged_event_flow(client):
     )
     group_photo = res.json()["saved"][0]["id"]
 
-    # the shared event password is NOT accepted on a tagged event
+    # a wrong code is rejected outright
     client.cookies.clear()
-    res = client.post(f"{PROM}/login", data={"password": "cake123"})
+    res = client.post(f"{PROM}/login", data={"password": "not-a-code"})
     assert "isn't right" in res.text
 
-    # Ava signs in with her code; her upload is auto-tagged to her
+    # the event password is the STAFF upload code — the Vice Principal signs
+    # in with it and can upload and tag, but is not an admin
+    res = client.post(f"{PROM}/login", data={"password": "cake123"},
+                      follow_redirects=False)
+    assert res.status_code == 303
+    staff_listing = client.get(f"{PROM}/api/photos").json()
+    assert staff_listing["is_staff"] is True
+    assert staff_listing["is_admin"] is False
+    assert len(staff_listing["photos"]) == 1  # sees everything uploaded so far
+    res = client.post(
+        f"{PROM}/api/upload",
+        files=[("files", ("ava.jpg", _fake_jpeg(), "image/jpeg"))],
+        data={"uploader": "Vice Principal"},
+    )
+    ava_photo = res.json()["saved"][0]["id"]
+    # staff tags Ava in the shot they just took, but cannot delete anything
+    ava_id = next(m["id"] for m in staff_listing["members"]
+                  if m["name"] == "Ava Martin")
+    res = client.post(f"{PROM}/api/photos/{ava_photo}/tags",
+                      data={"members": str(ava_id)})
+    assert res.status_code == 200 and res.json()["tagged"] == [ava_id]
+    assert client.delete(f"{PROM}/api/photos/{ava_photo}").status_code == 403
+
+    # Ava signs in with her personal code and sees only her tagged photo
+    client.cookies.clear()
     res = client.post(f"{PROM}/login", data={"password": codes["Ava Martin"]},
                       follow_redirects=False)
     assert res.status_code == 303
-    res = client.post(f"{PROM}/api/upload",
-                      files=[("files", ("selfie.jpg", _fake_jpeg(), "image/jpeg"))])
-    ava_photo = res.json()["saved"][0]["id"]
-
     listing = client.get(f"{PROM}/api/photos").json()
     assert [p["id"] for p in listing["photos"]] == [ava_photo]
     assert listing["member_name"] == "Ava Martin"
     assert listing["mode"] == "prom"
+
+    # students can't upload — photos come from staff only
+    res = client.post(f"{PROM}/api/upload",
+                      files=[("files", ("selfie.jpg", _fake_jpeg(), "image/jpeg"))])
+    assert res.status_code == 403
 
     # the untagged group shot is invisible AND unreachable to her
     assert client.get(f"{PROM}/photos/{group_photo}").status_code == 404
