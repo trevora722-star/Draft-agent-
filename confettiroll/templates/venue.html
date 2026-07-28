@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{NAME}} — Event Photo Albums</title>
+<style>
+  :root {
+    --ink: #2c2733; --soft: #7d7488;
+    --accent: {{ACCENT}}; --accent-dark: {{ACCENT_DARK}};
+    --paper: #fdfbf7; --card: #ffffff; --line: #ece6ef;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: Georgia, "Times New Roman", serif; }
+  header {
+    text-align: center;
+    padding: 54px 24px 30px;
+  }
+  .vlogo { max-height: 84px; max-width: 260px; margin-bottom: 18px; }
+  h1 { font-size: 40px; font-weight: normal; line-height: 1.15; }
+  .tagline { color: var(--soft); font-size: 17px; margin-top: 10px; font-style: italic; }
+  .band {
+    background: var(--accent);
+    color: #fff;
+    text-align: center;
+    padding: 22px 20px;
+    margin: 26px 0;
+  }
+  .band h2 { font-size: 22px; font-weight: normal; }
+  .band p { font-size: 14.5px; opacity: 0.92; margin-top: 6px; }
+  section { max-width: 960px; margin: 0 auto; padding: 22px 24px; }
+  .about { color: var(--soft); font-size: 16px; line-height: 1.65; text-align: center; max-width: 640px; margin: 0 auto; }
+  .vphotos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+    margin-top: 10px;
+  }
+  .vsnap { border-radius: 12px; overflow: hidden; box-shadow: 0 10px 26px rgba(44,39,51,0.12); }
+  .vsnap img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+  h3.sect { font-size: 24px; font-weight: normal; text-align: center; margin: 26px 0 16px; }
+  .vevents { max-width: 560px; margin: 0 auto; }
+  .vevent {
+    display: flex; justify-content: space-between; align-items: baseline;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 20px; margin-bottom: 10px;
+    text-decoration: none; color: var(--ink); font-size: 17px;
+  }
+  .vevent:hover { border-color: var(--accent); }
+  .vdate { color: var(--soft); font-size: 13.5px; font-family: "Helvetica Neue", Arial, sans-serif; }
+  .vempty { text-align: center; color: var(--soft); font-style: italic; padding: 16px; }
+  footer {
+    text-align: center; color: var(--soft); font-size: 12.5px;
+    padding: 30px; border-top: 1px solid var(--line); margin-top: 36px;
+  }
+</style>
+</head>
+<body>
+  <header>
+    {{LOGO_HTML}}
+    <h1>{{NAME}}</h1>
+    <p class="tagline">{{TAGLINE}}</p>
+  </header>
+
+  <div class="band">
+    <h2>{{HEADLINE}}</h2>
+    <p>Were you at an event here? Open its album below and enter the event
+    password from your host to see and share photos.</p>
+  </div>
+
+  <section>
+    <p class="about">{{ABOUT}}</p>
+  </section>
+
+  <section>
+    <div class="vphotos">{{PHOTOS_HTML}}</div>
+  </section>
+
+  <section>
+    <h3 class="sect">Event albums</h3>
+    <div class="vevents">{{EVENTS_HTML}}</div>
+  </section>
+
+  <footer>Photo albums by ConfettiRoll</footer>
+</body>
+</html>

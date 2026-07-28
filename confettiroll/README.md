@@ -40,6 +40,29 @@ recommended fallback model):
 Without the key everything else works normally — the AI toolbar simply
 stays hidden. Rough cost: a few cents per hundred photos captioned.
 
+## Venue white-label tier (wineries, golf courses, event spaces)
+
+Any account can create one venue from the dashboard's self-serve **brand
+studio** — no sales call, no configuration by us:
+
+- **Their assets, uploaded by them**: logo (accent color is auto-extracted
+  from its dominant color), up to 12 showcase photos, tagline, headline,
+  and about copy — all editable in place.
+- **The brand agent** (✨): with `ANTHROPIC_API_KEY` set, one click sends
+  their logo (vision) + venue type + notes to Claude Opus 5, which writes
+  the tagline/headline/about and picks a matching accent — instantly
+  applied, still editable.
+- **Their own domain**: the venue page answers at
+  `their-slug.<base domain>` and at any custom domain they enter
+  (CNAME → base domain; add the domain on the host for TLS). Tenant
+  routing resolves events first, then venues.
+- **Branded events**: events can be assigned to the venue at creation;
+  their galleries and guest-login pages inherit the venue's accent color
+  and show a "Hosted at <venue>" badge linking back. The venue page lists
+  all its event albums.
+- Storage: `data/venues/<id>/` (logo.png + photos/), rows in `venues`,
+  `events.venue_id` links events.
+
 ## Partner program pages & assets
 
 - `/partners` — public partner landing page: the transparent "20% on every

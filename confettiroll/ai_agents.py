@@ -22,6 +22,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 from pathlib import Path
 
 try:
@@ -120,6 +121,82 @@ def caption_photo(thumb_path: Path) -> dict | None:
         result["caption"] = str(result.get("caption", ""))[:200]
         result["quality"] = max(1, min(10, int(result.get("quality", 5))))
         return result
+    except Exception:
+        return None
+
+
+BRAND_KIT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "tagline": {
+            "type": "string",
+            "description": "A short tagline for the venue, under 60 characters. No quotes, no emoji.",
+        },
+        "headline": {
+            "type": "string",
+            "description": "A welcoming headline for the venue's photo-sharing page, under 70 characters, addressed to event guests.",
+        },
+        "about": {
+            "type": "string",
+            "description": "2-3 warm sentences about the venue and how guests share photos here. Plain prose.",
+        },
+        "accent": {
+            "type": "string",
+            "description": "A hex color (like #7a2f45) for buttons and accents, matched to the venue's logo/brand. Must contrast well against a cream background.",
+        },
+    },
+    "required": ["tagline", "headline", "about", "accent"],
+    "additionalProperties": False,
+}
+
+
+def generate_brand_kit(name: str, venue_type: str, notes: str,
+                       logo_bytes: bytes | None = None,
+                       logo_media_type: str = "image/png") -> dict | None:
+    """Build a venue's brand voice + accent color from its logo and description."""
+    if not ai_enabled():
+        return None
+    content: list = []
+    if logo_bytes:
+        content.append({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": logo_media_type,
+                "data": base64.standard_b64encode(logo_bytes).decode(),
+            },
+        })
+    content.append({
+        "type": "text",
+        "text": (
+            f'You are the brand copywriter for "{name}", a {venue_type or "venue"} '
+            "that hosts weddings, parties, and corporate events. "
+            + (f"Notes from the venue: {notes}\n" if notes else "")
+            + ("Their logo is attached - match its personality and pick an accent "
+               "color drawn from it. " if logo_bytes else "")
+            + "They offer every event a private shared photo album where guests "
+            "upload photos and videos. Write the brand kit for that page."
+        ),
+    })
+    try:
+        response = _get_client().beta.messages.create(
+            model=model(),
+            max_tokens=1024,
+            betas=FALLBACK_BETAS,
+            fallbacks="default",
+            output_config={
+                "format": {"type": "json_schema", "schema": BRAND_KIT_SCHEMA},
+            },
+            messages=[{"role": "user", "content": content}],
+        )
+        if response.stop_reason == "refusal":
+            return None
+        kit = json.loads(next(b.text for b in response.content if b.type == "text"))
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", kit.get("accent", "")):
+            kit["accent"] = "#e85d8a"
+        for key in ("tagline", "headline", "about"):
+            kit[key] = str(kit.get(key, "")).strip()[:400]
+        return kit
     except Exception:
         return None
 

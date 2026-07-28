@@ -145,6 +145,20 @@ def init_db(db_path: Path) -> None:
                 custom_domain TEXT UNIQUE,
                 created_at INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS venues (
+                id TEXT PRIMARY KEY,
+                owner_id INTEGER UNIQUE NOT NULL REFERENCES users(id),
+                name TEXT NOT NULL,
+                slug TEXT UNIQUE NOT NULL,
+                venue_type TEXT NOT NULL DEFAULT '',
+                custom_domain TEXT UNIQUE,
+                tagline TEXT NOT NULL DEFAULT '',
+                headline TEXT NOT NULL DEFAULT '',
+                about TEXT NOT NULL DEFAULT '',
+                accent TEXT NOT NULL DEFAULT '#e85d8a',
+                logo TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL
+            );
             """
         )
         # Lightweight migration: referral columns for the partner program.
@@ -159,12 +173,49 @@ def init_db(db_path: Path) -> None:
             conn.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER")
         if "charity" not in existing:
             conn.execute("ALTER TABLE users ADD COLUMN charity TEXT NOT NULL DEFAULT ''")
+        event_cols = {row[1] for row in conn.execute("PRAGMA table_info(events)")}
+        if "venue_id" not in event_cols:
+            conn.execute("ALTER TABLE events ADD COLUMN venue_id TEXT")
 
 
 def new_referral_code() -> str:
     # Short, human-friendly, unambiguous (no 0/O/1/l).
     alphabet = "abcdefghjkmnpqrstuvwxyz23456789"
     return "".join(secrets.choice(alphabet) for _ in range(8))
+
+
+def venue_dir(data_dir: Path, venue_id: str) -> Path:
+    d = data_dir / "venues" / venue_id
+    (d / "photos").mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def dominant_color(image_bytes: bytes) -> str | None:
+    """Pull the strongest non-grayscale color from a logo for the accent."""
+    try:
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+        img.thumbnail((100, 100))
+        counts: dict[tuple[int, int, int], int] = {}
+        for r, g, b, a in img.getdata():
+            if a < 128:
+                continue
+            if max(r, g, b) - min(r, g, b) < 30:  # skip grays/whites/blacks
+                continue
+            key = (r // 24 * 24, g // 24 * 24, b // 24 * 24)
+            counts[key] = counts.get(key, 0) + 1
+        if not counts:
+            return None
+        r, g, b = max(counts, key=counts.get)
+        return f"#{r:02x}{g:02x}{b:02x}"
+    except Exception:
+        return None
+
+
+def darken(hex_color: str, factor: float = 0.82) -> str:
+    r = int(int(hex_color[1:3], 16) * factor)
+    g = int(int(hex_color[3:5], 16) * factor)
+    b = int(int(hex_color[5:7], 16) * factor)
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 
 # ---------------------------------------------------------------------------
@@ -278,7 +329,7 @@ def create_app() -> FastAPI:
     tpl = {
         name: (BASE_DIR / "templates" / f"{name}.html").read_text()
         for name in ("landing", "signup", "login", "dashboard", "guest_login",
-                     "gallery", "partners")
+                     "gallery", "partners", "venue")
     }
 
     app = FastAPI(title="ConfettiRoll", docs_url=None, redoc_url=None)
@@ -353,6 +404,63 @@ def create_app() -> FastAPI:
                 "SELECT * FROM events WHERE custom_domain = ?", (host,)
             ).fetchone()
 
+    def resolve_venue(request: Request) -> sqlite3.Row | None:
+        host = (request.url.hostname or "").lower()
+        slug = None
+        for suffix in ("." + base_domain, ".localhost"):
+            if host.endswith(suffix):
+                slug = host[: -len(suffix)]
+                break
+        with db() as conn:
+            if slug is not None:
+                if "." in slug:
+                    return None
+                return conn.execute("SELECT * FROM venues WHERE slug = ?", (slug,)).fetchone()
+            return conn.execute(
+                "SELECT * FROM venues WHERE custom_domain = ?", (host,)
+            ).fetchone()
+
+    def slug_in_use(conn: sqlite3.Connection, slug: str) -> bool:
+        return (
+            conn.execute("SELECT 1 FROM events WHERE slug = ?", (slug,)).fetchone() is not None
+            or conn.execute("SELECT 1 FROM venues WHERE slug = ?", (slug,)).fetchone() is not None
+        )
+
+    def user_venue(conn: sqlite3.Connection, user_id: int) -> sqlite3.Row | None:
+        return conn.execute("SELECT * FROM venues WHERE owner_id = ?", (user_id,)).fetchone()
+
+    def venue_url(venue: sqlite3.Row) -> str:
+        if venue["custom_domain"]:
+            return f"https://{venue['custom_domain']}"
+        return f"https://{venue['slug']}.{base_domain}"
+
+    def event_brand(event: sqlite3.Row) -> dict:
+        """Branding substitutions for an event's gallery/login pages."""
+        subs = {"brand_css": "", "brand_badge": ""}
+        if not event["venue_id"]:
+            return subs
+        with db() as conn:
+            venue = conn.execute(
+                "SELECT * FROM venues WHERE id = ?", (event["venue_id"],)
+            ).fetchone()
+        if venue is None:
+            return subs
+        accent = venue["accent"] or "#e85d8a"
+        subs["brand_css"] = (
+            f"<style>:root{{--accent:{accent};--accent-dark:{darken(accent)}}}</style>"
+        )
+        logo_html = (
+            f'<img src="/venue-assets/{venue["id"]}/{esc(venue["logo"])}" alt="" '
+            'style="height:26px; vertical-align:middle; margin-right:8px; border-radius:4px">'
+            if venue["logo"] else ""
+        )
+        subs["brand_badge"] = (
+            f'<p style="text-align:center; font-size:13px; color:var(--soft); padding:6px 0">'
+            f'{logo_html}Hosted at <a href="{esc(venue_url(venue))}" '
+            f'style="color:var(--accent)">{esc(venue["name"])}</a></p>'
+        )
+        return subs
+
     def gallery_role(request: Request, event: sqlite3.Row) -> str | None:
         user = current_user(request)
         if user is not None and user["id"] == event["owner_id"]:
@@ -376,8 +484,8 @@ def create_app() -> FastAPI:
             return f"https://{event['custom_domain']}"
         return f"https://{event['slug']}.{base_domain}"
 
-    def page(name: str, **subs: str) -> HTMLResponse:
-        html = tpl[name]
+    def page(template: str, **subs: str) -> HTMLResponse:
+        html = tpl[template]
         for key, value in subs.items():
             html = html.replace("{{" + key.upper() + "}}", value)
         return HTMLResponse(html)
@@ -401,9 +509,58 @@ def create_app() -> FastAPI:
         event = resolve_event(request)
         if event is not None:
             return tenant_gallery(request, event)
+        venue = resolve_venue(request)
+        if venue is not None:
+            return venue_page(venue)
         if current_user(request) is not None:
             return RedirectResponse("/dashboard", status_code=303)
         return page("landing", base=base_domain)
+
+    def venue_page(venue: sqlite3.Row) -> HTMLResponse:
+        vdir = venue_dir(data_dir, venue["id"])
+        photo_tiles = "".join(
+            f'<div class="vsnap"><img src="/venue-assets/{venue["id"]}/photos/{esc(p.name)}" alt=""></div>'
+            for p in sorted((vdir / "photos").glob("*.jpg"))
+        )
+        with db() as conn:
+            events = conn.execute(
+                "SELECT * FROM events WHERE venue_id = ? ORDER BY created_at DESC",
+                (venue["id"],),
+            ).fetchall()
+        event_rows = "".join(
+            f'<a class="vevent" href="{esc(event_url(ev))}">'
+            f'<span>{esc(ev["title"])}</span>'
+            f'<span class="vdate">{esc(ev["event_date"] or "")}</span></a>'
+            for ev in events
+        ) or '<p class="vempty">Galleries appear here as events are hosted.</p>'
+        accent = venue["accent"] or "#e85d8a"
+        logo_html = (
+            f'<img class="vlogo" src="/venue-assets/{venue["id"]}/{esc(venue["logo"])}" '
+            f'alt="{esc(venue["name"])} logo">' if venue["logo"] else ""
+        )
+        return page(
+            "venue",
+            name=esc(venue["name"]),
+            logo_html=logo_html,
+            tagline=esc(venue["tagline"] or "Every event's photos, in one place."),
+            headline=esc(venue["headline"] or f'Welcome to {venue["name"]}'),
+            about=esc(venue["about"] or ""),
+            accent=accent,
+            accent_dark=darken(accent),
+            photos_html=photo_tiles,
+            events_html=event_rows,
+        )
+
+    @app.get("/venue-assets/{venue_id}/{path:path}")
+    def venue_asset(venue_id: str, path: str):
+        if not re.fullmatch(r"[0-9a-f]{32}", venue_id) or not re.fullmatch(
+            r"(photos/)?[\w.-]+\.(png|jpg)", path
+        ):
+            return JSONResponse({"error": "not found"}, status_code=404)
+        file = data_dir / "venues" / venue_id / path
+        if not file.exists():
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return FileResponse(file)
 
     @app.get("/signup", response_class=HTMLResponse)
     def signup_form(request: Request, ref: str = ""):
@@ -443,7 +600,8 @@ def create_app() -> FastAPI:
     def login_form(request: Request):
         event = resolve_event(request)
         if event is not None:
-            return page("guest_login", title=esc(event["title"]), error="")
+            return page("guest_login", title=esc(event["title"]), error="",
+                        **event_brand(event))
         return page("login", error="")
 
     @app.post("/login")
@@ -497,6 +655,7 @@ def create_app() -> FastAPI:
                 "SELECT COUNT(*) AS n FROM events WHERE owner_id IN"
                 " (SELECT id FROM users WHERE referred_by = ?)", (user["id"],)
             ).fetchone()["n"]
+            venue = user_venue(conn, user["id"])
         rows = []
         for ev in events:
             count = len(list((data_dir / "events" / ev["id"] / "meta").glob("*.json"))) \
@@ -519,12 +678,116 @@ def create_app() -> FastAPI:
             </div>""")
         error_html = f'<p class="error">{esc(error)}</p>' if error else ""
         pending = ref_events * referral_fee
+
+        if venue is None:
+            venue_select = ""
+            venue_panel = f"""
+    <div class="panel">
+      <h2>Your venue — white-label branding</h2>
+      <p style="color:var(--soft); font-size:14.5px; line-height:1.6; margin-bottom:14px">
+        Run a winery, golf course, wedding venue, or corporate event space?
+        Create your own branded photo-sharing page: your logo, your photos,
+        your colors, on your own domain. Every event you host gets a gallery
+        carrying your brand.</p>
+      <form method="post" action="/api/venues">
+        <div class="form-grid">
+          <div><label>Venue name</label><input name="name" placeholder="Silver Oak Winery" required></div>
+          <div><label>Web address</label><input name="slug" placeholder="silver-oak" required
+               pattern="[a-z0-9][a-z0-9-]{{1,38}}[a-z0-9]">
+               <div class="hint">your-venue.{esc(base_domain)}</div></div>
+          <div><label>Venue type</label>
+            <select name="venue_type" style="width:100%; padding:11px 12px; font-size:15px; border:1px solid var(--line); border-radius:8px; background:#fdfcfa; font-family:inherit">
+              <option>winery</option><option>golf course</option>
+              <option>wedding venue</option><option>corporate event space</option>
+              <option>restaurant</option><option>other</option>
+            </select></div>
+          <div><label>Your domain <span style="text-transform:none">(optional)</span></label>
+            <input name="custom_domain" placeholder="photos.silveroak.com"></div>
+        </div>
+        <button class="create" type="submit">Create my venue page</button>
+      </form>
+    </div>"""
+        else:
+            venue_select = f"""
+          <div>
+            <label for="venue_id">Part of your venue?</label>
+            <select id="venue_id" name="venue_id" style="width:100%; padding:11px 12px; font-size:15px; border:1px solid var(--line); border-radius:8px; background:#fdfcfa; font-family:inherit">
+              <option value="">Standalone event</option>
+              <option value="{venue['id']}" selected>{esc(venue['name'])}</option>
+            </select>
+          </div>"""
+            vdir = venue_dir(data_dir, venue["id"])
+            logo_html = (
+                f'<img src="/venue-assets/{venue["id"]}/{esc(venue["logo"])}" alt="logo" style="height:44px; border-radius:6px; vertical-align:middle">'
+                if venue["logo"] else '<span style="color:var(--soft); font-size:14px">No logo yet</span>'
+            )
+            photo_thumbs = "".join(
+                f'''<span style="position:relative; display:inline-block">
+                    <img src="/venue-assets/{venue["id"]}/photos/{p.name}" style="height:64px; border-radius:6px">
+                    <form method="post" action="/api/venues/{venue["id"]}/photos/delete" style="position:absolute; top:2px; right:2px">
+                      <input type="hidden" name="filename" value="{p.name}">
+                      <button type="submit" style="border:none; background:rgba(30,26,22,.55); color:#fff; border-radius:50%; width:20px; height:20px; font-size:11px; cursor:pointer">✕</button>
+                    </form></span>'''
+                for p in sorted((vdir / "photos").glob("*.jpg"))
+            ) or '<span style="color:var(--soft); font-size:14px">No photos yet — add a few showcase shots.</span>'
+            venue_panel = f"""
+    <div class="panel">
+      <h2>{esc(venue['name'])} — brand studio</h2>
+      <p style="margin-bottom:14px"><a class="mini" href="{esc(venue_url(venue))}" target="_blank">View your page</a>
+        <span style="color:var(--soft); font-size:13.5px; margin-left:8px">{esc(venue_url(venue).replace('https://',''))}</span></p>
+
+      <div style="display:flex; gap:26px; flex-wrap:wrap; align-items:center; margin-bottom:18px">
+        <div>{logo_html}</div>
+        <form method="post" action="/api/venues/{venue['id']}/logo" enctype="multipart/form-data" style="display:flex; gap:8px; align-items:center">
+          <input type="file" name="logo" accept="image/*" required style="font-size:13px">
+          <button class="mini" type="submit" style="cursor:pointer; background:none">Upload logo</button>
+        </form>
+      </div>
+
+      <div style="margin-bottom:18px">
+        <label>Showcase photos</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin:8px 0">{photo_thumbs}</div>
+        <form method="post" action="/api/venues/{venue['id']}/photos" enctype="multipart/form-data" style="display:flex; gap:8px; align-items:center">
+          <input type="file" name="files" accept="image/*" multiple required style="font-size:13px">
+          <button class="mini" type="submit" style="cursor:pointer; background:none">Add photos</button>
+        </form>
+      </div>
+
+      <form method="post" action="/api/venues/{venue['id']}/brand">
+        <div class="form-grid">
+          <div><label>Tagline</label><input name="tagline" value="{esc(venue['tagline'])}" placeholder="Where great days become great memories"></div>
+          <div><label>Guest headline</label><input name="headline" value="{esc(venue['headline'])}" placeholder="Welcome — share your photos!"></div>
+          <div><label>Accent color</label><input name="accent" type="color" value="{esc(venue['accent'])}" style="height:44px; padding:4px"></div>
+          <div><label>Your domain</label><input name="custom_domain" value="{esc(venue['custom_domain'] or '')}" placeholder="photos.yourvenue.com"></div>
+        </div>
+        <div style="margin-top:12px"><label>About</label>
+          <textarea name="about" rows="3" style="width:100%; padding:11px 12px; font-size:15px; border:1px solid var(--line); border-radius:8px; background:#fdfcfa; font-family:inherit">{esc(venue['about'])}</textarea></div>
+        <button class="create" type="submit">Save branding</button>
+      </form>
+
+      <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--line)">
+        <label>✨ Let the brand agent write it</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px">
+          <input id="ai-notes" placeholder="Anything it should know? (est. 1987, lakefront, rustic-modern…)"
+                 style="flex:1; min-width:240px; padding:9px 12px; font-size:14px; border:1px solid var(--line); border-radius:8px; background:#fdfcfa; font-family:inherit">
+          <button class="mini" type="button" id="ai-brand-btn" data-venue="{venue['id']}" style="cursor:pointer; background:none">Generate brand kit</button>
+        </div>
+        <p id="ai-brand-status" style="color:var(--soft); font-size:13.5px; margin-top:6px"></p>
+      </div>
+
+      <p style="color:var(--soft); font-size:13.5px; margin-top:14px">
+        Your domain: point a CNAME from <code>{esc(venue['custom_domain'] or 'photos.yourvenue.com')}</code>
+        to <code>{esc(base_domain)}</code> and your page answers there.</p>
+    </div>"""
+
         return page(
             "dashboard",
             user_name=esc(user["name"] or user["email"]),
             events="\n".join(rows) or '<p class="empty">No events yet — create your first one above.</p>',
             base_domain=esc(base_domain),
             error=error_html,
+            venue_panel=venue_panel,
+            venue_select=venue_select,
             ref_code=esc(referral_code),
             ref_link=esc(f"https://{base_domain}/signup?ref={referral_code}"),
             ref_signups=str(ref_signups),
@@ -541,10 +804,18 @@ def create_app() -> FastAPI:
     @app.post("/api/events")
     def create_event(request: Request, title: str = Form(...), slug: str = Form(...),
                      guest_password: str = Form(...), event_date: str = Form(""),
-                     custom_domain: str = Form("")):
+                     custom_domain: str = Form(""), venue_id: str = Form("")):
         user = current_user(request)
         if user is None:
             return RedirectResponse("/login", status_code=303)
+        if venue_id:
+            with db() as conn:
+                owned = conn.execute(
+                    "SELECT 1 FROM venues WHERE id = ? AND owner_id = ?",
+                    (venue_id, user["id"]),
+                ).fetchone()
+            if owned is None:
+                venue_id = ""
         title = re.sub(r"\s+", " ", title).strip()[:80]
         slug = slug.strip().lower()
         custom_domain = custom_domain.strip().lower().removeprefix("https://").removeprefix("http://").strip("/")
@@ -565,11 +836,14 @@ def create_app() -> FastAPI:
         event_id = uuid.uuid4().hex
         try:
             with db() as conn:
+                if slug_in_use(conn, slug):
+                    return RedirectResponse("/dashboard?error=That+web+address+is+already+taken.", status_code=303)
                 conn.execute(
-                    "INSERT INTO events (id, owner_id, slug, title, event_date, guest_password, custom_domain, created_at)"
-                    " VALUES (?,?,?,?,?,?,?,?)",
+                    "INSERT INTO events (id, owner_id, slug, title, event_date, guest_password, custom_domain, created_at, venue_id)"
+                    " VALUES (?,?,?,?,?,?,?,?,?)",
                     (event_id, user["id"], slug, title, event_date.strip()[:40],
-                     guest_password, custom_domain or None, int(time.time())),
+                     guest_password, custom_domain or None, int(time.time()),
+                     venue_id or None),
                 )
         except sqlite3.IntegrityError:
             return RedirectResponse("/dashboard?error=That+web+address+is+already+taken.", status_code=303)
@@ -591,6 +865,152 @@ def create_app() -> FastAPI:
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         return Response(buf.getvalue(), media_type="image/png")
+
+    # ---- venue (white-label) management ------------------------------------
+
+    def owned_venue(request: Request, venue_id: str) -> sqlite3.Row | None:
+        user = current_user(request)
+        if user is None:
+            return None
+        with db() as conn:
+            return conn.execute(
+                "SELECT * FROM venues WHERE id = ? AND owner_id = ?",
+                (venue_id, user["id"]),
+            ).fetchone()
+
+    @app.post("/api/venues")
+    def create_venue(request: Request, name: str = Form(...), slug: str = Form(...),
+                     venue_type: str = Form(""), custom_domain: str = Form("")):
+        user = current_user(request)
+        if user is None:
+            return RedirectResponse("/login", status_code=303)
+        name = re.sub(r"\s+", " ", name).strip()[:80]
+        slug = slug.strip().lower()
+        custom_domain = custom_domain.strip().lower().removeprefix("https://").removeprefix("http://").strip("/")
+        if not name or not SLUG_RE.fullmatch(slug) or slug in RESERVED_SLUGS:
+            return RedirectResponse("/dashboard?error=Venue+needs+a+name+and+a+valid+web+address.", status_code=303)
+        if custom_domain and not re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", custom_domain):
+            return RedirectResponse("/dashboard?error=That+venue+domain+doesn't+look+valid.", status_code=303)
+        with db() as conn:
+            if user_venue(conn, user["id"]) is not None:
+                return RedirectResponse("/dashboard?error=You+already+have+a+venue.", status_code=303)
+            if slug_in_use(conn, slug):
+                return RedirectResponse("/dashboard?error=That+web+address+is+already+taken.", status_code=303)
+            venue_id = uuid.uuid4().hex
+            try:
+                conn.execute(
+                    "INSERT INTO venues (id, owner_id, name, slug, venue_type, custom_domain, created_at)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (venue_id, user["id"], name, slug, venue_type.strip()[:40],
+                     custom_domain or None, int(time.time())),
+                )
+            except sqlite3.IntegrityError:
+                return RedirectResponse("/dashboard?error=That+web+address+or+domain+is+already+taken.", status_code=303)
+        venue_dir(data_dir, venue_id)
+        return RedirectResponse("/dashboard", status_code=303)
+
+    @app.post("/api/venues/{venue_id}/brand")
+    def venue_brand(request: Request, venue_id: str, tagline: str = Form(""),
+                    headline: str = Form(""), about: str = Form(""),
+                    accent: str = Form(""), custom_domain: str = Form("")):
+        venue = owned_venue(request, venue_id)
+        if venue is None:
+            return RedirectResponse("/login", status_code=303)
+        if accent and not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
+            accent = venue["accent"]
+        custom_domain = custom_domain.strip().lower().removeprefix("https://").removeprefix("http://").strip("/")
+        if custom_domain and not re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", custom_domain):
+            return RedirectResponse("/dashboard?error=That+venue+domain+doesn't+look+valid.", status_code=303)
+        with db() as conn:
+            try:
+                conn.execute(
+                    "UPDATE venues SET tagline=?, headline=?, about=?, accent=?, custom_domain=? WHERE id=?",
+                    (tagline.strip()[:120], headline.strip()[:120], about.strip()[:1200],
+                     accent or venue["accent"], custom_domain or None, venue_id),
+                )
+            except sqlite3.IntegrityError:
+                return RedirectResponse("/dashboard?error=That+domain+is+already+in+use.", status_code=303)
+        return RedirectResponse("/dashboard", status_code=303)
+
+    @app.post("/api/venues/{venue_id}/logo")
+    async def venue_logo(request: Request, venue_id: str, logo: UploadFile = File(...)):
+        venue = owned_venue(request, venue_id)
+        if venue is None:
+            return RedirectResponse("/login", status_code=303)
+        data = await logo.read(8 * 1024 * 1024)
+        try:
+            img = Image.open(io.BytesIO(data))
+            img.load()
+            img = img.convert("RGBA")
+            img.thumbnail((600, 600))
+        except Exception:
+            return RedirectResponse("/dashboard?error=That+logo+couldn't+be+read+as+an+image.", status_code=303)
+        vdir = venue_dir(data_dir, venue_id)
+        img.save(vdir / "logo.png", "PNG")
+        updates = {"logo": "logo.png"}
+        if venue["accent"] == "#e85d8a":  # untouched default: adopt the logo's color
+            extracted = dominant_color(data)
+            if extracted:
+                updates["accent"] = extracted
+        with db() as conn:
+            conn.execute(
+                f"UPDATE venues SET {', '.join(f'{k}=?' for k in updates)} WHERE id=?",
+                (*updates.values(), venue_id),
+            )
+        return RedirectResponse("/dashboard", status_code=303)
+
+    @app.post("/api/venues/{venue_id}/photos")
+    async def venue_photos(request: Request, venue_id: str,
+                           files: list[UploadFile] = File(...)):
+        venue = owned_venue(request, venue_id)
+        if venue is None:
+            return RedirectResponse("/login", status_code=303)
+        photos_path = venue_dir(data_dir, venue_id) / "photos"
+        existing = len(list(photos_path.glob("*.jpg")))
+        for upload_file in files[: max(0, 12 - existing)]:
+            data = await upload_file.read(MAX_IMAGE_BYTES)
+            try:
+                img = Image.open(io.BytesIO(data))
+                img.load()
+                img = ImageOps.exif_transpose(img).convert("RGB")
+                img.thumbnail((1600, 1600))
+                img.save(photos_path / f"{uuid.uuid4().hex}.jpg", "JPEG", quality=88)
+            except Exception:
+                continue
+        return RedirectResponse("/dashboard", status_code=303)
+
+    @app.post("/api/venues/{venue_id}/photos/delete")
+    def venue_photo_delete(request: Request, venue_id: str, filename: str = Form(...)):
+        venue = owned_venue(request, venue_id)
+        if venue is None:
+            return RedirectResponse("/login", status_code=303)
+        if re.fullmatch(r"[0-9a-f]{32}\.jpg", filename):
+            (venue_dir(data_dir, venue_id) / "photos" / filename).unlink(missing_ok=True)
+        return RedirectResponse("/dashboard", status_code=303)
+
+    @app.post("/api/venues/{venue_id}/ai-brand")
+    def venue_ai_brand(request: Request, venue_id: str, notes: str = Form("")):
+        venue = owned_venue(request, venue_id)
+        if venue is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        if not ai_agents.ai_enabled():
+            return JSONResponse({"error": "AI features aren't enabled on this server"}, status_code=503)
+        logo_bytes = None
+        logo_file = venue_dir(data_dir, venue_id) / "logo.png"
+        if venue["logo"] and logo_file.exists():
+            logo_bytes = logo_file.read_bytes()
+        kit = ai_agents.generate_brand_kit(
+            venue["name"], venue["venue_type"], notes.strip()[:600], logo_bytes
+        )
+        if kit is None:
+            return JSONResponse({"error": "couldn't generate a brand kit"}, status_code=502)
+        with db() as conn:
+            conn.execute(
+                "UPDATE venues SET tagline=?, headline=?, about=?, accent=? WHERE id=?",
+                (kit["tagline"][:120], kit["headline"][:120], kit["about"][:1200],
+                 kit["accent"], venue_id),
+            )
+        return kit
 
     @app.get("/partners", response_class=HTMLResponse)
     def partners(request: Request):
@@ -638,17 +1058,18 @@ def create_app() -> FastAPI:
     def tenant_gallery(request: Request, event: sqlite3.Row):
         if gallery_role(request, event) is None:
             return RedirectResponse("/login", status_code=303)
-        return page("gallery", title=esc(event["title"]))
+        return page("gallery", title=esc(event["title"]), **event_brand(event))
 
     def tenant_login(request: Request, event: sqlite3.Row, password: str):
         ip = request.client.host if request.client else "unknown"
         key = f"guest:{event['id']}:{ip}"
+        brand = event_brand(event)
         if too_many_attempts(key):
-            return page("guest_login", title=esc(event["title"]),
+            return page("guest_login", title=esc(event["title"]), **brand,
                         error=err_html("Too many attempts - please wait a few minutes."))
         if not hmac.compare_digest(password, event["guest_password"]):
             record_attempt(key)
-            return page("guest_login", title=esc(event["title"]),
+            return page("guest_login", title=esc(event["title"]), **brand,
                         error=err_html("That password isn't right."))
         response = RedirectResponse("/", status_code=303)
         response.set_cookie(

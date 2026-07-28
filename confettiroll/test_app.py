@@ -277,6 +277,107 @@ def test_referral_qr_and_charity(client):
     assert "Local Food Bank" not in client.get(f"{BASE}/dashboard").text
 
 
+def _create_venue(client, slug="silver-oak", **overrides):
+    data = {"name": "Silver Oak Winery", "slug": slug,
+            "venue_type": "winery", "custom_domain": ""}
+    data.update(overrides)
+    return client.post(f"{BASE}/api/venues", data=data, follow_redirects=False)
+
+
+def test_venue_white_label_flow(client):
+    _signup(client)
+    assert _create_venue(client, custom_domain="photos.silveroak.test").status_code == 303
+    assert "brand studio" in client.get(f"{BASE}/dashboard").text
+
+    # only one venue per account; slug collisions blocked both ways
+    assert "error" in _create_venue(client, slug="other").headers["location"]
+    assert "already+taken" in _create_event(client, slug="silver-oak").headers["location"]
+
+    # upload a logo: accent auto-extracted from its dominant color
+    buf = io.BytesIO()
+    Image.new("RGB", (200, 200), color=(120, 30, 60)).save(buf, "PNG")
+    res = client.post(f"{BASE}/api/venues/" + _venue_id(client) + "/logo",
+                      files={"logo": ("logo.png", buf.getvalue(), "image/png")},
+                      follow_redirects=False)
+    assert res.status_code == 303
+
+    # upload two showcase photos
+    client.post(f"{BASE}/api/venues/" + _venue_id(client) + "/photos",
+                files=[("files", ("a.jpg", _fake_jpeg(), "image/jpeg")),
+                       ("files", ("b.jpg", _fake_jpeg(), "image/jpeg"))],
+                follow_redirects=False)
+
+    # save brand copy
+    client.post(f"{BASE}/api/venues/" + _venue_id(client) + "/brand",
+                data={"tagline": "Est. 1987 on the lake", "headline": "Welcome, friends",
+                      "about": "Our winery hosts weddings and galas.",
+                      "accent": "#336699", "custom_domain": "photos.silveroak.test"},
+                follow_redirects=False)
+
+    # the venue page answers on its subdomain AND its custom domain
+    for host in ("http://silver-oak.confettiroll.test", "http://photos.silveroak.test"):
+        page = client.get(f"{host}/")
+        assert page.status_code == 200
+        assert "Silver Oak Winery" in page.text
+        assert "Welcome, friends" in page.text
+        assert "#336699" in page.text
+        assert page.text.count("vsnap") >= 2  # showcase photos present
+
+    # venue assets are served
+    dashboard = client.get(f"{BASE}/dashboard").text
+    import re as _re
+    logo_url = _re.search(r'src="(/venue-assets/[0-9a-f]{32}/logo\.png)"', dashboard).group(1)
+    assert client.get(f"{BASE}{logo_url}").status_code == 200
+    assert client.get(f"{BASE}/venue-assets/{_venue_id(client)}/../secret").status_code == 404
+
+
+def test_venue_branded_event_gallery(client):
+    _signup(client)
+    _create_venue(client)
+    vid = _venue_id(client)
+    _create_event(client, slug="harvest-gala", venue_id=vid, guest_password="vino22")
+
+    # the venue page lists the event
+    vpage = client.get("http://silver-oak.confettiroll.test/").text
+    assert "Anna &amp; James&#x27;s Wedding" in vpage or "Anna" in vpage
+
+    # guest login page and gallery carry the venue branding
+    login = client.get("http://harvest-gala.confettiroll.test/login").text
+    assert "Hosted at" in login and "Silver Oak Winery" in login
+    client.post("http://harvest-gala.confettiroll.test/login",
+                data={"password": "vino22"}, follow_redirects=False)
+    gallery = client.get("http://harvest-gala.confettiroll.test/").text
+    assert "Hosted at" in gallery and "--accent:" in gallery
+
+
+def test_venue_ai_brand_kit(client, monkeypatch):
+    import app as app_module
+    monkeypatch.setattr(app_module.ai_agents, "ai_enabled", lambda: True)
+    monkeypatch.setattr(
+        app_module.ai_agents, "generate_brand_kit",
+        lambda name, vtype, notes, logo=None, **kw: {
+            "tagline": "Fairways and forever memories",
+            "headline": "Your day at Pebble Pines",
+            "about": "A golf course that hosts weddings.",
+            "accent": "#2f6e4f",
+        },
+    )
+    _signup(client)
+    _create_venue(client, slug="pebble-pines")
+    res = client.post(f"{BASE}/api/venues/{_venue_id(client)}/ai-brand",
+                      data={"notes": "links course, ocean views"})
+    assert res.status_code == 200
+    assert res.json()["accent"] == "#2f6e4f"
+    vpage = client.get("http://pebble-pines.confettiroll.test/").text
+    assert "Fairways and forever memories" in vpage and "#2f6e4f" in vpage
+
+
+def _venue_id(client):
+    import re as _re
+    dashboard = client.get(f"{BASE}/dashboard").text
+    return _re.search(r"/api/venues/([0-9a-f]{32})/", dashboard).group(1)
+
+
 def test_qr_code_owner_only(client):
     _signup(client)
     _create_event(client)

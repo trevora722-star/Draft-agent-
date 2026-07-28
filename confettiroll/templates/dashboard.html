@@ -120,7 +120,7 @@
             <label for="custom_domain">Custom domain <span style="text-transform:none">(optional)</span></label>
             <input id="custom_domain" name="custom_domain" placeholder="photos.yourdomain.com">
             <div class="hint">Point a CNAME at us — see the help note below.</div>
-          </div>
+          </div>{{VENUE_SELECT}}
         </div>
         <button class="create" type="submit">Create event</button>
         {{ERROR}}
@@ -128,6 +128,8 @@
     </div>
 
     {{EVENTS}}
+
+    {{VENUE_PANEL}}
 
     <div class="panel" style="margin-top:30px">
       <h2>Refer &amp; earn — for wedding &amp; event planners</h2>
@@ -192,6 +194,25 @@
   document.getElementById("copy-ref")?.addEventListener("click", () => {
     navigator.clipboard.writeText(document.getElementById("ref-link").textContent)
       .then(() => { document.getElementById("copy-ref").textContent = "Copied!"; });
+  });
+
+  document.getElementById("ai-brand-btn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("ai-brand-btn");
+    const status = document.getElementById("ai-brand-status");
+    status.textContent = "The brand agent is studying your logo and writing your kit…";
+    btn.disabled = true;
+    try {
+      const form = new FormData();
+      form.append("notes", document.getElementById("ai-notes").value.trim());
+      const res = await fetch(`/api/venues/${btn.dataset.venue}/ai-brand`, { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) { status.textContent = data.error || "Couldn't generate a kit."; btn.disabled = false; return; }
+      status.textContent = "Done! Applying your new brand…";
+      location.reload();
+    } catch {
+      status.textContent = "Couldn't generate a kit right now.";
+      btn.disabled = false;
+    }
   });
 
   document.querySelectorAll(".recap-btn").forEach(btn => {

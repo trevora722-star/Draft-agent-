@@ -55,6 +55,7 @@
   .powered { margin-top: 20px; font-size: 12px; color: var(--soft); }
   .powered a { color: var(--soft); }
 </style>
+{{BRAND_CSS}}
 </head>
 <body>
   <form class="card" method="post" action="/login">
@@ -65,6 +66,7 @@
     <input id="password" name="password" type="password" autocomplete="current-password" required>
     <button type="submit">Enter the album</button>
     {{ERROR}}
+    {{BRAND_BADGE}}
     <p class="powered">Powered by ConfettiRoll</p>
   </form>
 </body>
