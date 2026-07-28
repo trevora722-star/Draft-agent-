@@ -91,7 +91,9 @@ page, dashboard, `/api/packages`):
 | Heirloom | $99/event | Celebration + printed book + custom domain + 24 months |
 | Partner 10-Pack | $245 | 10 Celebration credits at ~50% off — pros resell at their price |
 | Printed book | $59 | 8×8" hardcover (fulfillment via print-on-demand, next build) |
-| Venue license | $79/mo | White-label unlimited events (subscription — wire when Stripe keys land) |
+| Venue Boutique | $99/mo | White-label, up to 2 hosted events/month |
+| Venue Estate | $199/mo | White-label, up to 6 hosted events/month |
+| Venue Grand | $399/mo | White-label, unlimited events |
 
 Set `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` and checkout goes live:
 `POST /api/checkout/<package>` creates a Stripe Checkout Session, and

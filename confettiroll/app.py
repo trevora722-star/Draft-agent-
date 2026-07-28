@@ -560,7 +560,9 @@ def create_app() -> FastAPI:
             p_heirloom=billing.price_label("heirloom"),
             p_pack=billing.price_label("wholesale10"),
             p_book=billing.price_label("printed_book"),
-            p_venue=f"${billing.VENUE_MONTHLY_CENTS // 100}",
+            p_venue_boutique=f"${billing.VENUE_TIERS['boutique']['monthly_cents'] // 100}",
+            p_venue_estate=f"${billing.VENUE_TIERS['estate']['monthly_cents'] // 100}",
+            p_venue_grand=f"${billing.VENUE_TIERS['grand']['monthly_cents'] // 100}",
         )
 
     def venue_page(venue: sqlite3.Row) -> HTMLResponse:
@@ -1321,7 +1323,11 @@ def create_app() -> FastAPI:
                     "kind": p["kind"]}
                 for k, p in billing.PACKAGES.items()
             },
-            "venue_monthly": f"${billing.VENUE_MONTHLY_CENTS // 100}",
+            "venue_tiers": {
+                k: {"name": t["name"], "monthly": f"${t['monthly_cents'] // 100}",
+                    "events_per_month": t["events_per_month"], "blurb": t["blurb"]}
+                for k, t in billing.VENUE_TIERS.items()
+            },
             "stripe": billing.stripe_enabled(),
         }
 

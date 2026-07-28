@@ -536,11 +536,13 @@ def test_packages_and_landing(client):
     data = client.get(f"{BASE}/api/packages").json()
     assert data["packages"]["celebration"]["price"] == "$49"
     assert data["packages"]["wholesale10"]["kind"] == "wholesale"
+    assert data["venue_tiers"]["estate"]["monthly"] == "$199"
     assert data["stripe"] is False
 
     landing = client.get(f"{BASE}/").text
     for expected in ("Celebration", "Heirloom", "$49", "$99", "$245",
-                     "$79/month", "Most popular", "Founding beta"):
+                     "Boutique", "Estate", "Grand", "$199", "$399",
+                     "Most popular", "Founding beta"):
         assert expected in landing
 
 

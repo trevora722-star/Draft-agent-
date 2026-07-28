@@ -87,7 +87,27 @@ PACKAGES = {
     },
 }
 
-VENUE_MONTHLY_CENTS = 7900  # white-label license, billed via subscription
+# White-label venue license, tiered by hosted event volume (monthly billing).
+VENUE_TIERS = {
+    "boutique": {
+        "name": "Boutique",
+        "monthly_cents": 9900,
+        "events_per_month": 2,
+        "blurb": "Up to 2 hosted events a month — intimate venues and tasting rooms",
+    },
+    "estate": {
+        "name": "Estate",
+        "monthly_cents": 19900,
+        "events_per_month": 6,
+        "blurb": "Up to 6 hosted events a month — busy wedding venues in season",
+    },
+    "grand": {
+        "name": "Grand",
+        "monthly_cents": 39900,
+        "events_per_month": None,  # unlimited
+        "blurb": "Unlimited events — resorts, golf clubs, and multi-room properties",
+    },
+}
 
 
 def price_label(key: str) -> str:

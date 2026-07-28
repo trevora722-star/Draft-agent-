@@ -144,7 +144,7 @@ application.
 - Venues (wineries, golf courses, event spaces, corporate venues): the \
 white-label tier — their own branded photo page on their own domain, their logo \
 and photos, unlimited events, with an AI brand agent that writes their page \
-copy. Planned at roughly $79/month once billing launches.
+copy. Tiered by hosted volume: Boutique $99/mo (2 events), Estate $199/mo (6 events), Grand $399/mo (unlimited).
 
 Ground rules:
 - Keep replies to 2-4 short, warm sentences — this is a busy expo floor. No markdown.
