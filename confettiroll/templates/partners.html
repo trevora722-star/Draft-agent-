@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ConfettiRoll Partners — earn 20% recommending shared albums</title>
+<style>
+  :root {
+    --ink: #2c2733; --soft: #7d7488; --pink: #e85d8a; --gold: #f2b134;
+    --teal: #2ab7a9; --violet: #7c5cbf; --paper: #fdfbf7; --card: #ffffff;
+    --line: #ece6ef;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: Georgia, "Times New Roman", serif; }
+  nav {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 20px 28px; max-width: 1080px; margin: 0 auto;
+  }
+  .logo { font-size: 22px; font-weight: bold; font-family: "Helvetica Neue", Arial, sans-serif; }
+  .logo a { color: inherit; text-decoration: none; }
+  .logo span { color: var(--pink); }
+  nav .links a {
+    margin-left: 18px; color: var(--ink); text-decoration: none;
+    font-family: "Helvetica Neue", Arial, sans-serif; font-size: 14px;
+  }
+  nav .links a.cta { background: var(--pink); color: #fff; padding: 10px 20px; border-radius: 999px; }
+  .hero {
+    display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 40px;
+    align-items: center; max-width: 1000px; margin: 0 auto; padding: 50px 24px 30px;
+  }
+  h1 { font-size: 40px; font-weight: normal; line-height: 1.15; }
+  h1 em { font-style: italic; color: var(--pink); }
+  .hero p { color: var(--soft); font-size: 17px; margin: 18px 0 26px; line-height: 1.55; }
+  .cta-big {
+    display: inline-block; background: var(--pink); color: #fff; text-decoration: none;
+    padding: 15px 34px; border-radius: 999px; font-size: 15px; letter-spacing: 1px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+  .cta-big:hover { filter: brightness(1.07); }
+  .hero-photo {
+    border-radius: 16px; overflow: hidden;
+    box-shadow: 0 24px 60px rgba(44, 39, 51, 0.18);
+    transform: rotate(1.5deg);
+    aspect-ratio: 4 / 3;
+    background: linear-gradient(135deg, #e85d8a, #f2b134);
+  }
+  .hero-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .rate-strip {
+    text-align: center; padding: 26px 20px;
+    background: var(--card); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    margin: 30px 0;
+  }
+  .rate-strip .big { font-size: 44px; color: var(--pink); }
+  .rate-strip p { color: var(--soft); font-size: 15px; margin-top: 6px; }
+  section { max-width: 1000px; margin: 0 auto; padding: 30px 24px; }
+  h2 { font-size: 28px; font-weight: normal; text-align: center; margin-bottom: 26px; }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
+  .step {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 24px 22px;
+  }
+  .step .n {
+    display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center;
+    border-radius: 50%; background: var(--gold); color: #fff;
+    font-family: "Helvetica Neue", Arial, sans-serif; font-size: 16px; margin-bottom: 12px;
+  }
+  .step h3 { font-size: 17px; font-weight: normal; margin-bottom: 8px; }
+  .step p { color: var(--soft); font-size: 14.5px; line-height: 1.55; }
+  .badges { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; align-items: center; }
+  .badges figure { text-align: center; }
+  .badges img { display: block; margin-bottom: 10px; }
+  .badges figcaption a {
+    font-family: "Helvetica Neue", Arial, sans-serif; font-size: 13px; color: var(--pink);
+  }
+  .fineprint {
+    max-width: 720px; margin: 0 auto; color: var(--soft); font-size: 14.5px; line-height: 1.65;
+  }
+  .fineprint strong { color: var(--ink); }
+  .charity {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 26px; max-width: 720px; margin: 0 auto; text-align: center;
+  }
+  .charity p { color: var(--soft); font-size: 15px; line-height: 1.6; margin-top: 8px; }
+  footer { text-align: center; color: var(--soft); font-size: 13px; padding: 30px; border-top: 1px solid var(--line); margin-top: 30px; }
+  @media (max-width: 720px) { .hero { grid-template-columns: 1fr; } h1 { font-size: 31px; } }
+</style>
+</head>
+<body>
+  <nav>
+    <div class="logo"><a href="/">Confetti<span>•</span>Roll</a></div>
+    <div class="links">
+      <a href="/login">Sign in</a>
+      <a class="cta" href="/signup">Become a partner</a>
+    </div>
+  </nav>
+
+  <div class="hero">
+    <div>
+      <h1>Planners &amp; venues:<br>earn <em>20% on every event</em> you refer</h1>
+      <p>You already tell couples and clients how to collect everyone's photos.
+      Now it pays: share your ConfettiRoll link or QR code, and earn 20% of
+      everything your referrals spend — transparently tracked from day one.</p>
+      <a class="cta-big" href="/signup">Get your link — it's instant</a>
+      <p style="font-size:13.5px; margin-top:12px">No application, no approval
+      wait, no minimums. Sign up and your link is live.</p>
+    </div>
+    <div class="hero-photo">
+      <img src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1000&q=80"
+           alt="Confetti thrown at a celebration"
+           onerror="this.remove()">
+    </div>
+  </div>
+
+  <div class="rate-strip">
+    <div class="big">20%</div>
+    <p>of everything your referred clients spend — stated up front, not hidden
+    behind an application form.</p>
+  </div>
+
+  <section>
+    <h2>How it works</h2>
+    <div class="steps">
+      <div class="step"><div class="n">1</div>
+        <h3>Grab your link &amp; QR code</h3>
+        <p>Sign up free and your referral link is on your dashboard instantly —
+        plus a downloadable QR code for business cards, welcome packets, and
+        venue displays.</p></div>
+      <div class="step"><div class="n">2</div>
+        <h3>Share it with clients</h3>
+        <p>Couples and hosts sign up through your link and set up their own
+        event gallery. Every signup and event is attributed to you
+        automatically, forever.</p></div>
+      <div class="step"><div class="n">3</div>
+        <h3>Watch earnings grow</h3>
+        <p>Your dashboard shows referred signups, their events, and your
+        pending commission in real time. Payouts begin when paid plans launch —
+        every referral made during the beta still counts.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Partner badges for your website</h2>
+    <div class="badges">
+      <figure>
+        <img src="/static/badge-light.svg" width="260" height="72" alt="ConfettiRoll official partner badge, light">
+        <figcaption><a href="/static/badge-light.svg" download>Download light badge</a></figcaption>
+      </figure>
+      <figure>
+        <img src="/static/badge-dark.svg" width="260" height="72" alt="ConfettiRoll official partner badge, dark">
+        <figcaption><a href="/static/badge-dark.svg" download>Download dark badge</a></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="charity">
+      <h2 style="margin-bottom:4px">Give it forward 💛</h2>
+      <p>Prefer not to take a commission? Name a charity on your dashboard and
+      we'll donate your referral earnings to it — and tell your clients you
+      did. A lovely touch for celebrants and community venues.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="fineprint">
+      <strong>The fine print, in plain words:</strong> your referral is
+      recorded when someone signs up through your link, and it never expires.
+      Commission is 20% of what that account spends on ConfettiRoll packages.
+      The platform is free while in beta, so commissions accrue as
+      "pending" and become payable when paid plans launch. We'll always show
+      you the same numbers we see.
+    </p>
+  </section>
+
+  <footer>ConfettiRoll — shared albums for celebrations · <a href="/" style="color:var(--soft)">Home</a></footer>
+</body>
+</html>

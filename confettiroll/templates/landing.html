@@ -47,13 +47,44 @@
     border-radius: 999px;
   }
   .hero {
-    text-align: center;
-    padding: 70px 24px 40px;
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 44px;
+    align-items: center;
+    text-align: left;
+    padding: 56px 24px 40px;
     position: relative;
-    max-width: 800px;
+    max-width: 1040px;
     margin: 0 auto;
   }
-  h1 { font-size: 46px; font-weight: normal; line-height: 1.15; }
+  .collage {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .snap {
+    background: #fff;
+    padding: 8px 8px 26px;
+    border-radius: 6px;
+    box-shadow: 0 14px 34px rgba(44, 39, 51, 0.16);
+    overflow: hidden;
+  }
+  .snap img, .snap .ph { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; border-radius: 3px; }
+  .snap:nth-child(1) .ph { background: linear-gradient(135deg, #e85d8a, #f2b134); }
+  .snap:nth-child(2) .ph { background: linear-gradient(135deg, #7c5cbf, #e85d8a); }
+  .snap:nth-child(3) .ph { background: linear-gradient(135deg, #2ab7a9, #7c5cbf); }
+  .snap:nth-child(4) .ph { background: linear-gradient(135deg, #f2b134, #2ab7a9); }
+  .snap:nth-child(1) { transform: rotate(-3deg); }
+  .snap:nth-child(2) { transform: rotate(2.5deg) translateY(16px); }
+  .snap:nth-child(3) { transform: rotate(2deg); }
+  .snap:nth-child(4) { transform: rotate(-2.5deg) translateY(10px); }
+  .snap:hover { transform: rotate(0) scale(1.03); transition: transform 0.2s; z-index: 2; }
+  @media (max-width: 760px) {
+    .hero { grid-template-columns: 1fr; text-align: center; }
+    .collage { max-width: 420px; margin: 0 auto; }
+  }
+  h1 { font-size: 44px; font-weight: normal; line-height: 1.15; }
   h1 em { font-style: italic; color: var(--pink); }
   .hero p {
     color: var(--soft);
@@ -153,19 +184,36 @@
   <nav>
     <div class="logo">Confetti<span class="confetti-dot">●</span>Roll</div>
     <div class="links">
+      <a href="/partners">For planners</a>
       <a href="/login">Sign in</a>
       <a class="cta" href="/signup">Get started</a>
     </div>
   </nav>
 
   <div class="hero">
-    <h1>Every photo from your event,<br><em>in one place</em></h1>
-    <p>Weddings, birthdays, reunions, launch parties — give your guests one
-    link and a password, and every photo and video they take lands in a
-    beautiful shared gallery.</p>
-    <a class="cta-big" href="/signup">Create your event</a>
-    <p class="subnote">Free while in beta · no app for guests to install</p>
-    <div class="demo-url">your-event.{{BASE}}</div>
+    <div>
+      <h1>Every photo from your event, <em>in one place</em></h1>
+      <p style="margin-left:0">Weddings, birthdays, reunions, launch parties —
+      give your guests one link and a password, and every photo and video they
+      take lands in a beautiful shared gallery.</p>
+      <a class="cta-big" href="/signup">Create your event</a>
+      <p class="subnote">Free while in beta · no app for guests to install</p>
+      <div class="demo-url">your-event.{{BASE}}</div>
+    </div>
+    <div class="collage">
+      <div class="snap"><img loading="lazy" alt="Newlyweds holding hands"
+        src="https://images.unsplash.com/photo-1519741497674-611481863552?w=600&q=80"
+        onerror="this.outerHTML='<div class=ph></div>'"></div>
+      <div class="snap"><img loading="lazy" alt="Confetti thrown at a celebration"
+        src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&q=80"
+        onerror="this.outerHTML='<div class=ph></div>'"></div>
+      <div class="snap"><img loading="lazy" alt="Friends at a dinner party"
+        src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=600&q=80"
+        onerror="this.outerHTML='<div class=ph></div>'"></div>
+      <div class="snap"><img loading="lazy" alt="Birthday party with confetti"
+        src="https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&q=80"
+        onerror="this.outerHTML='<div class=ph></div>'"></div>
+    </div>
   </div>
 
   <div class="features">
@@ -215,7 +263,7 @@
       everything they spend</strong>. Sign up, grab your referral link from
       the dashboard, and share it — we track every signup and event that
       comes through you.</p>
-    <a class="cta-big" href="/signup" style="background:var(--violet)">Become a partner</a>
+    <a class="cta-big" href="/partners" style="background:var(--violet)">Become a partner</a>
   </div>
 
   <div class="how">

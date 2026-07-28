@@ -33,6 +33,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -156,6 +157,8 @@ def init_db(db_path: Path) -> None:
             )
         if "referred_by" not in existing:
             conn.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER")
+        if "charity" not in existing:
+            conn.execute("ALTER TABLE users ADD COLUMN charity TEXT NOT NULL DEFAULT ''")
 
 
 def new_referral_code() -> str:
@@ -274,10 +277,12 @@ def create_app() -> FastAPI:
 
     tpl = {
         name: (BASE_DIR / "templates" / f"{name}.html").read_text()
-        for name in ("landing", "signup", "login", "dashboard", "guest_login", "gallery")
+        for name in ("landing", "signup", "login", "dashboard", "guest_login",
+                     "gallery", "partners")
     }
 
     app = FastAPI(title="ConfettiRoll", docs_url=None, redoc_url=None)
+    app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
     login_attempts: dict[str, list[float]] = {}
 
     def db() -> sqlite3.Connection:
@@ -525,6 +530,12 @@ def create_app() -> FastAPI:
             ref_signups=str(ref_signups),
             ref_events=str(ref_events),
             ref_pending=f"${pending:,.2f}",
+            charity=esc(user["charity"] or ""),
+            charity_note=(
+                f'Commissions currently donated to <strong>{esc(user["charity"])}</strong>.'
+                if user["charity"] else
+                "Commissions are paid to you. Prefer to give back? Name a charity below."
+            ),
         )
 
     @app.post("/api/events")
@@ -580,6 +591,41 @@ def create_app() -> FastAPI:
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         return Response(buf.getvalue(), media_type="image/png")
+
+    @app.get("/partners", response_class=HTMLResponse)
+    def partners(request: Request):
+        if resolve_event(request) is not None:
+            return RedirectResponse("/", status_code=303)
+        return page("partners", base=esc(base_domain))
+
+    @app.get("/api/referral-qr.png")
+    def referral_qr(request: Request):
+        user = current_user(request)
+        if user is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        code = user["referral_code"]
+        if not code:
+            with db() as conn:
+                code = new_referral_code()
+                conn.execute("UPDATE users SET referral_code = ? WHERE id = ?",
+                             (code, user["id"]))
+        img = qrcode.make(f"https://{base_domain}/signup?ref={code}")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return Response(
+            buf.getvalue(), media_type="image/png",
+            headers={"Content-Disposition": 'attachment; filename="my-referral-qr.png"'},
+        )
+
+    @app.post("/api/referral-charity")
+    def set_charity(request: Request, charity: str = Form("")):
+        user = current_user(request)
+        if user is None:
+            return RedirectResponse("/login", status_code=303)
+        charity = re.sub(r"\s+", " ", charity).strip()[:120]
+        with db() as conn:
+            conn.execute("UPDATE users SET charity = ? WHERE id = ?", (charity, user["id"]))
+        return RedirectResponse("/dashboard", status_code=303)
 
     @app.get("/health")
     def health():

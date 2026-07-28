@@ -251,6 +251,32 @@ def test_recap_owner_only(client, monkeypatch):
     assert client.post(f"{BASE}/api/events/{event_id}/recap").status_code == 401
 
 
+def test_partner_page_and_badges(client):
+    page = client.get(f"{BASE}/partners")
+    assert page.status_code == 200
+    assert "20%" in page.text and "badge-light.svg" in page.text
+    assert client.get(f"{BASE}/static/badge-light.svg").status_code == 200
+    assert client.get(f"{BASE}/static/badge-dark.svg").status_code == 200
+
+
+def test_referral_qr_and_charity(client):
+    # QR requires login
+    assert client.get(f"{BASE}/api/referral-qr.png").status_code == 401
+    _signup(client)
+    res = client.get(f"{BASE}/api/referral-qr.png")
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "image/png"
+    assert "attachment" in res.headers["content-disposition"]
+
+    # charity opt-in shows on the dashboard and can be cleared
+    res = client.post(f"{BASE}/api/referral-charity",
+                      data={"charity": "  Local Food  Bank "}, follow_redirects=False)
+    assert res.status_code == 303
+    assert "Local Food Bank" in client.get(f"{BASE}/dashboard").text
+    client.post(f"{BASE}/api/referral-charity", data={"charity": ""}, follow_redirects=False)
+    assert "Local Food Bank" not in client.get(f"{BASE}/dashboard").text
+
+
 def test_qr_code_owner_only(client):
     _signup(client)
     _create_event(client)

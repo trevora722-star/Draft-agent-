@@ -40,6 +40,25 @@ recommended fallback model):
 Without the key everything else works normally — the AI toolbar simply
 stays hidden. Rough cost: a few cents per hundred photos captioned.
 
+## Partner program pages & assets
+
+- `/partners` — public partner landing page: the transparent "20% on every
+  event" pitch, how-it-works steps, downloadable partner badges, and the
+  charity option. Linked from the main nav ("For planners").
+- **Referral QR code** — every account can download a QR of their referral
+  link from the dashboard (`/api/referral-qr.png`) for business cards and
+  venue displays.
+- **Partner badges** — light/dark "Official Partner" SVGs in `static/`.
+- **Charity option** — partners can name a charity on the dashboard; their
+  commissions are flagged for donation instead of payout (`users.charity`).
+
+The landing and partner pages use hero photography hot-linked from
+Unsplash's CDN (free to use under the Unsplash license). Every image has a
+gradient-tile fallback via `onerror`, so a removed or unreachable image
+degrades gracefully. To swap in your own photos, replace the
+`images.unsplash.com` URLs in `templates/landing.html` and
+`templates/partners.html`.
+
 ## Referral program (wedding & event planners)
 
 Every account gets a referral link (`/signup?ref=<code>`), shown on the
