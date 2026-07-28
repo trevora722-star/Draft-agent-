@@ -236,6 +236,37 @@ package — competitor one-time pricing runs $19–149). Payouts are marked
 now so no referral is lost. The landing page pitches the program to
 planners directly.
 
+## Photo ownership & privacy ("your photos are never ours")
+
+The stance, stated on the landing page FAQ and enforced in the product:
+
+- Uploaded media belongs to the host and their guests. Files are stored
+  only to serve the private gallery, for the gallery's lifetime.
+- No AI training on customer photos, no marketing use, no selling or
+  sharing. The AI agents *read* photos to caption them for the owner's own
+  album — outputs stay in the album.
+- **Delete forever**: every dashboard event card has a permanent-delete
+  button (`POST /api/events/{id}/delete`) that removes the event row,
+  roster, selections, and the whole `data/events/<id>/` tree — photos,
+  thumbnails, meta, books, and trash included. Nothing is retained.
+- Expired galleries are permanently deleted, not archived (automated
+  retention sweep is on the roadmap; deletes are manual until then).
+
+## Sign in with Google (identity only)
+
+Set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (a standard OAuth web
+client; authorized redirect URI `https://<base domain>/auth/google/callback`)
+and "Continue with Google" buttons appear on the sign-in and sign-up pages.
+
+Scopes are deliberately minimal — `openid email profile` — so the platform
+receives the person's name and verified email and *nothing else*: no Google
+Photos, Drive, Gmail, or contacts access exists to be granted. The email is
+what reminder notices (gallery expiry, book deadlines) will be sent to.
+Google-created accounts have no password; the same email can later be
+claimed with a password reset once that flow exists. Referral attribution
+(`?ref=`) is carried through the OAuth `state` parameter, HMAC-signed.
+Without the env vars the buttons simply don't render.
+
 ## Environment variables
 
 | Variable | Required | What it does |
@@ -244,6 +275,7 @@ planners directly.
 | `CR_DATA_DIR` | no | Where the database + media live (default `./data`) |
 | `CR_SECRET_KEY` | no | Cookie-signing secret; auto-generated and persisted if unset |
 | `ANTHROPIC_API_KEY` | no | Enables the AI curator + recap agents |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | no | Enables "Sign in with Google" (identity only) |
 | `CR_AI_MODEL` | no | Model for the agents (default `claude-opus-5`) |
 | `CR_REFERRAL_FEE` | no | Estimated commission per referred event, in dollars (default `10`) |
 

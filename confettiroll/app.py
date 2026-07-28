@@ -48,6 +48,7 @@ import qrcode
 import ai_agents
 import billing
 import book as book_maker
+import google_auth
 
 try:  # iPhone photos arrive as HEIC; convert them so browsers can show them.
     from pillow_heif import register_heif_opener
@@ -679,7 +680,7 @@ def create_app() -> FastAPI:
     def signup_form(request: Request, ref: str = ""):
         if resolve_event(request) is not None:
             return RedirectResponse("/", status_code=303)
-        return page("signup", error="", ref=esc(ref.strip()[:16]))
+        return page("signup", error="", ref=esc(ref.strip()[:16]), google_btn=google_button(ref.strip()[:16]))
 
     @app.post("/signup")
     def signup(request: Request, name: str = Form(""), email: str = Form(...),
@@ -688,9 +689,9 @@ def create_app() -> FastAPI:
         name = re.sub(r"\s+", " ", name).strip()[:80]
         ref = ref.strip()[:16]
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
-            return page("signup", error=err_html("That doesn't look like an email address."), ref=esc(ref))
+            return page("signup", error=err_html("That doesn't look like an email address."), ref=esc(ref), google_btn=google_button(ref))
         if len(password) < 8:
-            return page("signup", error=err_html("Password must be at least 8 characters."), ref=esc(ref))
+            return page("signup", error=err_html("Password must be at least 8 characters."), ref=esc(ref), google_btn=google_button(ref))
         with db() as conn:
             referrer = conn.execute(
                 "SELECT id FROM users WHERE referral_code = ?", (ref,)
@@ -704,7 +705,85 @@ def create_app() -> FastAPI:
                 )
                 user_id = cur.lastrowid
             except sqlite3.IntegrityError:
-                return page("signup", error=err_html("An account with that email already exists."), ref=esc(ref))
+                return page("signup", error=err_html("An account with that email already exists."), ref=esc(ref), google_btn=google_button(ref))
+        response = RedirectResponse("/dashboard", status_code=303)
+        response.set_cookie(ORG_COOKIE, make_org_token(user_id), **org_cookie_kwargs(request))
+        return response
+
+    # ---- Sign in with Google (identity only — name + email, never photos) --
+
+    def google_button(ref: str = "") -> str:
+        if not google_auth.enabled():
+            return ""
+        href = "/auth/google" + (f"?ref={esc(ref)}" if ref else "")
+        return (
+            f'<a href="{href}" style="display:flex; align-items:center; justify-content:center;'
+            ' gap:10px; margin-top:14px; padding:12px; font-size:14.5px; border:1px solid var(--line);'
+            ' border-radius:8px; background:#fff; color:var(--ink); text-decoration:none;'
+            ' font-family:\'Helvetica Neue\', Arial, sans-serif">'
+            '<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.1 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.4 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.4 5.8c4.4-4.1 7.2-10.1 7.2-17.5z"/><path fill="#FBBC05" d="M10.4 28.7a14.5 14.5 0 0 1 0-9.4l-7.8-6.1a24 24 0 0 0 0 21.6l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.1 0 11.2-2 15-5.5l-7.4-5.8c-2 1.4-4.6 2.2-7.6 2.2-6.3 0-11.7-3.9-13.6-9.4l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>'
+            "Continue with Google</a>"
+            '<p style="margin-top:8px; font-size:12.5px; color:var(--soft); text-align:center;'
+            ' font-family:\'Helvetica Neue\', Arial, sans-serif">Shares only your name and email'
+            " — never your Google Photos.</p>"
+        )
+
+    def google_redirect_uri(request: Request) -> str:
+        return str(request.base_url).rstrip("/") + "/auth/google/callback"
+
+    def make_google_state(ref: str) -> str:
+        payload = f"ga.{int(time.time()) + 600}.{ref or '-'}"
+        return f"{payload}.{sign(payload)}"
+
+    def parse_google_state(state: str) -> str | None:
+        """Returns the referral code ('' if none) or None if invalid."""
+        parts = (state or "").split(".")
+        if len(parts) != 4 or parts[0] != "ga":
+            return None
+        payload = ".".join(parts[:3])
+        if not hmac.compare_digest(parts[3], sign(payload)):
+            return None
+        if not parts[1].isdigit() or int(parts[1]) <= time.time():
+            return None
+        return "" if parts[2] == "-" else parts[2]
+
+    @app.get("/auth/google")
+    def google_start(request: Request, ref: str = ""):
+        if not google_auth.enabled():
+            return RedirectResponse("/login", status_code=303)
+        return RedirectResponse(google_auth.auth_url(
+            google_redirect_uri(request), make_google_state(ref.strip()[:16])
+        ), status_code=303)
+
+    @app.get("/auth/google/callback")
+    def google_callback(request: Request, code: str = "", state: str = ""):
+        if not google_auth.enabled():
+            return RedirectResponse("/login", status_code=303)
+        ref = parse_google_state(state)
+        if ref is None or not code:
+            return page("login", error=err_html("Google sign-in didn't complete - please try again."),
+                        google_btn=google_button())
+        identity = google_auth.exchange(code, google_redirect_uri(request))
+        if identity is None:
+            return page("login", error=err_html("Google sign-in didn't complete - please try again."),
+                        google_btn=google_button())
+        with db() as conn:
+            user = conn.execute(
+                "SELECT * FROM users WHERE email = ?", (identity["email"],)
+            ).fetchone()
+            if user is None:
+                referrer = conn.execute(
+                    "SELECT id FROM users WHERE referral_code = ?", (ref,)
+                ).fetchone() if ref else None
+                cur = conn.execute(
+                    "INSERT INTO users (email, name, password_hash, created_at, referral_code, referred_by)"
+                    " VALUES (?,?,?,?,?,?)",
+                    (identity["email"], identity["name"], "", int(time.time()),
+                     new_referral_code(), referrer["id"] if referrer else None),
+                )
+                user_id = cur.lastrowid
+            else:
+                user_id = user["id"]
         response = RedirectResponse("/dashboard", status_code=303)
         response.set_cookie(ORG_COOKIE, make_org_token(user_id), **org_cookie_kwargs(request))
         return response
@@ -725,7 +804,7 @@ def create_app() -> FastAPI:
         event = resolve_event(request)
         if event is not None:
             return guest_login_page(event)
-        return page("login", error="")
+        return page("login", error="", google_btn=google_button())
 
     @app.post("/login")
     def login(request: Request, email: str = Form(""), password: str = Form("")):
@@ -734,14 +813,14 @@ def create_app() -> FastAPI:
             return tenant_login(request, event, password)
         ip = request.client.host if request.client else "unknown"
         if too_many_attempts(f"org:{ip}"):
-            return page("login", error=err_html("Too many attempts - please wait a few minutes."))
+            return page("login", error=err_html("Too many attempts - please wait a few minutes."), google_btn=google_button())
         with db() as conn:
             user = conn.execute(
                 "SELECT * FROM users WHERE email = ?", (email.strip().lower(),)
             ).fetchone()
         if user is None or not verify_password(password, user["password_hash"]):
             record_attempt(f"org:{ip}")
-            return page("login", error=err_html("Wrong email or password."))
+            return page("login", error=err_html("Wrong email or password."), google_btn=google_button())
         response = RedirectResponse("/dashboard", status_code=303)
         response.set_cookie(ORG_COOKIE, make_org_token(user["id"]), **org_cookie_kwargs(request))
         return response
@@ -832,6 +911,10 @@ def create_app() -> FastAPI:
                 <a class="mini" href="{esc(url)}/stream" target="_blank">📺 Live slideshow</a>
                 <button class="mini recap-btn" data-event="{ev['id']}" type="button">✨ AI recap</button>
                 <button class="mini book-btn" data-event="{ev['id']}" data-url="{esc(url)}" type="button">📖 Keepsake book</button>
+                <form method="post" action="/api/events/{ev['id']}/delete" style="display:inline"
+                      onsubmit="return confirm('Permanently delete this event and every photo, video, and book in it? This cannot be undone - nothing is retained on our servers.')">
+                  <button class="mini" type="submit" style="cursor:pointer; background:none; color:#94433a; border-color:#e8cfcb">Delete forever</button>
+                </form>
               </p>
               <div class="recap" id="recap-{ev['id']}" hidden></div>{roster_panel}
             </div>""")
@@ -1683,6 +1766,21 @@ def create_app() -> FastAPI:
                 "SELECT * FROM events WHERE id = ? AND owner_id = ?",
                 (event_id, user["id"]),
             ).fetchone()
+
+    @app.post("/api/events/{event_id}/delete")
+    def delete_event(request: Request, event_id: str):
+        """Permanently delete an event and every photo, video, thumbnail,
+        book, and trash file it holds. This is the 'your photos are never
+        ours' promise made real — nothing is retained."""
+        event = owned_event(request, event_id)
+        if event is None:
+            return RedirectResponse("/login", status_code=303)
+        with db() as conn:
+            conn.execute("DELETE FROM selections WHERE event_id = ?", (event_id,))
+            conn.execute("DELETE FROM members WHERE event_id = ?", (event_id,))
+            conn.execute("DELETE FROM events WHERE id = ?", (event_id,))
+        shutil.rmtree(data_dir / "events" / event_id, ignore_errors=True)
+        return RedirectResponse("/dashboard", status_code=303)
 
     @app.post("/api/events/{event_id}/members")
     def add_members(request: Request, event_id: str, names: str = Form("")):

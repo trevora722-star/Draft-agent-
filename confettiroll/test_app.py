@@ -720,3 +720,87 @@ def test_prom_tagged_event_flow(client):
     noah_listing = client.get(f"{PROM}/api/photos").json()
     assert [p["id"] for p in noah_listing["photos"]] == [group_photo]
     assert client.get(f"{PROM}/photos/{group_photo}").status_code == 200
+
+
+def test_google_signin_flow(client, monkeypatch):
+    import app as app_module
+    from urllib.parse import parse_qs, urlparse
+
+    # hidden when unconfigured
+    assert "Continue with Google" not in client.get(f"{BASE}/login").text
+    assert client.get(f"{BASE}/auth/google", follow_redirects=False).headers["location"] == "/login"
+
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "cid.apps.googleusercontent.com")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "csecret")
+    assert "Continue with Google" in client.get(f"{BASE}/login").text
+    assert "never your Google Photos" in client.get(f"{BASE}/signup").text
+
+    # start: redirects to Google with our signed state and identity-only scopes
+    res = client.get(f"{BASE}/auth/google", follow_redirects=False)
+    assert res.status_code == 303
+    location = res.headers["location"]
+    assert location.startswith("https://accounts.google.com/o/oauth2/v2/auth?")
+    q = parse_qs(urlparse(location).query)
+    assert q["scope"] == ["openid email profile"]
+    state = q["state"][0]
+
+    # callback: identity comes back, account is created, session starts
+    monkeypatch.setattr(
+        app_module.google_auth, "exchange",
+        lambda code, redirect_uri: {"email": "gina@example.com", "name": "Gina Google"},
+    )
+    res = client.get(f"{BASE}/auth/google/callback?code=abc&state={state}",
+                     follow_redirects=False)
+    assert res.status_code == 303 and res.headers["location"] == "/dashboard"
+    assert "Gina Google" in client.get(f"{BASE}/dashboard").text
+
+    # the Google account has no usable password
+    client.cookies.clear()
+    res = client.post(f"{BASE}/login",
+                      data={"email": "gina@example.com", "password": ""})
+    assert "Wrong email or password" in res.text
+
+    # same email signs in again -> same account, no duplicate
+    res = client.get(f"{BASE}/auth/google", follow_redirects=False)
+    state2 = parse_qs(urlparse(res.headers["location"]).query)["state"][0]
+    res = client.get(f"{BASE}/auth/google/callback?code=xyz&state={state2}",
+                     follow_redirects=False)
+    assert res.headers["location"] == "/dashboard"
+
+    # a forged state is rejected
+    client.cookies.clear()
+    res = client.get(f"{BASE}/auth/google/callback?code=abc&state=ga.99999999999.-.bad")
+    assert "didn't complete" in res.text
+
+
+def test_delete_event_forever(client, tmp_path):
+    _signup(client)
+    _create_event(client)
+    client.post(
+        f"{EVENT}/api/upload",
+        files=[("files", ("dance.jpg", _fake_jpeg(), "image/jpeg"))],
+        data={"uploader": "Uncle Bob"},
+    )
+    import re as _re
+    dashboard = client.get(f"{BASE}/dashboard").text
+    assert "Delete forever" in dashboard
+    event_id = _re.search(r"/api/events/([0-9a-f]{32})/delete", dashboard).group(1)
+    event_dir = tmp_path / "events" / event_id
+    assert event_dir.exists()
+
+    # someone else's session can't delete it
+    client.cookies.clear()
+    res = client.post(f"{BASE}/api/events/{event_id}/delete", follow_redirects=False)
+    assert res.headers["location"] == "/login"
+    assert event_dir.exists()
+
+    # the owner can — media directory and all
+    client.post(f"{BASE}/login",
+                data={"email": "host@example.com", "password": "hunter2hunter2"},
+                follow_redirects=False)
+    res = client.post(f"{BASE}/api/events/{event_id}/delete", follow_redirects=False)
+    assert res.headers["location"] == "/dashboard"
+    assert not event_dir.exists()
+    assert "anna-and-james.confettiroll.test" not in client.get(f"{BASE}/dashboard").text
+    client.cookies.clear()
+    assert client.get(f"{EVENT}/api/photos").status_code == 404
