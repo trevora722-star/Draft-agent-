@@ -598,3 +598,100 @@ def test_qr_code_owner_only(client):
     assert res.headers["content-type"] == "image/png"
     client.cookies.clear()
     assert client.get(f"{BASE}/api/events/{event_id}/qr.png").status_code == 401
+
+
+PROM = "http://grad-gala.confettiroll.test"
+
+
+def test_prom_tagged_event_flow(client):
+    """Prom / grad-night mode: personal codes, tag-gated visibility, picks,
+    and per-student keepsake books."""
+    import csv as _csv
+    import re as _re
+
+    _signup(client)
+    _create_event(client, slug="grad-gala", title="Grad Gala 2026",
+                  event_type="prom")
+
+    dashboard = client.get(f"{BASE}/dashboard").text
+    assert "Tagged event" in dashboard
+    event_id = _re.search(r"/api/events/([0-9a-f]{32})/members", dashboard).group(1)
+
+    # school loads the roster; each student gets a personal code
+    client.post(f"{BASE}/api/events/{event_id}/members",
+                data={"names": "Ava Martin\nNoah Chen\n\n"}, follow_redirects=False)
+    rows = list(_csv.reader(io.StringIO(
+        client.get(f"{BASE}/api/events/{event_id}/members.csv").text)))
+    assert rows[0] == ["name", "access code", "gallery"]
+    codes = {name: code for name, code, _ in rows[1:]}
+    assert set(codes) == {"Ava Martin", "Noah Chen"}
+
+    # the host uploads a group shot (untagged for now)
+    res = client.post(
+        f"{PROM}/api/upload",
+        files=[("files", ("group.jpg", _fake_jpeg(), "image/jpeg"))],
+        data={"uploader": "Chaperone"},
+    )
+    group_photo = res.json()["saved"][0]["id"]
+
+    # the shared event password is NOT accepted on a tagged event
+    client.cookies.clear()
+    res = client.post(f"{PROM}/login", data={"password": "cake123"})
+    assert "isn't right" in res.text
+
+    # Ava signs in with her code; her upload is auto-tagged to her
+    res = client.post(f"{PROM}/login", data={"password": codes["Ava Martin"]},
+                      follow_redirects=False)
+    assert res.status_code == 303
+    res = client.post(f"{PROM}/api/upload",
+                      files=[("files", ("selfie.jpg", _fake_jpeg(), "image/jpeg"))])
+    ava_photo = res.json()["saved"][0]["id"]
+
+    listing = client.get(f"{PROM}/api/photos").json()
+    assert [p["id"] for p in listing["photos"]] == [ava_photo]
+    assert listing["member_name"] == "Ava Martin"
+    assert listing["mode"] == "prom"
+
+    # the untagged group shot is invisible AND unreachable to her
+    assert client.get(f"{PROM}/photos/{group_photo}").status_code == 404
+    assert client.get(f"{PROM}/thumbs/{group_photo}").status_code == 404
+    # the big screen and the all-photos event book stay with the host
+    assert client.get(f"{PROM}/stream", follow_redirects=False).status_code == 303
+    assert client.get(f"{PROM}/book.pdf").status_code == 404
+
+    # she picks her photo and builds her personal keepsake book
+    assert client.post(f"{PROM}/api/photos/{ava_photo}/pick").json()["picked"] is True
+    res = client.post(f"{PROM}/api/my-book")
+    assert res.status_code == 200 and res.json()["pages"] == 1
+    book = client.get(f"{PROM}/my-book.pdf")
+    assert book.status_code == 200
+    assert book.headers["content-type"] == "application/pdf"
+
+    # Noah can't see or pick Ava's photo
+    client.cookies.clear()
+    client.post(f"{PROM}/login", data={"password": codes["Noah Chen"]},
+                follow_redirects=False)
+    assert client.get(f"{PROM}/api/photos").json()["photos"] == []
+    assert client.get(f"{PROM}/photos/{ava_photo}").status_code == 404
+    assert client.post(f"{PROM}/api/photos/{ava_photo}/pick").status_code == 404
+
+    # the host tags the group shot to both students
+    client.cookies.clear()
+    client.post(f"{BASE}/login",
+                data={"email": "host@example.com", "password": "hunter2hunter2"},
+                follow_redirects=False)
+    admin_listing = client.get(f"{PROM}/api/photos").json()
+    assert admin_listing["is_admin"] is True
+    assert len(admin_listing["photos"]) == 2  # host sees everything
+    member_ids = ",".join(str(m["id"]) for m in admin_listing["members"])
+    res = client.post(f"{PROM}/api/photos/{group_photo}/tags",
+                      data={"members": member_ids})
+    assert res.status_code == 200 and len(res.json()["tagged"]) == 2
+
+    # now Noah sees exactly the group shot
+    client.cookies.clear()
+    client.post(f"{PROM}/login", data={"password": codes["Noah Chen"]},
+                follow_redirects=False)
+    noah_listing = client.get(f"{PROM}/api/photos").json()
+    assert [p["id"] for p in noah_listing["photos"]] == [group_photo]
+    assert client.get(f"{PROM}/photos/{group_photo}").status_code == 200

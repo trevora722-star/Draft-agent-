@@ -112,9 +112,17 @@
             <div class="hint"><span class="slug-preview"><span id="slug-echo">your-event</span>.{{BASE_DOMAIN}}</span></div>
           </div>
           <div>
+            <label for="event_type">Event type</label>
+            <select id="event_type" name="event_type" style="width:100%; padding:11px 12px; font-size:15px; border:1px solid var(--line); border-radius:8px; background:#fdfcfa; font-family:inherit">
+              <option value="party">Wedding / party — shared password</option>
+              <option value="prom">🎓 Prom / grad night — personal student codes</option>
+            </select>
+            <div class="hint" id="type-hint">Guests share one password for the album.</div>
+          </div>
+          <div>
             <label for="guest_password">Guest password</label>
             <input id="guest_password" name="guest_password" required minlength="4">
-            <div class="hint">Share this with your guests.</div>
+            <div class="hint" id="pw-hint">Share this with your guests.</div>
           </div>
           <div>
             <label for="custom_domain">Custom domain <span style="text-transform:none">(optional)</span></label>
@@ -197,6 +205,15 @@
     echo.textContent = slug.value || "your-event";
   });
   slug.addEventListener("input", () => { slugTouched = true; echo.textContent = slug.value || "your-event"; });
+  document.getElementById("event_type").addEventListener("change", e => {
+    const prom = e.target.value === "prom";
+    document.getElementById("type-hint").textContent = prom
+      ? "Each student gets their own access code — add the class roster after creating the event. Photos are tagged to students, and everyone only sees their own."
+      : "Guests share one password for the album.";
+    document.getElementById("pw-hint").textContent = prom
+      ? "Kept as a backup — students sign in with personal codes instead."
+      : "Share this with your guests.";
+  });
   // Suggest a friendly random password
   const pw = document.getElementById("guest_password");
   if (!pw.value) {

@@ -19,6 +19,7 @@ Main site: http://localhost:8000 - events resolve at http://<slug>.localhost:800
 
 from __future__ import annotations
 
+import csv
 import hmac
 import hashlib
 import io
@@ -199,6 +200,22 @@ def init_db(db_path: Path) -> None:
                 logo TEXT NOT NULL DEFAULT '',
                 created_at INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL REFERENCES events(id),
+                name TEXT NOT NULL,
+                code TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                UNIQUE(event_id, code)
+            );
+            CREATE TABLE IF NOT EXISTS selections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL,
+                member_id INTEGER NOT NULL REFERENCES members(id),
+                photo_id TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                UNIQUE(member_id, photo_id)
+            );
             """
         )
         # Lightweight migration: referral columns for the partner program.
@@ -216,12 +233,22 @@ def init_db(db_path: Path) -> None:
         event_cols = {row[1] for row in conn.execute("PRAGMA table_info(events)")}
         if "venue_id" not in event_cols:
             conn.execute("ALTER TABLE events ADD COLUMN venue_id TEXT")
+        if "event_type" not in event_cols:
+            conn.execute(
+                "ALTER TABLE events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'party'"
+            )
 
 
 def new_referral_code() -> str:
     # Short, human-friendly, unambiguous (no 0/O/1/l).
     alphabet = "abcdefghjkmnpqrstuvwxyz23456789"
     return "".join(secrets.choice(alphabet) for _ in range(8))
+
+
+def new_member_code() -> str:
+    # Personal access code a student types on their phone at the dance.
+    alphabet = "abcdefghjkmnpqrstuvwxyz23456789"
+    return "".join(secrets.choice(alphabet) for _ in range(6))
 
 
 def venue_dir(data_dir: Path, venue_id: str) -> Path:
@@ -394,6 +421,12 @@ def create_app() -> FastAPI:
         payload = f"g.{event_id}.{int(time.time()) + SESSION_TTL_SECONDS}"
         return f"{payload}.{sign(payload)}"
 
+    def make_member_token(event_id: str, member_id: int) -> str:
+        # Personal (per-student) session on a tagged event — the payload keeps
+        # both ids in one dot-free segment so parse_token stays unchanged.
+        payload = f"m.{event_id}:{member_id}.{int(time.time()) + SESSION_TTL_SECONDS}"
+        return f"{payload}.{sign(payload)}"
+
     def parse_token(token: str | None, kind: str) -> str | None:
         if not token:
             return None
@@ -501,10 +534,32 @@ def create_app() -> FastAPI:
         )
         return subs
 
+    def is_tagged_event(event: sqlite3.Row) -> bool:
+        return event["event_type"] == "prom"
+
+    def current_member(request: Request, event: sqlite3.Row) -> sqlite3.Row | None:
+        payload = parse_token(request.cookies.get(GUEST_COOKIE), "m")
+        if payload is None or ":" not in payload:
+            return None
+        event_id, _, member_id = payload.partition(":")
+        if event_id != event["id"] or not member_id.isdigit():
+            return None
+        with db() as conn:
+            return conn.execute(
+                "SELECT * FROM members WHERE id = ? AND event_id = ?",
+                (int(member_id), event["id"]),
+            ).fetchone()
+
     def gallery_role(request: Request, event: sqlite3.Row) -> str | None:
         user = current_user(request)
         if user is not None and user["id"] == event["owner_id"]:
             return "admin"
+        if is_tagged_event(event):
+            # Tagged events (proms, grad nights) have no shared password —
+            # every student signs in with their own code.
+            if current_member(request, event) is not None:
+                return "member"
+            return None
         event_id = parse_token(request.cookies.get(GUEST_COOKIE), "g")
         if event_id == event["id"]:
             return "guest"
@@ -645,12 +700,21 @@ def create_app() -> FastAPI:
         response.set_cookie(ORG_COOKIE, make_org_token(user_id), **org_cookie_kwargs(request))
         return response
 
+    def guest_login_page(event: sqlite3.Row, error: str = "") -> HTMLResponse:
+        if is_tagged_event(event):
+            sub = "Enter your personal access code to see your photos."
+            label = "Your access code"
+        else:
+            sub = "Enter the event password to see and share photos."
+            label = "Event password"
+        return page("guest_login", title=esc(event["title"]), error=err_html(error),
+                    sub=sub, label=label, **event_brand(event))
+
     @app.get("/login", response_class=HTMLResponse)
     def login_form(request: Request):
         event = resolve_event(request)
         if event is not None:
-            return page("guest_login", title=esc(event["title"]), error="",
-                        **event_brand(event))
+            return guest_login_page(event)
         return page("login", error="")
 
     @app.post("/login")
@@ -711,6 +775,37 @@ def create_app() -> FastAPI:
             count = len(list((data_dir / "events" / ev["id"] / "meta").glob("*.json"))) \
                 if (data_dir / "events" / ev["id"] / "meta").exists() else 0
             url = event_url(ev)
+            if ev["event_type"] == "prom":
+                with db() as conn:
+                    roster = conn.execute(
+                        "SELECT * FROM members WHERE event_id = ? ORDER BY name",
+                        (ev["id"],),
+                    ).fetchall()
+                roster_rows = "".join(
+                    f'''<tr><td>{esc(m["name"])}</td><td><code>{esc(m["code"])}</code></td>
+                        <td><form method="post" action="/api/events/{ev['id']}/members/{m['id']}/delete" style="display:inline">
+                        <button type="submit" style="border:none; background:none; color:var(--soft); cursor:pointer">✕</button>
+                        </form></td></tr>'''
+                    for m in roster
+                ) or '<tr><td colspan="3" style="color:var(--soft); font-style:italic">No students yet — paste the class list below.</td></tr>'
+                cred_line = (
+                    f'<p class="event-cred">🎓 Tagged event — each student signs in with their own code '
+                    f'and only sees photos they\'re tagged in.</p>'
+                )
+                roster_panel = f"""
+              <details style="margin-top:12px">
+                <summary style="cursor:pointer; font-size:14px; color:var(--soft)">Class roster — {len(roster)} student{'' if len(roster) == 1 else 's'}</summary>
+                <table style="width:100%; margin-top:10px; font-size:14px; border-collapse:collapse">{roster_rows}</table>
+                <form method="post" action="/api/events/{ev['id']}/members" style="margin-top:10px">
+                  <textarea name="names" rows="3" placeholder="One student per line&#10;Ava Martin&#10;Noah Chen"
+                    style="width:100%; padding:10px 12px; font-size:14px; border:1px solid var(--line); border-radius:8px; background:#fdfcfa; font-family:inherit"></textarea>
+                  <button class="mini" type="submit" style="cursor:pointer; background:none; margin-top:8px">Add students</button>
+                  <a class="mini" href="/api/events/{ev['id']}/members.csv">Download codes CSV</a>
+                </form>
+              </details>"""
+            else:
+                cred_line = f'<p class="event-cred">Guest password: <code>{esc(ev["guest_password"])}</code></p>'
+                roster_panel = ""
             rows.append(f"""
             <div class="event">
               <div class="event-head">
@@ -718,7 +813,7 @@ def create_app() -> FastAPI:
                 <span class="count">{count} item{'' if count == 1 else 's'}</span>
               </div>
               <p class="event-link"><a href="{esc(url)}" target="_blank">{esc(url.replace('https://', ''))}</a></p>
-              <p class="event-cred">Guest password: <code>{esc(ev['guest_password'])}</code></p>
+              {cred_line}
               <p class="event-actions">
                 <a class="mini" href="{esc(url)}" target="_blank">Open gallery</a>
                 <a class="mini" href="/api/events/{ev['id']}/qr.png" download="{esc(ev['slug'])}-qr.png">Download QR code</a>
@@ -726,7 +821,7 @@ def create_app() -> FastAPI:
                 <button class="mini recap-btn" data-event="{ev['id']}" type="button">✨ AI recap</button>
                 <button class="mini book-btn" data-event="{ev['id']}" data-url="{esc(url)}" type="button">📖 Keepsake book</button>
               </p>
-              <div class="recap" id="recap-{ev['id']}" hidden></div>
+              <div class="recap" id="recap-{ev['id']}" hidden></div>{roster_panel}
             </div>""")
         error_html = f'<p class="error">{esc(error)}</p>' if error else ""
         pending = ref_events * referral_fee
@@ -857,7 +952,10 @@ def create_app() -> FastAPI:
     @app.post("/api/events")
     def create_event(request: Request, title: str = Form(...), slug: str = Form(...),
                      guest_password: str = Form(...), event_date: str = Form(""),
-                     custom_domain: str = Form(""), venue_id: str = Form("")):
+                     custom_domain: str = Form(""), venue_id: str = Form(""),
+                     event_type: str = Form("party")):
+        if event_type not in ("party", "prom"):
+            event_type = "party"
         user = current_user(request)
         if user is None:
             return RedirectResponse("/login", status_code=303)
@@ -892,11 +990,11 @@ def create_app() -> FastAPI:
                 if slug_in_use(conn, slug):
                     return RedirectResponse("/dashboard?error=That+web+address+is+already+taken.", status_code=303)
                 conn.execute(
-                    "INSERT INTO events (id, owner_id, slug, title, event_date, guest_password, custom_domain, created_at, venue_id)"
-                    " VALUES (?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO events (id, owner_id, slug, title, event_date, guest_password, custom_domain, created_at, venue_id, event_type)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?)",
                     (event_id, user["id"], slug, title, event_date.strip()[:40],
                      guest_password, custom_domain or None, int(time.time()),
-                     venue_id or None),
+                     venue_id or None, event_type),
                 )
         except sqlite3.IntegrityError:
             return RedirectResponse("/dashboard?error=That+web+address+is+already+taken.", status_code=303)
@@ -1456,14 +1554,29 @@ def create_app() -> FastAPI:
     def tenant_login(request: Request, event: sqlite3.Row, password: str):
         ip = request.client.host if request.client else "unknown"
         key = f"guest:{event['id']}:{ip}"
-        brand = event_brand(event)
         if too_many_attempts(key):
-            return page("guest_login", title=esc(event["title"]), **brand,
-                        error=err_html("Too many attempts - please wait a few minutes."))
+            return guest_login_page(event, "Too many attempts - please wait a few minutes.")
+        if is_tagged_event(event):
+            # Students sign in with their personal code — the shared event
+            # password is deliberately not accepted on tagged events.
+            code = password.strip().lower()
+            with db() as conn:
+                member = conn.execute(
+                    "SELECT * FROM members WHERE event_id = ? AND code = ?",
+                    (event["id"], code),
+                ).fetchone()
+            if member is None:
+                record_attempt(key)
+                return guest_login_page(event, "That code isn't right - check the card you were given.")
+            response = RedirectResponse("/", status_code=303)
+            response.set_cookie(
+                GUEST_COOKIE, make_member_token(event["id"], member["id"]),
+                max_age=SESSION_TTL_SECONDS, httponly=True, samesite="lax",
+            )
+            return response
         if not hmac.compare_digest(password, event["guest_password"]):
             record_attempt(key)
-            return page("guest_login", title=esc(event["title"]), **brand,
-                        error=err_html("That password isn't right."))
+            return guest_login_page(event, "That password isn't right.")
         response = RedirectResponse("/", status_code=303)
         response.set_cookie(
             GUEST_COOKIE, make_guest_token(event["id"]),
@@ -1523,12 +1636,190 @@ def create_app() -> FastAPI:
         event = resolve_event(request)
         if event is None:
             return JSONResponse({"error": "not found"}, status_code=404)
-        if gallery_role(request, event) is None:
+        role = gallery_role(request, event)
+        if role is None:
             return JSONResponse({"error": "not logged in"}, status_code=401)
+        if is_tagged_event(event) and role != "admin":
+            # The all-photos event book stays with the organizer; students get
+            # their own book at /my-book.pdf.
+            return JSONResponse({"error": "not found"}, status_code=404)
         path = data_dir / "events" / event["id"] / "book.pdf"
         if not path.exists():
             return JSONResponse({"error": "no book yet"}, status_code=404)
         safe = re.sub(r"[^\w\- ]", "_", event["title"]) or "keepsake"
+        return FileResponse(
+            path, media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{safe} - keepsake book.pdf"'},
+        )
+
+    # ---- tagged events (proms & grad nights) -------------------------------
+
+    def owned_event(request: Request, event_id: str) -> sqlite3.Row | None:
+        user = current_user(request)
+        if user is None:
+            return None
+        with db() as conn:
+            return conn.execute(
+                "SELECT * FROM events WHERE id = ? AND owner_id = ?",
+                (event_id, user["id"]),
+            ).fetchone()
+
+    @app.post("/api/events/{event_id}/members")
+    def add_members(request: Request, event_id: str, names: str = Form("")):
+        event = owned_event(request, event_id)
+        if event is None:
+            return RedirectResponse("/login", status_code=303)
+        cleaned = [re.sub(r"\s+", " ", n).strip()[:60] for n in names.splitlines()]
+        cleaned = [n for n in cleaned if n][:500]
+        with db() as conn:
+            for name in cleaned:
+                for _ in range(20):  # retry on the rare per-event code collision
+                    try:
+                        conn.execute(
+                            "INSERT INTO members (event_id, name, code, created_at)"
+                            " VALUES (?,?,?,?)",
+                            (event_id, name, new_member_code(), int(time.time())),
+                        )
+                        break
+                    except sqlite3.IntegrityError:
+                        continue
+        return RedirectResponse("/dashboard", status_code=303)
+
+    @app.post("/api/events/{event_id}/members/{member_id}/delete")
+    def delete_member(request: Request, event_id: str, member_id: int):
+        event = owned_event(request, event_id)
+        if event is None:
+            return RedirectResponse("/login", status_code=303)
+        with db() as conn:
+            conn.execute("DELETE FROM selections WHERE member_id = ?", (member_id,))
+            conn.execute(
+                "DELETE FROM members WHERE id = ? AND event_id = ?",
+                (member_id, event_id),
+            )
+        return RedirectResponse("/dashboard", status_code=303)
+
+    @app.get("/api/events/{event_id}/members.csv")
+    def members_csv(request: Request, event_id: str):
+        event = owned_event(request, event_id)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        with db() as conn:
+            rows = conn.execute(
+                "SELECT name, code FROM members WHERE event_id = ? ORDER BY name",
+                (event_id,),
+            ).fetchall()
+        url = event_url(event)
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["name", "access code", "gallery"])
+        for row in rows:
+            writer.writerow([row["name"], row["code"], url])
+        return Response(
+            buf.getvalue(), media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{event["slug"]}-codes.csv"'},
+        )
+
+    @app.post("/api/photos/{photo_id}/tags")
+    def tag_photo(request: Request, photo_id: str, members: str = Form("")):
+        event = resolve_event(request)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if gallery_role(request, event) != "admin" or not is_tagged_event(event):
+            return JSONResponse({"error": "admin only"}, status_code=403)
+        wanted = {int(m) for m in members.split(",") if m.strip().isdigit()}
+        with db() as conn:
+            valid = {
+                row["id"] for row in conn.execute(
+                    "SELECT id FROM members WHERE event_id = ?", (event["id"],)
+                )
+            }
+        dirs = event_dirs(data_dir, event["id"])
+        meta = _read_meta(dirs, photo_id)
+        if meta is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        meta["tagged"] = sorted(wanted & valid)
+        (dirs["meta"] / f"{photo_id}.json").write_text(json.dumps(meta))
+        return {"tagged": meta["tagged"]}
+
+    @app.post("/api/photos/{photo_id}/pick")
+    def pick_photo(request: Request, photo_id: str):
+        event = resolve_event(request)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if gallery_role(request, event) != "member":
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        member = current_member(request, event)
+        dirs = event_dirs(data_dir, event["id"])
+        if member is None or not member_can_view(dirs, photo_id, member["id"]):
+            return JSONResponse({"error": "not found"}, status_code=404)
+        with db() as conn:
+            existing = conn.execute(
+                "SELECT id FROM selections WHERE member_id = ? AND photo_id = ?",
+                (member["id"], photo_id),
+            ).fetchone()
+            if existing is not None:
+                conn.execute("DELETE FROM selections WHERE id = ?", (existing["id"],))
+                return {"picked": False}
+            conn.execute(
+                "INSERT INTO selections (event_id, member_id, photo_id, created_at)"
+                " VALUES (?,?,?,?)",
+                (event["id"], member["id"], photo_id, int(time.time())),
+            )
+        return {"picked": True}
+
+    @app.post("/api/my-book")
+    def make_my_book(request: Request):
+        """A student's personal keepsake book from the photos they picked."""
+        event = resolve_event(request)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if gallery_role(request, event) != "member":
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        member = current_member(request, event)
+        if member is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        dirs = event_dirs(data_dir, event["id"])
+        with db() as conn:
+            picked = {
+                row["photo_id"] for row in conn.execute(
+                    "SELECT photo_id FROM selections WHERE member_id = ?",
+                    (member["id"],),
+                )
+            }
+        photos = []
+        for meta_file in dirs["meta"].glob("*.json"):
+            meta = _read_meta(dirs, meta_file.stem)
+            if meta is None or member["id"] not in meta.get("tagged", []):
+                continue
+            if picked and meta["id"] not in picked:
+                continue
+            photos.append(meta)
+        if not any(p.get("type") != "video" for p in photos):
+            return JSONResponse({"error": "no photos picked yet"}, status_code=400)
+        books_dir = data_dir / "events" / event["id"] / "books"
+        books_dir.mkdir(parents=True, exist_ok=True)
+        dest = books_dir / f"member-{member['id']}.pdf"
+        pages = book_maker.generate_book(
+            dest, f"{member['name']} · {event['title']}", event["event_date"],
+            photos, dirs["photos"],
+            credit=f"Made with love on {base_domain}",
+        )
+        return {"pages": pages, "url": "/my-book.pdf"}
+
+    @app.get("/my-book.pdf")
+    def my_book_pdf(request: Request):
+        event = resolve_event(request)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if gallery_role(request, event) != "member":
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        member = current_member(request, event)
+        if member is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        path = data_dir / "events" / event["id"] / "books" / f"member-{member['id']}.pdf"
+        if not path.exists():
+            return JSONResponse({"error": "no book yet"}, status_code=404)
+        safe = re.sub(r"[^\w\- ]", "_", member["name"]) or "my"
         return FileResponse(
             path, media_type="application/pdf",
             headers={"Content-Disposition": f'attachment; filename="{safe} - keepsake book.pdf"'},
@@ -1541,8 +1832,12 @@ def create_app() -> FastAPI:
         event = resolve_event(request)
         if event is None:
             return RedirectResponse("/", status_code=303)
-        if gallery_role(request, event) is None:
+        role = gallery_role(request, event)
+        if role is None:
             return RedirectResponse("/login", status_code=303)
+        if is_tagged_event(event) and role != "admin":
+            # On tagged events only the organizer's device runs the big screen.
+            return RedirectResponse("/", status_code=303)
         brand = event_brand(event)
         brand_line = ""
         if event["venue_id"]:
@@ -1576,6 +1871,21 @@ def create_app() -> FastAPI:
         img.save(buf, format="PNG")
         return Response(buf.getvalue(), media_type="image/png")
 
+    def _read_meta(dirs: dict[str, Path], photo_id: str) -> dict | None:
+        meta_file = dirs["meta"] / f"{photo_id}.json"
+        if not meta_file.exists():
+            return None
+        try:
+            return json.loads(meta_file.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def member_can_view(dirs: dict[str, Path], photo_id: str, member_id: int) -> bool:
+        # Safety rule on tagged events: a student can only reach photos they
+        # are tagged in — enforced on the media routes, not just the listing.
+        meta = _read_meta(dirs, photo_id)
+        return meta is not None and member_id in meta.get("tagged", [])
+
     @app.get("/api/photos")
     def list_photos(request: Request, q: str = "", highlights: bool = False):
         event = resolve_event(request)
@@ -1591,6 +1901,9 @@ def create_app() -> FastAPI:
                 photos.append(json.loads(meta_file.read_text()))
             except (OSError, json.JSONDecodeError):
                 continue
+        member = current_member(request, event) if role == "member" else None
+        if member is not None:
+            photos = [p for p in photos if member["id"] in p.get("tagged", [])]
         q = q.strip().lower()
         if q:
             def matches(p):
@@ -1603,12 +1916,29 @@ def create_app() -> FastAPI:
         if highlights:
             photos = [p for p in photos if p.get("quality", 0) >= 8]
         photos.sort(key=lambda p: p.get("uploaded_at", 0), reverse=True)
-        return {
+        out = {
             "photos": photos,
             "is_admin": role == "admin",
             "ai_enabled": ai_agents.ai_enabled(),
             "book": (data_dir / "events" / event["id"] / "book.pdf").exists(),
+            "mode": event["event_type"],
         }
+        if member is not None:
+            with db() as conn:
+                picked = conn.execute(
+                    "SELECT photo_id FROM selections WHERE member_id = ?",
+                    (member["id"],),
+                ).fetchall()
+            out["member_name"] = member["name"]
+            out["picked"] = [row["photo_id"] for row in picked]
+        if role == "admin" and is_tagged_event(event):
+            with db() as conn:
+                rows = conn.execute(
+                    "SELECT id, name FROM members WHERE event_id = ? ORDER BY name",
+                    (event["id"],),
+                ).fetchall()
+            out["members"] = [{"id": r["id"], "name": r["name"]} for r in rows]
+        return out
 
     def _caption_task(event_id: str, photo_id: str) -> None:
         """Background: run the curator agent on one photo, merge into its meta."""
@@ -1634,22 +1964,30 @@ def create_app() -> FastAPI:
         event = resolve_event(request)
         if event is None:
             return JSONResponse({"error": "not found"}, status_code=404)
-        if gallery_role(request, event) is None:
+        role = gallery_role(request, event)
+        if role is None:
             return JSONResponse({"error": "not logged in"}, status_code=401)
+        member = current_member(request, event) if role == "member" else None
         dirs = event_dirs(data_dir, event["id"])
         uploader = re.sub(r"\s+", " ", uploader).strip()[:60]
+        if member is not None:
+            uploader = member["name"]
         saved, errors = [], []
         for upload_file in files:
             original_name = upload_file.filename or "photo"
             ext = Path(original_name).suffix.lower()
             try:
                 if ext in VIDEO_EXTENSIONS:
-                    saved.append(await _save_video(upload_file, original_name, uploader, ext, dirs))
+                    meta = await _save_video(upload_file, original_name, uploader, ext, dirs)
                 else:
                     meta = await _save_photo(upload_file, original_name, uploader, ext, dirs)
-                    saved.append(meta)
                     if ai_agents.ai_enabled():
                         background.add_task(_caption_task, event["id"], meta["id"])
+                if member is not None:
+                    # A student's own uploads are tagged to them automatically.
+                    meta["tagged"] = [member["id"]]
+                    (dirs["meta"] / f"{meta['id']}.json").write_text(json.dumps(meta))
+                saved.append(meta)
             except PhotoError as exc:
                 errors.append({"file": original_name, "reason": str(exc)})
         return {"saved": saved, "errors": errors}
@@ -1713,9 +2051,14 @@ def create_app() -> FastAPI:
         event = resolve_event(request)
         if event is None:
             return JSONResponse({"error": "not found"}, status_code=404)
-        if gallery_role(request, event) is None:
+        role = gallery_role(request, event)
+        if role is None:
             return JSONResponse({"error": "not logged in"}, status_code=401)
         dirs = event_dirs(data_dir, event["id"])
+        if role == "member":
+            member = current_member(request, event)
+            if member is None or not member_can_view(dirs, photo_id, member["id"]):
+                return JSONResponse({"error": "not found"}, status_code=404)
         path = _find_media_file(dirs["photos"], photo_id)
         if path is None:
             return JSONResponse({"error": "not found"}, status_code=404)
@@ -1738,9 +2081,14 @@ def create_app() -> FastAPI:
         event = resolve_event(request)
         if event is None:
             return JSONResponse({"error": "not found"}, status_code=404)
-        if gallery_role(request, event) is None:
+        role = gallery_role(request, event)
+        if role is None:
             return JSONResponse({"error": "not logged in"}, status_code=401)
         dirs = event_dirs(data_dir, event["id"])
+        if role == "member":
+            member = current_member(request, event)
+            if member is None or not member_can_view(dirs, photo_id, member["id"]):
+                return JSONResponse({"error": "not found"}, status_code=404)
         path = dirs["thumbs"] / f"{photo_id}.jpg"
         if path.exists():
             return FileResponse(path, media_type="image/jpeg")

@@ -79,6 +79,35 @@ Set `CR_KIOSK_KEY` and open `/kiosk?key=<key>` once on the booth tablet
 - Rate limiting per device, a no-AI fallback message, and an idle reset
   that clears the conversation between visitors.
 
+## Proms & grad nights (tagged events)
+
+A safety-first mode for schools, selectable at event creation ("🎓 Prom /
+grad night"). It flips the privacy model of a normal event:
+
+- **Personal codes instead of a shared password.** The organizer pastes the
+  class roster on the dashboard; every student gets a 6-character access
+  code (downloadable as a CSV for printing on ticket cards). The shared
+  event password is deliberately not accepted on tagged events.
+- **Photos are tagged to students.** A student's own uploads are tagged to
+  them automatically; chaperones (the event owner) see everything and tag
+  group shots from the gallery (🏷 button → checkbox picker). Tag data
+  lives in each photo's meta JSON (`tagged: [member ids]`).
+- **Tagging gates visibility, not just organization.** A student sees only
+  photos they're tagged in — enforced on the listing *and* on the
+  photo/thumbnail routes, so an untagged photo ID 404s even if known. The
+  live big-screen slideshow and the all-photos event book are owner-only
+  on tagged events.
+- **Each student picks their own book.** Students star favourites (☆/★ on
+  tiles, stored in `selections`) and one click composes a personal
+  keepsake book PDF from their picks (all their tagged photos if they
+  haven't picked yet) at `/my-book.pdf` — their night, chosen by them.
+
+Tables: `members` (per-event roster + codes) and `selections` (member ×
+photo picks); personal books are stored at
+`data/events/<id>/books/member-<member id>.pdf`. Sessions use a distinct
+`m.<event>:<member>` token in the guest cookie, so member identity is
+signed the same way as every other session.
+
 ## Pricing packages & billing (Stripe)
 
 Packages are defined once in `billing.py` and rendered everywhere (landing

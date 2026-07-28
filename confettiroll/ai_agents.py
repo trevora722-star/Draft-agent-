@@ -145,6 +145,11 @@ application.
 white-label tier — their own branded photo page on their own domain, their logo \
 and photos, unlimited events, with an AI brand agent that writes their page \
 copy. Tiered by hosted volume: Boutique $99/mo (2 events), Estate $199/mo (6 events), Grand $399/mo (unlimited).
+- Schools & prom organizers: tagged-event mode built for proms and grad \
+nights — no shared password (every student gets a personal access code from \
+the class roster), photos are tagged to the students in them for safety, each \
+student only ever sees photos they're tagged in, and each student picks their \
+own favourites for their own personal keepsake book.
 
 Ground rules:
 - Keep replies to 2-4 short, warm sentences — this is a busy expo floor. No markdown.
