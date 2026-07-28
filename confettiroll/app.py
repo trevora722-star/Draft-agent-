@@ -32,7 +32,7 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -42,6 +42,8 @@ from fastapi.responses import (
 )
 from PIL import Image, ImageOps
 import qrcode
+
+import ai_agents
 
 try:  # iPhone photos arrive as HEIC; convert them so browsers can show them.
     from pillow_heif import register_heif_opener
@@ -144,6 +146,22 @@ def init_db(db_path: Path) -> None:
             );
             """
         )
+        # Lightweight migration: referral columns for the partner program.
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(users)")}
+        if "referral_code" not in existing:
+            conn.execute("ALTER TABLE users ADD COLUMN referral_code TEXT")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code"
+                " ON users(referral_code)"
+            )
+        if "referred_by" not in existing:
+            conn.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER")
+
+
+def new_referral_code() -> str:
+    # Short, human-friendly, unambiguous (no 0/O/1/l).
+    alphabet = "abcdefghjkmnpqrstuvwxyz23456789"
+    return "".join(secrets.choice(alphabet) for _ in range(8))
 
 
 # ---------------------------------------------------------------------------
@@ -245,6 +263,9 @@ async def _save_video(upload_file, original_name, uploader, ext, dirs) -> dict:
 
 def create_app() -> FastAPI:
     base_domain = os.environ.get("CR_BASE_DOMAIN", "confettiroll.com").lower()
+    # Estimated planner commission per referred event (20% of a ~$50 package),
+    # tracked as pending and payable once billing launches.
+    referral_fee = float(os.environ.get("CR_REFERRAL_FEE", "10"))
     data_dir = Path(os.environ.get("CR_DATA_DIR", BASE_DIR / "data"))
     data_dir.mkdir(parents=True, exist_ok=True)
     db_path = data_dir / "confettiroll.sqlite"
@@ -380,29 +401,35 @@ def create_app() -> FastAPI:
         return page("landing", base=base_domain)
 
     @app.get("/signup", response_class=HTMLResponse)
-    def signup_form(request: Request):
+    def signup_form(request: Request, ref: str = ""):
         if resolve_event(request) is not None:
             return RedirectResponse("/", status_code=303)
-        return page("signup", error="")
+        return page("signup", error="", ref=esc(ref.strip()[:16]))
 
     @app.post("/signup")
     def signup(request: Request, name: str = Form(""), email: str = Form(...),
-               password: str = Form(...)):
+               password: str = Form(...), ref: str = Form("")):
         email = email.strip().lower()
         name = re.sub(r"\s+", " ", name).strip()[:80]
+        ref = ref.strip()[:16]
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
-            return page("signup", error=err_html("That doesn't look like an email address."))
+            return page("signup", error=err_html("That doesn't look like an email address."), ref=esc(ref))
         if len(password) < 8:
-            return page("signup", error=err_html("Password must be at least 8 characters."))
-        try:
-            with db() as conn:
+            return page("signup", error=err_html("Password must be at least 8 characters."), ref=esc(ref))
+        with db() as conn:
+            referrer = conn.execute(
+                "SELECT id FROM users WHERE referral_code = ?", (ref,)
+            ).fetchone() if ref else None
+            try:
                 cur = conn.execute(
-                    "INSERT INTO users (email, name, password_hash, created_at) VALUES (?,?,?,?)",
-                    (email, name, hash_password(password), int(time.time())),
+                    "INSERT INTO users (email, name, password_hash, created_at, referral_code, referred_by)"
+                    " VALUES (?,?,?,?,?,?)",
+                    (email, name, hash_password(password), int(time.time()),
+                     new_referral_code(), referrer["id"] if referrer else None),
                 )
                 user_id = cur.lastrowid
-        except sqlite3.IntegrityError:
-            return page("signup", error=err_html("An account with that email already exists."))
+            except sqlite3.IntegrityError:
+                return page("signup", error=err_html("An account with that email already exists."), ref=esc(ref))
         response = RedirectResponse("/dashboard", status_code=303)
         response.set_cookie(ORG_COOKIE, make_org_token(user_id), **org_cookie_kwargs(request))
         return response
@@ -448,11 +475,23 @@ def create_app() -> FastAPI:
         user = current_user(request)
         if user is None:
             return RedirectResponse("/login", status_code=303)
+        referral_code = user["referral_code"]
         with db() as conn:
+            if not referral_code:  # accounts created before the referral migration
+                referral_code = new_referral_code()
+                conn.execute("UPDATE users SET referral_code = ? WHERE id = ?",
+                             (referral_code, user["id"]))
             events = conn.execute(
                 "SELECT * FROM events WHERE owner_id = ? ORDER BY created_at DESC",
                 (user["id"],),
             ).fetchall()
+            ref_signups = conn.execute(
+                "SELECT COUNT(*) AS n FROM users WHERE referred_by = ?", (user["id"],)
+            ).fetchone()["n"]
+            ref_events = conn.execute(
+                "SELECT COUNT(*) AS n FROM events WHERE owner_id IN"
+                " (SELECT id FROM users WHERE referred_by = ?)", (user["id"],)
+            ).fetchone()["n"]
         rows = []
         for ev in events:
             count = len(list((data_dir / "events" / ev["id"] / "meta").glob("*.json"))) \
@@ -469,15 +508,23 @@ def create_app() -> FastAPI:
               <p class="event-actions">
                 <a class="mini" href="{esc(url)}" target="_blank">Open gallery</a>
                 <a class="mini" href="/api/events/{ev['id']}/qr.png" download="{esc(ev['slug'])}-qr.png">Download QR code</a>
+                <button class="mini recap-btn" data-event="{ev['id']}" type="button">✨ AI recap</button>
               </p>
+              <div class="recap" id="recap-{ev['id']}" hidden></div>
             </div>""")
         error_html = f'<p class="error">{esc(error)}</p>' if error else ""
+        pending = ref_events * referral_fee
         return page(
             "dashboard",
             user_name=esc(user["name"] or user["email"]),
             events="\n".join(rows) or '<p class="empty">No events yet — create your first one above.</p>',
             base_domain=esc(base_domain),
             error=error_html,
+            ref_code=esc(referral_code),
+            ref_link=esc(f"https://{base_domain}/signup?ref={referral_code}"),
+            ref_signups=str(ref_signups),
+            ref_events=str(ref_events),
+            ref_pending=f"${pending:,.2f}",
         )
 
     @app.post("/api/events")
@@ -565,7 +612,7 @@ def create_app() -> FastAPI:
         return response
 
     @app.get("/api/photos")
-    def list_photos(request: Request):
+    def list_photos(request: Request, q: str = "", highlights: bool = False):
         event = resolve_event(request)
         if event is None:
             return JSONResponse({"error": "not found"}, status_code=404)
@@ -579,12 +626,45 @@ def create_app() -> FastAPI:
                 photos.append(json.loads(meta_file.read_text()))
             except (OSError, json.JSONDecodeError):
                 continue
+        q = q.strip().lower()
+        if q:
+            def matches(p):
+                haystack = " ".join([
+                    p.get("caption", ""), " ".join(p.get("tags", [])),
+                    p.get("uploader", ""), p.get("original_name", ""),
+                ]).lower()
+                return all(term in haystack for term in q.split())
+            photos = [p for p in photos if matches(p)]
+        if highlights:
+            photos = [p for p in photos if p.get("quality", 0) >= 8]
         photos.sort(key=lambda p: p.get("uploaded_at", 0), reverse=True)
-        return {"photos": photos, "is_admin": role == "admin"}
+        return {
+            "photos": photos,
+            "is_admin": role == "admin",
+            "ai_enabled": ai_agents.ai_enabled(),
+        }
+
+    def _caption_task(event_id: str, photo_id: str) -> None:
+        """Background: run the curator agent on one photo, merge into its meta."""
+        dirs = event_dirs(data_dir, event_id)
+        thumb = dirs["thumbs"] / f"{photo_id}.jpg"
+        meta_file = dirs["meta"] / f"{photo_id}.json"
+        if not thumb.exists() or not meta_file.exists():
+            return
+        result = ai_agents.caption_photo(thumb)
+        if not result:
+            return
+        try:
+            meta = json.loads(meta_file.read_text())
+            meta.update(caption=result["caption"], tags=result["tags"],
+                        quality=result["quality"])
+            meta_file.write_text(json.dumps(meta))
+        except (OSError, json.JSONDecodeError, KeyError):
+            pass
 
     @app.post("/api/upload")
-    async def upload(request: Request, files: list[UploadFile] = File(...),
-                     uploader: str = Form("")):
+    async def upload(request: Request, background: BackgroundTasks,
+                     files: list[UploadFile] = File(...), uploader: str = Form("")):
         event = resolve_event(request)
         if event is None:
             return JSONResponse({"error": "not found"}, status_code=404)
@@ -600,10 +680,41 @@ def create_app() -> FastAPI:
                 if ext in VIDEO_EXTENSIONS:
                     saved.append(await _save_video(upload_file, original_name, uploader, ext, dirs))
                 else:
-                    saved.append(await _save_photo(upload_file, original_name, uploader, ext, dirs))
+                    meta = await _save_photo(upload_file, original_name, uploader, ext, dirs)
+                    saved.append(meta)
+                    if ai_agents.ai_enabled():
+                        background.add_task(_caption_task, event["id"], meta["id"])
             except PhotoError as exc:
                 errors.append({"file": original_name, "reason": str(exc)})
         return {"saved": saved, "errors": errors}
+
+    @app.post("/api/events/{event_id}/recap")
+    def event_recap(request: Request, event_id: str):
+        user = current_user(request)
+        if user is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        with db() as conn:
+            event = conn.execute(
+                "SELECT * FROM events WHERE id = ? AND owner_id = ?", (event_id, user["id"])
+            ).fetchone()
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if not ai_agents.ai_enabled():
+            return JSONResponse(
+                {"error": "AI features aren't enabled on this server"}, status_code=503
+            )
+        dirs = event_dirs(data_dir, event["id"])
+        photos = []
+        for meta_file in dirs["meta"].glob("*.json"):
+            try:
+                photos.append(json.loads(meta_file.read_text()))
+            except (OSError, json.JSONDecodeError):
+                continue
+        recap = ai_agents.generate_recap(event["title"], photos)
+        if recap is None:
+            return JSONResponse({"error": "couldn't generate a recap"}, status_code=502)
+        (data_dir / "events" / event["id"] / "recap.txt").write_text(recap)
+        return {"recap": recap}
 
     @app.delete("/api/photos/{photo_id}")
     def delete_photo(request: Request, photo_id: str):

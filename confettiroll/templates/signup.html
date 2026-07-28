@@ -63,6 +63,7 @@
     <input id="email" name="email" type="email" autocomplete="email" required>
     <label for="password">Password <span style="text-transform:none">(8+ characters)</span></label>
     <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+    <input type="hidden" name="ref" value="{{REF}}">
     <button type="submit">Sign up</button>
     {{ERROR}}
     <p class="alt">Already have an account? <a href="/login">Sign in</a></p>

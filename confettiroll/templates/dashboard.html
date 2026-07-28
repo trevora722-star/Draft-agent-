@@ -130,6 +130,25 @@
     {{EVENTS}}
 
     <div class="panel" style="margin-top:30px">
+      <h2>Refer &amp; earn — for wedding &amp; event planners</h2>
+      <p style="color:var(--soft); font-size:14.5px; line-height:1.6; margin-bottom:14px">
+        Share your link with couples and clients. When someone signs up through
+        it, you earn <strong>20% of everything they spend</strong> — tracked
+        below and paid out when billing launches (the platform is free during
+        the beta).
+      </p>
+      <p style="font-size:15px; margin-bottom:8px">Your referral link:
+        <code id="ref-link" style="background:#f6f2ee; padding:4px 10px; border-radius:6px">{{REF_LINK}}</code>
+        <button class="mini" type="button" id="copy-ref">Copy</button>
+      </p>
+      <p style="color:var(--soft); font-size:14.5px">
+        <strong>{{REF_SIGNUPS}}</strong> referred signup(s) ·
+        <strong>{{REF_EVENTS}}</strong> event(s) created by your referrals ·
+        <strong>{{REF_PENDING}}</strong> estimated pending commission
+      </p>
+    </div>
+
+    <div class="panel" style="margin-top:30px">
       <h2>Using a custom domain</h2>
       <p style="color:var(--soft); font-size:14.5px; line-height:1.6">
         Enter your domain above (e.g. <code>photos.yourdomain.com</code>), then at
@@ -156,6 +175,29 @@
     const words = ["confetti", "sparkle", "toast", "dance", "cheers", "bloom", "glow", "jubilee"];
     pw.value = words[Math.floor(Math.random() * words.length)] + (100 + Math.floor(Math.random() * 900));
   }
+
+  document.getElementById("copy-ref")?.addEventListener("click", () => {
+    navigator.clipboard.writeText(document.getElementById("ref-link").textContent)
+      .then(() => { document.getElementById("copy-ref").textContent = "Copied!"; });
+  });
+
+  document.querySelectorAll(".recap-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.event;
+      const box = document.getElementById("recap-" + id);
+      box.hidden = false;
+      box.textContent = "Writing the story of your event…";
+      box.style.cssText = "margin-top:12px; padding:14px; background:#faf7f2; border-radius:10px; font-size:15px; line-height:1.6; white-space:pre-wrap";
+      try {
+        const res = await fetch(`/api/events/${id}/recap`, { method: "POST" });
+        const data = await res.json();
+        box.textContent = res.ok ? data.recap
+          : (data.error || "Couldn't generate a recap right now.");
+      } catch {
+        box.textContent = "Couldn't generate a recap right now.";
+      }
+    });
+  });
 </script>
 </body>
 </html>

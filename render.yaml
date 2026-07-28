@@ -32,6 +32,8 @@ services:
         value: confettiroll.com
       - key: CR_DATA_DIR
         value: /var/data
+      - key: ANTHROPIC_API_KEY
+        sync: false  # optional — enables the AI curator + recap agents
       - key: PYTHON_VERSION
         value: "3.11"
     disk:

@@ -240,6 +240,11 @@
     <span id="admin-badge">Host</span>
     <input id="file-input" type="file" accept="image/*,video/*,.heic,.heif,.mp4,.mov,.m4v,.webm" multiple hidden>
   </div>
+  <div class="toolbar" id="ai-toolbar" style="padding-top:0" hidden>
+    <input id="search-input" placeholder="Search photos… (cake, dancing, a name)"
+           style="padding:10px 16px; font-size:15px; border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--ink); font-family:inherit; width:280px">
+    <button class="btn ghost" id="highlights-btn" type="button">✨ Highlights</button>
+  </div>
   <p id="status"></p>
 
   <div class="grid" id="grid"></div>
@@ -296,7 +301,8 @@
       when = new Date(p.uploaded_at * 1000).toLocaleDateString(undefined,
         { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
     }
-    return p.uploader ? `Shared by ${p.uploader}${when ? " · " + when : ""}` : when;
+    const who = p.uploader ? `Shared by ${p.uploader}${when ? " · " + when : ""}` : when;
+    return p.caption ? `${p.caption} — ${who}` : who;
   }
 
   async function deletePhoto(p) {
@@ -351,14 +357,33 @@
     });
   }
 
+  let showHighlights = false;
+
   async function load() {
-    const res = await fetch("/api/photos");
+    const params = new URLSearchParams();
+    const q = document.getElementById("search-input").value.trim();
+    if (q) params.set("q", q);
+    if (showHighlights) params.set("highlights", "1");
+    const res = await fetch("/api/photos" + (params.toString() ? "?" + params : ""));
     if (res.status === 401) { location.href = "/login"; return; }
     const data = await res.json();
     photos = data.photos || [];
     isAdmin = !!data.is_admin;
+    document.getElementById("ai-toolbar").hidden = !data.ai_enabled;
     render();
   }
+
+  let searchTimer;
+  document.getElementById("search-input").addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(load, 300);
+  });
+  document.getElementById("highlights-btn").addEventListener("click", () => {
+    showHighlights = !showHighlights;
+    const b = document.getElementById("highlights-btn");
+    b.classList.toggle("ghost", !showHighlights);
+    load();
+  });
 
   document.getElementById("upload-btn").addEventListener("click", () => fileInput.click());
 

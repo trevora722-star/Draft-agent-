@@ -22,6 +22,35 @@ link + password with guests. Every event gets its own subdomain
 Tenancy is resolved from the Host header; accounts and events live in a
 SQLite database and media on disk, both under `CR_DATA_DIR`.
 
+## AI features (agents)
+
+With `ANTHROPIC_API_KEY` set, two agents come alive (both built on the
+Anthropic API with Claude Opus 5; server-side refusal fallbacks are enabled
+so rare safety-classifier declines transparently retry on Anthropic's
+recommended fallback model):
+
+- **Album curator** — every uploaded photo is captioned, tagged, and given a
+  1-10 highlight score in a background task. This powers the gallery's
+  search box ("cake", "dancing", a guest's name) and the ✨ Highlights
+  filter (score ≥ 8). Captions appear on tiles and in the lightbox.
+- **Recap writer** — the "✨ AI recap" button on each dashboard event reads
+  the whole album's captions and uploaders and writes a warm, shareable
+  story of the day for the host to send with the album link.
+
+Without the key everything else works normally — the AI toolbar simply
+stays hidden. Rough cost: a few cents per hundred photos captioned.
+
+## Referral program (wedding & event planners)
+
+Every account gets a referral link (`/signup?ref=<code>`), shown on the
+dashboard with live stats. Signups through the link are attributed
+(`users.referred_by`), and each event a referred host creates accrues an
+estimated commission of `CR_REFERRAL_FEE` (default $10 ≈ 20% of a ~$50
+package — competitor one-time pricing runs $19–149). Payouts are marked
+"pending" until billing launches; the attribution data is being recorded
+now so no referral is lost. The landing page pitches the program to
+planners directly.
+
 ## Environment variables
 
 | Variable | Required | What it does |
@@ -29,6 +58,9 @@ SQLite database and media on disk, both under `CR_DATA_DIR`.
 | `CR_BASE_DOMAIN` | yes in prod | The platform's base domain, e.g. `confettiroll.com` |
 | `CR_DATA_DIR` | no | Where the database + media live (default `./data`) |
 | `CR_SECRET_KEY` | no | Cookie-signing secret; auto-generated and persisted if unset |
+| `ANTHROPIC_API_KEY` | no | Enables the AI curator + recap agents |
+| `CR_AI_MODEL` | no | Model for the agents (default `claude-opus-5`) |
+| `CR_REFERRAL_FEE` | no | Estimated commission per referred event, in dollars (default `10`) |
 
 ## DNS setup (one-time)
 

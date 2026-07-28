@@ -163,6 +163,94 @@ def test_custom_domain_routing(client):
     assert client.get("http://photos.smithwedding.test/api/photos").status_code == 200
 
 
+def test_referral_attribution(client):
+    import re as _re
+    _signup(client, email="planner@example.com")
+    dashboard = client.get(f"{BASE}/dashboard").text
+    code = _re.search(r"/signup\?ref=([a-z0-9]+)", dashboard).group(1)
+    client.post(f"{BASE}/logout", follow_redirects=False)
+
+    # a couple signs up through the planner's link and creates an event
+    res = client.post(
+        f"{BASE}/signup",
+        data={"name": "Couple", "email": "couple@example.com",
+              "password": "longpassword1", "ref": code},
+        follow_redirects=False,
+    )
+    assert res.status_code == 303
+    _create_event(client, slug="referred-wedding")
+    client.post(f"{BASE}/logout", follow_redirects=False)
+
+    # the planner's dashboard now shows the attribution and pending commission
+    client.post(f"{BASE}/login",
+                data={"email": "planner@example.com", "password": "hunter2hunter2"},
+                follow_redirects=False)
+    dashboard = client.get(f"{BASE}/dashboard").text
+    assert "<strong>1</strong> referred signup(s)" in dashboard
+    assert "<strong>1</strong> event(s) created by your referrals" in dashboard
+    assert "$10.00" in dashboard
+
+    # a bogus ref code doesn't break signup
+    res = client.post(
+        f"{BASE}/signup",
+        data={"email": "nobody@example.com", "password": "longpassword1", "ref": "zzzzzzzz"},
+        follow_redirects=False,
+    )
+    assert res.status_code == 303
+
+
+def test_ai_captioning_search_and_highlights(client, monkeypatch):
+    import app as app_module
+
+    monkeypatch.setattr(app_module.ai_agents, "ai_enabled", lambda: True)
+    captions = iter([
+        {"caption": "The couple cutting the cake", "tags": ["cake", "couple"], "quality": 9},
+        {"caption": "Guests dancing at night", "tags": ["dancing", "night"], "quality": 5},
+    ])
+    monkeypatch.setattr(app_module.ai_agents, "caption_photo", lambda path: next(captions))
+
+    _signup(client)
+    _create_event(client)
+    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    for name in ("cake.jpg", "dance.jpg"):
+        client.post(f"{EVENT}/api/upload", files={"files": (name, _fake_jpeg(), "image/jpeg")})
+
+    all_photos = client.get(f"{EVENT}/api/photos").json()
+    assert all_photos["ai_enabled"] is True
+    assert sorted(p["caption"] for p in all_photos["photos"]) == [
+        "Guests dancing at night", "The couple cutting the cake",
+    ]
+
+    # search hits captions and tags
+    hits = client.get(f"{EVENT}/api/photos", params={"q": "cake"}).json()["photos"]
+    assert len(hits) == 1 and hits[0]["caption"] == "The couple cutting the cake"
+
+    # highlights = quality >= 8
+    best = client.get(f"{EVENT}/api/photos", params={"highlights": 1}).json()["photos"]
+    assert len(best) == 1 and best[0]["quality"] == 9
+
+
+def test_recap_owner_only(client, monkeypatch):
+    import app as app_module
+
+    monkeypatch.setattr(app_module.ai_agents, "ai_enabled", lambda: True)
+    monkeypatch.setattr(app_module.ai_agents, "generate_recap",
+                        lambda title, photos: f"What a day at {title}!")
+
+    _signup(client)
+    _create_event(client)
+    import re as _re
+    dashboard = client.get(f"{BASE}/dashboard").text
+    event_id = _re.search(r'data-event="([0-9a-f]{32})"', dashboard).group(1)
+
+    res = client.post(f"{BASE}/api/events/{event_id}/recap")
+    assert res.status_code == 200
+    assert "What a day" in res.json()["recap"]
+
+    client.cookies.clear()
+    assert client.post(f"{BASE}/api/events/{event_id}/recap").status_code == 401
+
+
 def test_qr_code_owner_only(client):
     _signup(client)
     _create_event(client)
