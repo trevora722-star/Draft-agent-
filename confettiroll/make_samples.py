@@ -34,7 +34,7 @@ BASE_DIR = Path(__file__).resolve().parent
 WORK = BASE_DIR / "samples_work"
 OUT = BASE_DIR / "static" / "samples"
 
-MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-image")
 API = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 STYLE = (
@@ -105,7 +105,7 @@ EVENTS = {
         ),
         "shots": [
             ("The backyard, ready to go", "Wide shot of a backyard birthday party: swimming pool, large lawn, gold '50' balloons over a drinks table, guests mingling in the sun."),
-            ("Fifty candles", "A joyful 50-year-old woman blowing out candles on a birthday cake with a gold '50' topper, family leaning in around her at a patio table, warm afternoon light."),
+            ("Fifty candles", "A joyful 50-year-old woman blowing out candles on a birthday cake with a gold '50' number topper, family leaning in around her at a patio table, warm afternoon light. The cake decoration shows only the number 50 - no names or written words anywhere."),
             ("The cannonball", "A man mid-air in a cannonball jump over a backyard pool, huge splash rising, guests laughing and shielding themselves at the pool edge, summer party."),
             ("Poolside laughter", "Friends of varied ages and body types laughing hard together on pool loungers with drinks, one wiping tears of laughter, backyard summer party."),
             ("At the grill", "A smiling man grilling burgers at a backyard barbecue, smoke rising, a friend leaning in with a plate, pool and balloons in the background."),
