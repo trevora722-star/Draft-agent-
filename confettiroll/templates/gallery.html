@@ -269,6 +269,7 @@
     <a class="btn ghost" href="/stream" id="stream-link" target="_blank" style="text-decoration:none">📺 Live slideshow</a>
     <a class="btn ghost" href="/book.pdf" id="book-link" style="text-decoration:none" hidden>📖 Keepsake book</a>
     <button class="btn" id="mybook-btn" type="button" hidden>📖 My keepsake book</button>
+    <button class="btn ghost" id="order-book" type="button" hidden>🛒 Order printed book</button>
     <form method="post" action="/logout" style="display:inline">
       <button class="btn ghost" type="submit">Sign out</button>
     </form>
@@ -494,8 +495,15 @@
     document.getElementById("stream-link").hidden = isProm && !isAdmin;
     // On tagged events only staff upload — students view, pick, and print.
     const memberView = isProm && !!memberName;
-    document.getElementById("upload-btn").hidden = memberView;
-    nameInput.hidden = memberView;
+    const locked = !!data.locked;
+    document.getElementById("upload-btn").hidden = memberView || (locked && !isAdmin);
+    nameInput.hidden = memberView || (locked && !isAdmin);
+    // Members order via their personal book flow; guests/hosts via the event book.
+    document.getElementById("order-book").hidden = !data.book || memberView;
+    if (locked && !isAdmin && !memberView) {
+      document.querySelector(".sub").textContent =
+        "The host has closed the album — enjoy the finished collection. ✨";
+    }
     if (memberView) {
       document.querySelector(".sub").textContent =
         `Welcome, ${memberName} — these are your photos from the night. Tap ☆ to pick the ones for your keepsake book.`;
@@ -508,6 +516,19 @@
     }
     render();
   }
+
+  document.getElementById("order-book").addEventListener("click", async () => {
+    setStatus("Starting your book order…", "busy");
+    try {
+      const res = await fetch("/api/book-order", { method: "POST" });
+      if (res.status === 401) { location.href = "/login"; return; }
+      const data = await res.json();
+      if (data.url) { location.href = data.url; return; }
+      setStatus(data.message || data.error || "Ordering isn't available right now.", data.message ? "" : "error");
+    } catch {
+      setStatus("Ordering isn't available right now.", "error");
+    }
+  });
 
   document.getElementById("mybook-btn").addEventListener("click", async () => {
     setStatus("Composing your keepsake book…", "busy");

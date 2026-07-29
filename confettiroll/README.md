@@ -118,6 +118,27 @@ photo picks); personal books are stored at
 `m.<event>:<member>` (student) and `s.<event>` (staff) tokens in the
 guest cookie, signed the same way as every other session.
 
+## Close the album → announce the book → sell the book
+
+The host's finish-line flow, built into every event card:
+
+- **🔒 Close album** freezes uploads (guests see "the host has closed the
+  album"; the host can still add last-minute shots, and can reopen any
+  time). Close it, then compose the keepsake book knowing it's final.
+- **Email capture at the door**: the guest sign-in page has an optional
+  email field ("get the album & keepsake book when it's ready") — stored
+  per event in `subscribers`, duplicates ignored.
+- **📣 Email the book**: once the book exists, one click emails everyone
+  who signed up: the book is ready, the album link, and how to order the
+  printed hardcover. Idempotent — each subscriber is emailed once.
+  Email sends via Resend (`RESEND_API_KEY`) or any SMTP relay
+  (`SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS` + `MAIL_FROM`); with
+  neither configured the dashboard shows who's waiting and the exact
+  message to copy-send manually.
+- **🛒 Order printed book**: a button in the gallery toolbar for guests
+  and hosts (`POST /api/book-order`) that opens Stripe Checkout for the
+  $59 printed book ("free PDF today" beta message without Stripe keys).
+
 ## Pricing packages & billing (Stripe)
 
 Packages are defined once in `billing.py` and rendered everywhere (landing
@@ -276,6 +297,7 @@ Without the env vars the buttons simply don't render.
 | `CR_SECRET_KEY` | no | Cookie-signing secret; auto-generated and persisted if unset |
 | `ANTHROPIC_API_KEY` | no | Enables the AI curator + recap agents |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | no | Enables "Sign in with Google" (identity only) |
+| `RESEND_API_KEY` (or `SMTP_HOST` + `MAIL_FROM`) | no | Enables book-announcement emails |
 | `CR_AI_MODEL` | no | Model for the agents (default `claude-opus-5`) |
 | `CR_REFERRAL_FEE` | no | Estimated commission per referred event, in dollars (default `10`) |
 

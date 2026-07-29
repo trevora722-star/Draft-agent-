@@ -804,3 +804,97 @@ def test_delete_event_forever(client, tmp_path):
     assert "anna-and-james.confettiroll.test" not in client.get(f"{BASE}/dashboard").text
     client.cookies.clear()
     assert client.get(f"{EVENT}/api/photos").status_code == 404
+
+
+def test_close_album_and_book_announcement(client, monkeypatch):
+    import app as app_module
+    import re as _re
+
+    _signup(client)
+    _create_event(client)
+
+    # a guest signs in and leaves an email for book news
+    client.cookies.clear()
+    client.post(f"{EVENT}/login",
+                data={"password": "cake123", "email": "Aunt.Carol@example.com"},
+                follow_redirects=False)
+    res = client.post(f"{EVENT}/api/upload",
+                      files=[("files", ("dance.jpg", _fake_jpeg(), "image/jpeg"))],
+                      data={"uploader": "Aunt Carol"})
+    assert res.status_code == 200 and len(res.json()["saved"]) == 1
+
+    # host closes the album
+    client.post(f"{BASE}/login",
+                data={"email": "host@example.com", "password": "hunter2hunter2"},
+                follow_redirects=False)
+    dashboard = client.get(f"{BASE}/dashboard").text
+    assert "Email the book (1 signed up)" in dashboard
+    event_id = _re.search(r"/api/events/([0-9a-f]{32})/lock", dashboard).group(1)
+    client.post(f"{BASE}/api/events/{event_id}/lock", data={"locked": "1"},
+                follow_redirects=False)
+    assert "album closed" in client.get(f"{BASE}/dashboard").text
+
+    # admin can still upload; a guest can't any more
+    assert client.post(
+        f"{EVENT}/api/upload",
+        files=[("files", ("late.jpg", _fake_jpeg(), "image/jpeg"))],
+    ).status_code == 200
+    client.cookies.clear()
+    client.post(f"{EVENT}/login", data={"password": "cake123", "email": "Aunt.Carol@example.com"},
+                follow_redirects=False)  # duplicate email is ignored
+    listing = client.get(f"{EVENT}/api/photos").json()
+    assert listing["locked"] is True
+    res = client.post(f"{EVENT}/api/upload",
+                      files=[("files", ("extra.jpg", _fake_jpeg(), "image/jpeg"))])
+    assert res.status_code == 403
+
+    # announcement requires the book to exist
+    client.post(f"{BASE}/login",
+                data={"email": "host@example.com", "password": "hunter2hunter2"},
+                follow_redirects=False)
+    res = client.post(f"{BASE}/api/events/{event_id}/announce-book")
+    assert res.status_code == 400
+    assert client.post(f"{BASE}/api/events/{event_id}/book").status_code == 200
+
+    # no mail provider -> nothing sent, host gets the copy + waiting count
+    res = client.post(f"{BASE}/api/events/{event_id}/announce-book").json()
+    assert res["email_configured"] is False and res["pending"] == 1
+    assert "keepsake book" in res["subject"]
+
+    # with a provider, everyone waiting is emailed exactly once
+    sent = []
+    monkeypatch.setattr(app_module.mailer, "enabled", lambda: True)
+    monkeypatch.setattr(app_module.mailer, "send",
+                        lambda to, subject, text: sent.append(to) or True)
+    res = client.post(f"{BASE}/api/events/{event_id}/announce-book").json()
+    assert res["sent"] == 1 and sent == ["aunt.carol@example.com"]
+    res = client.post(f"{BASE}/api/events/{event_id}/announce-book").json()
+    assert res["sent"] == 0 and len(sent) == 1  # no double emails
+
+
+def test_guest_book_order(client, monkeypatch):
+    import app as app_module
+
+    _signup(client)
+    _create_event(client)
+    client.post(f"{BASE}/api/events", data={
+        "title": "x", "slug": "x-e", "guest_password": "cake123"})
+    client.cookies.clear()
+    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+
+    # beta mode without Stripe
+    res = client.post(f"{EVENT}/api/book-order").json()
+    assert res.get("beta") is True
+
+    # with Stripe configured, guests get a checkout URL
+    monkeypatch.setattr(app_module.billing, "stripe_enabled", lambda: True)
+    monkeypatch.setattr(
+        app_module.billing, "create_checkout",
+        lambda package, user_id, base, event_id="": "https://checkout.stripe.com/pay/cs_test_book",
+    )
+    res = client.post(f"{EVENT}/api/book-order").json()
+    assert res["url"].startswith("https://checkout.stripe.com/")
+
+    # not signed in -> 401
+    client.cookies.clear()
+    assert client.post(f"{EVENT}/api/book-order").status_code == 401

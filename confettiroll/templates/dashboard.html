@@ -278,6 +278,31 @@
     });
   });
 
+  document.querySelectorAll(".announce-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const box = document.getElementById("recap-" + btn.dataset.event);
+      box.hidden = false;
+      box.style.cssText = "margin-top:12px; padding:14px; background:#faf7f2; border-radius:10px; font-size:14.5px; line-height:1.6; white-space:pre-wrap";
+      box.textContent = "Sending the book announcement…";
+      try {
+        const res = await fetch(`/api/events/${btn.dataset.event}/announce-book`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) { box.textContent = data.error || "Couldn't send the announcement."; return; }
+        if (!data.email_configured) {
+          box.textContent =
+            `${data.pending} guest${data.pending === 1 ? "" : "s"} signed up for book news, but no email service is connected yet.\n` +
+            `Add RESEND_API_KEY (resend.com) or SMTP settings to the server and click again — or copy this and send it yourself:\n\n` +
+            `Subject: ${data.subject}\n\n${data.body}`;
+          return;
+        }
+        box.textContent = `📣 Sent ${data.sent} email${data.sent === 1 ? "" : "s"}.` +
+          (data.pending ? ` ${data.pending} couldn't be delivered — click again to retry.` : " Everyone who signed up has been told the book is ready.");
+      } catch {
+        box.textContent = "Couldn't send the announcement right now.";
+      }
+    });
+  });
+
   document.querySelectorAll(".recap-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.event;

@@ -49,6 +49,10 @@ services:
         sync: false  # optional — enables "Sign in with Google" (identity only)
       - key: GOOGLE_CLIENT_SECRET
         sync: false  # optional
+      - key: RESEND_API_KEY
+        sync: false  # optional — enables book-announcement emails (resend.com)
+      - key: MAIL_FROM
+        sync: false  # optional — sender, e.g. "ConfettiRoll <hello@confettiroll.com>"
       - key: PYTHON_VERSION
         value: "3.11"
     disk:

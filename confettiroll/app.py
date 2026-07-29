@@ -49,6 +49,7 @@ import ai_agents
 import billing
 import book as book_maker
 import google_auth
+import mailer
 
 try:  # iPhone photos arrive as HEIC; convert them so browsers can show them.
     from pillow_heif import register_heif_opener
@@ -217,6 +218,15 @@ def init_db(db_path: Path) -> None:
                 created_at INTEGER NOT NULL,
                 UNIQUE(member_id, photo_id)
             );
+            CREATE TABLE IF NOT EXISTS subscribers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL REFERENCES events(id),
+                email TEXT NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL,
+                notified_at INTEGER,
+                UNIQUE(event_id, email)
+            );
             """
         )
         # Lightweight migration: referral columns for the partner program.
@@ -237,6 +247,10 @@ def init_db(db_path: Path) -> None:
         if "event_type" not in event_cols:
             conn.execute(
                 "ALTER TABLE events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'party'"
+            )
+        if "uploads_locked" not in event_cols:
+            conn.execute(
+                "ALTER TABLE events ADD COLUMN uploads_locked INTEGER NOT NULL DEFAULT 0"
             )
 
 
@@ -810,7 +824,7 @@ def create_app() -> FastAPI:
     def login(request: Request, email: str = Form(""), password: str = Form("")):
         event = resolve_event(request)
         if event is not None:
-            return tenant_login(request, event, password)
+            return tenant_login(request, event, password, email)
         ip = request.client.host if request.client else "unknown"
         if too_many_attempts(f"org:{ip}"):
             return page("login", error=err_html("Too many attempts - please wait a few minutes."), google_btn=google_button())
@@ -859,6 +873,9 @@ def create_app() -> FastAPI:
             ).fetchone()["n"]
             venue = user_venue(conn, user["id"])
             balance = credit_balance(conn, user["id"])
+            sub_counts = dict(conn.execute(
+                "SELECT event_id, COUNT(*) FROM subscribers GROUP BY event_id"
+            ).fetchall())
         rows = []
         for ev in events:
             count = len(list((data_dir / "events" / ev["id"] / "meta").glob("*.json"))) \
@@ -901,7 +918,7 @@ def create_app() -> FastAPI:
             <div class="event">
               <div class="event-head">
                 <h3>{esc(ev['title'])}</h3>
-                <span class="count">{count} item{'' if count == 1 else 's'}</span>
+                <span class="count">{count} item{'' if count == 1 else 's'}{' · 🔒 album closed' if ev['uploads_locked'] else ''}</span>
               </div>
               <p class="event-link"><a href="{esc(url)}" target="_blank">{esc(url.replace('https://', ''))}</a></p>
               {cred_line}
@@ -911,6 +928,11 @@ def create_app() -> FastAPI:
                 <a class="mini" href="{esc(url)}/stream" target="_blank">📺 Live slideshow</a>
                 <button class="mini recap-btn" data-event="{ev['id']}" type="button">✨ AI recap</button>
                 <button class="mini book-btn" data-event="{ev['id']}" data-url="{esc(url)}" type="button">📖 Keepsake book</button>
+                <form method="post" action="/api/events/{ev['id']}/lock" style="display:inline">
+                  <input type="hidden" name="locked" value="{'0' if ev['uploads_locked'] else '1'}">
+                  <button class="mini" type="submit">{'🔓 Reopen uploads' if ev['uploads_locked'] else '🔒 Close album'}</button>
+                </form>
+                <button class="mini announce-btn" data-event="{ev['id']}" type="button">📣 Email the book ({sub_counts.get(ev['id'], 0)} signed up)</button>
                 <form method="post" action="/api/events/{ev['id']}/delete" style="display:inline"
                       onsubmit="return confirm('Permanently delete this event and every photo, video, and book in it? This cannot be undone - nothing is retained on our servers.')">
                   <button class="mini" type="submit" style="cursor:pointer; background:none; color:#94433a; border-color:#e8cfcb">Delete forever</button>
@@ -1646,7 +1668,23 @@ def create_app() -> FastAPI:
             return RedirectResponse("/login", status_code=303)
         return page("gallery", title=esc(event["title"]), **event_brand(event))
 
-    def tenant_login(request: Request, event: sqlite3.Row, password: str):
+    def remember_subscriber(event_id: str, email: str, name: str = "") -> None:
+        """A guest left their email at sign-in — remember them for the
+        book-ready announcement. Best-effort, never blocks login."""
+        email = email.strip().lower()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            return
+        try:
+            with db() as conn:
+                conn.execute(
+                    "INSERT OR IGNORE INTO subscribers (event_id, email, name, created_at)"
+                    " VALUES (?,?,?,?)",
+                    (event_id, email, name.strip()[:60], int(time.time())),
+                )
+        except sqlite3.Error:
+            pass
+
+    def tenant_login(request: Request, event: sqlite3.Row, password: str, email: str = ""):
         ip = request.client.host if request.client else "unknown"
         key = f"guest:{event['id']}:{ip}"
         if too_many_attempts(key):
@@ -1662,6 +1700,8 @@ def create_app() -> FastAPI:
                     (event["id"], code),
                 ).fetchone()
             if member is None and hmac.compare_digest(password, event["guest_password"]):
+                if email:
+                    remember_subscriber(event["id"], email)
                 response = RedirectResponse("/", status_code=303)
                 response.set_cookie(
                     GUEST_COOKIE, make_staff_token(event["id"]),
@@ -1671,6 +1711,8 @@ def create_app() -> FastAPI:
             if member is None:
                 record_attempt(key)
                 return guest_login_page(event, "That code isn't right - check the card you were given.")
+            if email:
+                remember_subscriber(event["id"], email, member["name"])
             response = RedirectResponse("/", status_code=303)
             response.set_cookie(
                 GUEST_COOKIE, make_member_token(event["id"], member["id"]),
@@ -1680,6 +1722,8 @@ def create_app() -> FastAPI:
         if not hmac.compare_digest(password, event["guest_password"]):
             record_attempt(key)
             return guest_login_page(event, "That password isn't right.")
+        if email:
+            remember_subscriber(event["id"], email)
         response = RedirectResponse("/", status_code=303)
         response.set_cookie(
             GUEST_COOKIE, make_guest_token(event["id"]),
@@ -1766,6 +1810,102 @@ def create_app() -> FastAPI:
                 "SELECT * FROM events WHERE id = ? AND owner_id = ?",
                 (event_id, user["id"]),
             ).fetchone()
+
+    # ---- close the album, announce the book, sell the book -----------------
+
+    @app.post("/api/events/{event_id}/lock")
+    def lock_event(request: Request, event_id: str, locked: str = Form("1")):
+        """Host closes (or reopens) the album: no more uploads, the book is
+        being finished. Admin uploads still work for last-minute fixes."""
+        event = owned_event(request, event_id)
+        if event is None:
+            return RedirectResponse("/login", status_code=303)
+        with db() as conn:
+            conn.execute(
+                "UPDATE events SET uploads_locked = ? WHERE id = ?",
+                (1 if locked == "1" else 0, event_id),
+            )
+        return RedirectResponse("/dashboard", status_code=303)
+
+    def book_announcement(event: sqlite3.Row, host_name: str, name: str) -> tuple[str, str]:
+        greeting = name.split(" ")[0] if name else "there"
+        price = billing.price_label("printed_book")
+        subject = f"The keepsake book from {event['title']} is ready 📖"
+        body = (
+            f"Hi {greeting},\n\n"
+            f"The keepsake book from {event['title']} is ready!\n\n"
+            f"See the finished album and download the book (the PDF is free):\n"
+            f"{event_url(event)}\n\n"
+            f"Want it on your coffee table? Order the printed 8×8\" hardcover "
+            f"({price}, shipped) right from the album - look for the "
+            f"\U0001f6d2 Order printed book button.\n\n"
+            f"With love,\n{host_name or 'Your host'} - via ConfettiRoll"
+        )
+        return subject, body
+
+    @app.post("/api/events/{event_id}/announce-book")
+    def announce_book(request: Request, event_id: str):
+        """Email everyone who signed in with an email: the book is ready and
+        can be ordered. Without a mail provider, reports who's waiting."""
+        user = current_user(request)
+        if user is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        event = owned_event(request, event_id)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if not (data_dir / "events" / event_id / "book.pdf").exists():
+            return JSONResponse(
+                {"error": "make the keepsake book first"}, status_code=400
+            )
+        with db() as conn:
+            subs = conn.execute(
+                "SELECT * FROM subscribers WHERE event_id = ? AND notified_at IS NULL",
+                (event_id,),
+            ).fetchall()
+        host_name = user["name"] or ""
+        sample_subject, sample_body = book_announcement(event, host_name, "")
+        if not mailer.enabled():
+            return {
+                "sent": 0,
+                "pending": len(subs),
+                "email_configured": False,
+                "subject": sample_subject,
+                "body": sample_body,
+            }
+        sent = 0
+        for sub in subs:
+            subject, body = book_announcement(event, host_name, sub["name"])
+            if mailer.send(sub["email"], subject, body):
+                sent += 1
+                with db() as conn:
+                    conn.execute(
+                        "UPDATE subscribers SET notified_at = ? WHERE id = ?",
+                        (int(time.time()), sub["id"]),
+                    )
+        return {"sent": sent, "pending": len(subs) - sent, "email_configured": True}
+
+    @app.post("/api/book-order")
+    def book_order(request: Request):
+        """Anyone in the album (guest, student, host) orders the printed book."""
+        event = resolve_event(request)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        role = gallery_role(request, event)
+        if role is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        if not billing.stripe_enabled():
+            return {
+                "beta": True,
+                "message": "Printed book ordering opens soon - the PDF is free to download today.",
+            }
+        try:
+            url = billing.create_checkout(
+                "printed_book", event["owner_id"],
+                f"https://{base_domain}", event_id=event["id"],
+            )
+        except Exception:
+            return JSONResponse({"error": "couldn't start checkout"}, status_code=502)
+        return {"url": url}
 
     @app.post("/api/events/{event_id}/delete")
     def delete_event(request: Request, event_id: str):
@@ -2041,6 +2181,7 @@ def create_app() -> FastAPI:
             "ai_enabled": ai_agents.ai_enabled(),
             "book": (data_dir / "events" / event["id"] / "book.pdf").exists(),
             "mode": event["event_type"],
+            "locked": bool(event["uploads_locked"]),
         }
         if member is not None:
             with db() as conn:
@@ -2091,6 +2232,12 @@ def create_app() -> FastAPI:
             # Vice Principal) adds photos — students view, pick, and print.
             return JSONResponse(
                 {"error": "photos are added by event staff only"}, status_code=403
+            )
+        if event["uploads_locked"] and role != "admin":
+            # The host has closed the album to finish the keepsake book.
+            return JSONResponse(
+                {"error": "the host has closed the album to new uploads"},
+                status_code=403,
             )
         dirs = event_dirs(data_dir, event["id"])
         uploader = re.sub(r"\s+", " ", uploader).strip()[:60]
