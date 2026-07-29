@@ -1,24 +1,29 @@
-# Render Blueprint — wedding photo sharing platform (this branch only).
+# Render Blueprint — ConfettiRoll, the multi-tenant event photo platform.
 #
 # NOTE: on the default branch this file describes the NPO agent demo instead.
 # When creating the Blueprint in Render, point it at the branch
-# `claude/wedding-photo-platform-mxs50e` to get the wedding album.
+# `claude/wedding-photo-platform-mxs50e`.
 #
-# Usage:
-#   1. In Render: New + > Blueprint > pick this repo and this branch.
-#   2. Set WEDDING_USERNAME and WEDDING_PASSWORD when prompted — this is the
-#      login you'll share with the other wedding guests.
-#   3. Render gives you a URL like wedding-photos.onrender.com — share it.
+# Deploy:
+#   1. In Render: New + > Blueprint > pick this repo, branch
+#      claude/wedding-photo-platform-mxs50e.
+#   2. Fill in the sync:false env vars when prompted (all optional — the
+#      platform runs without them; each one just switches a feature on).
+#   3. Render gives you https://confettiroll.onrender.com. For real domains,
+#      add confettiroll.com AND *.confettiroll.com as custom domains on the
+#      service (Settings > Custom Domains) and create the DNS records — the
+#      wildcard is what makes every event subdomain work. See
+#      confettiroll/README.md.
 #
-# The attached disk keeps uploaded photos across restarts and deploys.
-# Disks require a paid plan (Starter ~$7/mo + ~$0.25/GB/mo). See
-# wedding-photos/README.md if you want to trial it on the free plan first.
+# The attached disk keeps the database and all uploaded media across
+# restarts and deploys. Disks require a paid plan (Starter ~$7/mo +
+# ~$0.25/GB/mo).
+#
+# (The original single-event wedding-photos app still lives in
+# wedding-photos/ — deploy it separately only if you want it; it was
+# superseded by this platform.)
 
 services:
-  # ---- ConfettiRoll: the multi-tenant events platform --------------------
-  # After deploying, add confettiroll.com AND *.confettiroll.com as custom
-  # domains on this service (Render dashboard > Settings > Custom Domains)
-  # and create the matching DNS records. See confettiroll/README.md.
   - type: web
     name: confettiroll
     runtime: python
@@ -29,41 +34,24 @@ services:
     healthCheckPath: /health
     envVars:
       - key: CR_BASE_DOMAIN
-        value: confettiroll.com
+        value: confettiroll.com  # change if you launch under a different name
       - key: CR_DATA_DIR
         value: /var/data
+      - key: CR_KIOSK_KEY
+        generateValue: true  # unlocks /kiosk and /outreach on booth devices
       - key: ANTHROPIC_API_KEY
-        sync: false  # optional — enables the AI curator + recap agents
+        sync: false  # optional — enables AI captions, recap, brand kit, booth agent
+      - key: STRIPE_SECRET_KEY
+        sync: false  # optional — enables real checkout (beta mode without it)
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false  # optional — from the Stripe webhook for /stripe/webhook
+      - key: GOOGLE_CLIENT_ID
+        sync: false  # optional — enables "Sign in with Google" (identity only)
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false  # optional
       - key: PYTHON_VERSION
         value: "3.11"
     disk:
       name: confettiroll-data
       mountPath: /var/data
       sizeGB: 25
-
-  # ---- Original single-event wedding album (kept for reference) ----------
-  - type: web
-    name: wedding-photos
-    runtime: python
-    plan: starter
-    rootDir: wedding-photos
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /health
-    envVars:
-      - key: WEDDING_USERNAME
-        sync: false  # set in the Render dashboard — the login guests will use
-      - key: WEDDING_PASSWORD
-        sync: false  # set in the Render dashboard
-      - key: WEDDING_ADMIN_PASSWORD
-        sync: false  # different password, same username -> can delete photos
-      - key: WEDDING_TITLE
-        value: "Our Wedding Album"  # change to e.g. "Anna & James — June 2026"
-      - key: WEDDING_DATA_DIR
-        value: /var/data
-      - key: PYTHON_VERSION
-        value: "3.11"
-    disk:
-      name: wedding-photo-data
-      mountPath: /var/data
-      sizeGB: 10
