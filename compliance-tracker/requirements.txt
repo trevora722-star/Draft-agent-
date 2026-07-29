@@ -1,0 +1,14 @@
+# Core data processing
+pypdf>=5.0.0
+pdfplumber>=0.11.0        # fallback extractor for PDFs pypdf struggles with
+pandas>=2.2.0
+openpyxl>=3.1.0
+python-dateutil>=2.9.0
+
+# LLM + structured outputs
+anthropic>=0.116.0
+pydantic>=2.7.0
+
+# Optional alternative backend (not used by main.py, which runs on the
+# Anthropic SDK with native structured outputs):
+# openai>=1.50.0

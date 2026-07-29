@@ -1,0 +1,5 @@
+# Never commit case evidence or generated exhibits.
+inputs/*
+outputs/*
+!inputs/.gitkeep
+!outputs/.gitkeep
