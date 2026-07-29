@@ -149,6 +149,12 @@
         <button class="mini buy-btn" data-package="wholesale10" type="button">Partner 10-Pack — $245</button>
       </p>
       <p id="buy-status" style="color:var(--soft); font-size:14px; margin-top:8px"></p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center">
+        <input id="promo-input" placeholder="Have a code? (family &amp; friends)" maxlength="40"
+               style="min-width:220px; padding:9px 12px; font-size:14px; border:1px solid var(--line); border-radius:8px; background:#fdfcfa; font-family:inherit">
+        <button class="mini" id="promo-btn" type="button" style="cursor:pointer; background:none">Apply code</button>
+        <span id="promo-status" style="color:var(--soft); font-size:14px"></span>
+      </div>
     </div>
 
     {{VENUE_PANEL}}
@@ -276,6 +282,22 @@
         box.textContent = "Couldn't make the book right now.";
       }
     });
+  });
+
+  document.getElementById("promo-btn")?.addEventListener("click", async () => {
+    const status = document.getElementById("promo-status");
+    const code = document.getElementById("promo-input").value.trim();
+    if (!code) { status.textContent = "Enter a code first."; return; }
+    status.textContent = "Checking…";
+    try {
+      const form = new FormData();
+      form.append("code", code);
+      const res = await fetch("/api/redeem", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) { status.textContent = data.error || "That code isn't valid."; return; }
+      status.textContent = `🎉 ${data.granted} unlocked — refreshing…`;
+      setTimeout(() => location.reload(), 900);
+    } catch { status.textContent = "Couldn't check the code right now."; }
   });
 
   document.querySelectorAll(".announce-btn").forEach(btn => {

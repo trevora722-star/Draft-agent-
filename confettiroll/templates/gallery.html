@@ -309,6 +309,10 @@
     <div id="lb-bar">
       <span id="lb-caption"></span>
       <span>
+        <button id="lb-rl" title="Rotate left" hidden>⟲</button>
+        <button id="lb-rr" title="Rotate right" hidden>⟳</button>
+        <button id="lb-enhance" title="Auto-enhance" hidden>✨</button>
+        <button id="lb-caption-edit" title="Edit caption" hidden>✏️</button>
         <button id="lb-delete">Delete</button>
         <a id="lb-download" href="#">Download</a>
         <button id="lb-close">Close</button>
@@ -339,6 +343,14 @@
   let picked = new Set();
   let members = [];
   let tagTarget = null;
+  let isLocked = false;
+  let bookPicks = {};
+  let myBookPicks = new Set();
+  let voter = localStorage.getItem("cr_voter");
+  if (!voter) {
+    voter = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()).slice(0, 18);
+    localStorage.setItem("cr_voter", voter);
+  }
 
   nameInput.value = localStorage.getItem("wedding_uploader") || "";
   nameInput.addEventListener("change", () =>
@@ -390,7 +402,7 @@
       } else {
         const img = document.createElement("img");
         img.loading = "lazy";
-        img.src = "/thumbs/" + p.id;
+        img.src = "/thumbs/" + p.id + (p.edited_at ? "?v=" + p.edited_at : "");
         img.alt = p.original_name || "wedding photo";
         tile.appendChild(img);
       }
@@ -414,6 +426,16 @@
         pick.addEventListener("click", e => { e.stopPropagation(); togglePick(p, pick); });
         tile.appendChild(pick);
       }
+      if (!isProm && isLocked) {
+        const bp = document.createElement("button");
+        const mine = myBookPicks.has(p.id);
+        const n = bookPicks[p.id] || 0;
+        bp.className = "pick" + (mine ? " on" : "");
+        bp.textContent = (mine ? "★" : "☆") + (isAdmin && n ? " " + n : "");
+        bp.title = "Add to the keepsake book";
+        bp.addEventListener("click", e => { e.stopPropagation(); toggleBookPick(p, bp); });
+        tile.appendChild(bp);
+      }
       if (isProm && (isAdmin || isStaff)) {
         const tag = document.createElement("button");
         tag.className = "tag";
@@ -426,6 +448,20 @@
       tile.addEventListener("click", () => openLightbox(i));
       grid.appendChild(tile);
     });
+  }
+
+  async function toggleBookPick(p, btn) {
+    const form = new FormData();
+    form.append("voter", voter);
+    const res = await fetch("/api/photos/" + p.id + "/book-pick", { method: "POST", body: form });
+    if (res.status === 401) { location.href = "/login"; return; }
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.picked) myBookPicks.add(p.id); else myBookPicks.delete(p.id);
+    bookPicks[p.id] = data.count;
+    btn.classList.toggle("on", data.picked);
+    btn.textContent = (data.picked ? "★" : "☆") + (isAdmin && data.count ? " " + data.count : "");
+    setStatus(data.picked ? "Added to the keepsake book ⭐" : "Removed from the book.");
   }
 
   async function togglePick(p, btn) {
@@ -479,6 +515,7 @@
     const q = document.getElementById("search-input").value.trim();
     if (q) params.set("q", q);
     if (showHighlights) params.set("highlights", "1");
+    params.set("voter", voter);
     const res = await fetch("/api/photos" + (params.toString() ? "?" + params : ""));
     if (res.status === 401) { location.href = "/login"; return; }
     const data = await res.json();
@@ -496,13 +533,19 @@
     // On tagged events only staff upload — students view, pick, and print.
     const memberView = isProm && !!memberName;
     const locked = !!data.locked;
+    isLocked = locked;
+    bookPicks = data.book_picks || {};
+    myBookPicks = new Set(data.my_book_picks || []);
     document.getElementById("upload-btn").hidden = memberView || (locked && !isAdmin);
     nameInput.hidden = memberView || (locked && !isAdmin);
     // Members order via their personal book flow; guests/hosts via the event book.
     document.getElementById("order-book").hidden = !data.book || memberView;
     if (locked && !isAdmin && !memberView) {
       document.querySelector(".sub").textContent =
-        "The host has closed the album — enjoy the finished collection. ✨";
+        "The host has closed the album — tap ☆ on your favourites to vote them into the keepsake book. ✨";
+    } else if (locked && isAdmin) {
+      document.querySelector(".sub").textContent =
+        "Album closed — guests are picking their favourites (☆ counts show the votes). The book builds from the starred set.";
     }
     if (memberView) {
       document.querySelector(".sub").textContent =
@@ -595,13 +638,47 @@
       lbVideo.hidden = true;
       lbVideo.removeAttribute("src");
       lbImg.hidden = false;
-      lbImg.src = "/photos/" + p.id;
+      lbImg.src = "/photos/" + p.id + (p.edited_at ? "?v=" + p.edited_at : "");
     }
     lbCaption.textContent = captionFor(p);
     lbDownload.href = "/photos/" + p.id + "?download=1";
     lbDelete.style.display = isAdmin ? "inline-block" : "none";
+    const isPhoto = p.type !== "video";
+    document.getElementById("lb-rl").hidden = !(isAdmin && isPhoto);
+    document.getElementById("lb-rr").hidden = !(isAdmin && isPhoto);
+    document.getElementById("lb-enhance").hidden = !(isAdmin && isPhoto);
+    document.getElementById("lb-caption-edit").hidden = !isAdmin;
     lightbox.classList.add("open");
   }
+
+  async function editPhoto(op) {
+    const p = photos[lbIndex];
+    setStatus("Editing…", "busy");
+    const form = new FormData();
+    form.append("op", op);
+    const res = await fetch("/api/photos/" + p.id + "/edit", { method: "POST", body: form });
+    if (!res.ok) { setStatus("Couldn't edit that photo.", "error"); return; }
+    const meta = await res.json();
+    photos[lbIndex] = meta;
+    lbImg.src = "/photos/" + meta.id + "?v=" + meta.edited_at;
+    setStatus("Saved.");
+    render();
+  }
+  document.getElementById("lb-rl").addEventListener("click", () => editPhoto("rotate_left"));
+  document.getElementById("lb-rr").addEventListener("click", () => editPhoto("rotate_right"));
+  document.getElementById("lb-enhance").addEventListener("click", () => editPhoto("enhance"));
+  document.getElementById("lb-caption-edit").addEventListener("click", async () => {
+    const p = photos[lbIndex];
+    const caption = prompt("Caption for this photo:", p.caption || "");
+    if (caption === null) return;
+    const form = new FormData();
+    form.append("caption", caption);
+    const res = await fetch("/api/photos/" + p.id + "/meta", { method: "POST", body: form });
+    if (!res.ok) { setStatus("Couldn't save the caption.", "error"); return; }
+    photos[lbIndex] = await res.json();
+    lbCaption.textContent = captionFor(photos[lbIndex]);
+    render();
+  });
   function closeLightbox() {
     lightbox.classList.remove("open");
     lbImg.src = "";

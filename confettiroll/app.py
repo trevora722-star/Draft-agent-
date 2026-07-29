@@ -42,7 +42,7 @@ from fastapi.responses import (
     RedirectResponse,
     Response,
 )
-from PIL import Image, ImageOps
+from PIL import Image, ImageEnhance, ImageOps
 import qrcode
 
 import ai_agents
@@ -217,6 +217,14 @@ def init_db(db_path: Path) -> None:
                 photo_id TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
                 UNIQUE(member_id, photo_id)
+            );
+            CREATE TABLE IF NOT EXISTS book_picks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL,
+                photo_id TEXT NOT NULL,
+                voter TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                UNIQUE(event_id, photo_id, voter)
             );
             CREATE TABLE IF NOT EXISTS subscribers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -411,7 +419,8 @@ def create_app() -> FastAPI:
     tpl = {
         name: (BASE_DIR / "templates" / f"{name}.html").read_text()
         for name in ("landing", "signup", "login", "dashboard", "guest_login",
-                     "gallery", "partners", "venue", "stream", "kiosk", "outreach")
+                     "gallery", "partners", "venue", "stream", "kiosk", "outreach",
+                     "celebrations")
     }
 
     app = FastAPI(title="ConfettiRoll", docs_url=None, redoc_url=None)
@@ -632,8 +641,27 @@ def create_app() -> FastAPI:
             return venue_page(venue)
         if current_user(request) is not None:
             return RedirectResponse("/dashboard", status_code=303)
+        sample_labels = {
+            "vineyard-wedding-sample-book.pdf": "📖 A vineyard wedding",
+            "fiftieth-birthday-sample-book.pdf": "📖 A 50th by the pool",
+            "grad-gala-prom-sample-book.pdf": "📖 A high school prom",
+        }
+        sample_links = "".join(
+            f'<a href="/static/samples/{name}" target="_blank" style="display:inline-block;'
+            ' margin:6px 8px; padding:10px 20px; border:1px solid var(--line); border-radius:999px;'
+            ' color:var(--violet); text-decoration:none; font-size:14px;'
+            f' font-family:\'Helvetica Neue\', Arial, sans-serif">{label}</a>'
+            for name, label in sample_labels.items()
+            if (BASE_DIR / "static" / "samples" / name).exists()
+        )
+        samples_html = (
+            '<p style="text-align:center; margin-top:18px; color:var(--soft); font-size:14.5px">'
+            "Flip through a sample book:</p>"
+            f'<p style="text-align:center">{sample_links}</p>'
+        ) if sample_links else ""
         return page(
             "landing", base=base_domain,
+            samples=samples_html,
             p_celebration=billing.price_label("celebration"),
             p_heirloom=billing.price_label("heirloom"),
             p_pack=billing.price_label("wholesale10"),
@@ -1569,6 +1597,39 @@ def create_app() -> FastAPI:
                                 status_code=502)
         return {"url": url}
 
+    @app.post("/api/redeem")
+    def redeem_code(request: Request, code: str = Form(...)):
+        """Redeem a promo code (e.g. a family & friends code) for a free
+        package — one redemption per account."""
+        user = current_user(request)
+        if user is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        package_key = billing.promo_package(code)
+        if package_key is None:
+            return JSONResponse({"error": "That code isn't valid."}, status_code=404)
+        package = billing.PACKAGES[package_key]
+        marker = f"promo:{code.strip().lower()}"
+        with db() as conn:
+            used = conn.execute(
+                "SELECT 1 FROM purchases WHERE user_id = ? AND stripe_session = ?",
+                (user["id"], marker),
+            ).fetchone()
+            if used is not None:
+                return JSONResponse(
+                    {"error": "You've already used that code."}, status_code=400
+                )
+            conn.execute(
+                "INSERT INTO purchases (user_id, package, amount_cents, stripe_session, event_id, created_at)"
+                " VALUES (?,?,?,?,?,?)",
+                (user["id"], package_key, 0, marker, "", int(time.time())),
+            )
+            if package["credits"]:
+                conn.execute(
+                    "INSERT INTO credits (user_id, delta, reason, created_at) VALUES (?,?,?,?)",
+                    (user["id"], package["credits"], marker, int(time.time())),
+                )
+        return {"granted": package["name"], "credits": package["credits"]}
+
     @app.post("/stripe/webhook")
     async def stripe_webhook(request: Request):
         if not billing.stripe_enabled():
@@ -1625,6 +1686,13 @@ def create_app() -> FastAPI:
         if resolve_event(request) is not None:
             return RedirectResponse("/", status_code=303)
         return page("partners", base=esc(base_domain))
+
+    @app.get("/celebrations", response_class=HTMLResponse)
+    def celebrations(request: Request):
+        """Family reunions & birthdays vertical."""
+        if resolve_event(request) is not None:
+            return RedirectResponse("/", status_code=303)
+        return page("celebrations", p_celebration=billing.price_label("celebration"))
 
     @app.get("/api/referral-qr.png")
     def referral_qr(request: Request):
@@ -1751,6 +1819,19 @@ def create_app() -> FastAPI:
                 photos.append(json.loads(meta_file.read_text()))
             except (OSError, json.JSONDecodeError):
                 continue
+        # If guests starred photos for the book (after the album closed),
+        # the book is built from exactly that set.
+        with db() as conn:
+            picked_ids = {
+                row["photo_id"] for row in conn.execute(
+                    "SELECT DISTINCT photo_id FROM book_picks WHERE event_id = ?",
+                    (event["id"],),
+                )
+            }
+        if picked_ids:
+            chosen = [p for p in photos if p["id"] in picked_ids]
+            if any(p.get("type") != "video" for p in chosen):
+                photos = chosen
         if not any(p.get("type") != "video" for p in photos):
             return JSONResponse({"error": "no photos in the album yet"}, status_code=400)
 
@@ -1883,6 +1964,112 @@ def create_app() -> FastAPI:
                         (int(time.time()), sub["id"]),
                     )
         return {"sent": sent, "pending": len(subs) - sent, "email_configured": True}
+
+    @app.post("/api/photos/{photo_id}/book-pick")
+    def book_pick(request: Request, photo_id: str, voter: str = Form(...)):
+        """After the host closes the album, anyone in it can star photos to
+        vote them into the keepsake book (per-browser voter id)."""
+        event = resolve_event(request)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        role = gallery_role(request, event)
+        if role is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        if role == "member":
+            return JSONResponse({"error": "use your personal picks"}, status_code=400)
+        if not event["uploads_locked"] and role != "admin":
+            return JSONResponse(
+                {"error": "the host hasn't closed the album yet"}, status_code=400
+            )
+        voter = voter.strip()[:40]
+        if len(voter) < 6:
+            return JSONResponse({"error": "bad voter id"}, status_code=400)
+        dirs = event_dirs(data_dir, event["id"])
+        if _read_meta(dirs, photo_id) is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        with db() as conn:
+            existing = conn.execute(
+                "SELECT id FROM book_picks WHERE event_id = ? AND photo_id = ? AND voter = ?",
+                (event["id"], photo_id, voter),
+            ).fetchone()
+            if existing is not None:
+                conn.execute("DELETE FROM book_picks WHERE id = ?", (existing["id"],))
+                picked = False
+            else:
+                conn.execute(
+                    "INSERT INTO book_picks (event_id, photo_id, voter, created_at) VALUES (?,?,?,?)",
+                    (event["id"], photo_id, voter, int(time.time())),
+                )
+                picked = True
+            count = conn.execute(
+                "SELECT COUNT(*) AS n FROM book_picks WHERE event_id = ? AND photo_id = ?",
+                (event["id"], photo_id),
+            ).fetchone()["n"]
+        return {"picked": picked, "count": count}
+
+    @app.post("/api/photos/{photo_id}/edit")
+    def edit_photo(request: Request, photo_id: str, op: str = Form(...)):
+        """Host photo editing: rotate or one-click enhance (photos only)."""
+        event = resolve_event(request)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if gallery_role(request, event) != "admin":
+            return JSONResponse({"error": "admin only"}, status_code=403)
+        dirs = event_dirs(data_dir, event["id"])
+        path = _find_media_file(dirs["photos"], photo_id)
+        meta = _read_meta(dirs, photo_id)
+        if path is None or meta is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if meta.get("type") == "video":
+            return JSONResponse(
+                {"error": "videos can't be edited yet - photos only"}, status_code=400
+            )
+        try:
+            img = ImageOps.exif_transpose(Image.open(path))
+            if op == "rotate_left":
+                img = img.rotate(90, expand=True)
+            elif op == "rotate_right":
+                img = img.rotate(-90, expand=True)
+            elif op == "enhance":
+                img = ImageEnhance.Brightness(img.convert("RGB")).enhance(1.04)
+                img = ImageEnhance.Contrast(img).enhance(1.10)
+                img = ImageEnhance.Color(img).enhance(1.12)
+                img = ImageEnhance.Sharpness(img).enhance(1.15)
+            else:
+                return JSONResponse({"error": "unknown edit"}, status_code=400)
+            if path.suffix.lower() == ".png":
+                img.save(path, "PNG")
+            else:
+                img.convert("RGB").save(path, "JPEG", quality=92)
+            thumb = img.convert("RGB")
+            thumb.thumbnail((THUMB_MAX_DIM, THUMB_MAX_DIM))
+            thumb.save(dirs["thumbs"] / f"{photo_id}.jpg", "JPEG", quality=80)
+        except Exception:
+            return JSONResponse({"error": "couldn't edit that photo"}, status_code=500)
+        meta.update(width=img.width, height=img.height, edited_at=int(time.time()))
+        (dirs["meta"] / f"{photo_id}.json").write_text(json.dumps(meta))
+        return meta
+
+    @app.post("/api/photos/{photo_id}/meta")
+    def edit_photo_meta(request: Request, photo_id: str,
+                        caption: str = Form(None), uploader: str = Form(None)):
+        """Host edits a photo/video's caption or credit."""
+        event = resolve_event(request)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if gallery_role(request, event) != "admin":
+            return JSONResponse({"error": "admin only"}, status_code=403)
+        dirs = event_dirs(data_dir, event["id"])
+        meta = _read_meta(dirs, photo_id)
+        if meta is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if caption is not None:
+            meta["caption"] = re.sub(r"\s+", " ", caption).strip()[:200]
+        if uploader is not None:
+            meta["uploader"] = re.sub(r"\s+", " ", uploader).strip()[:60]
+        meta["edited_at"] = int(time.time())
+        (dirs["meta"] / f"{photo_id}.json").write_text(json.dumps(meta))
+        return meta
 
     @app.post("/api/book-order")
     def book_order(request: Request):
@@ -2145,7 +2332,8 @@ def create_app() -> FastAPI:
         return meta is not None and member_id in meta.get("tagged", [])
 
     @app.get("/api/photos")
-    def list_photos(request: Request, q: str = "", highlights: bool = False):
+    def list_photos(request: Request, q: str = "", highlights: bool = False,
+                    voter: str = ""):
         event = resolve_event(request)
         if event is None:
             return JSONResponse({"error": "not found"}, status_code=404)
@@ -2183,6 +2371,19 @@ def create_app() -> FastAPI:
             "mode": event["event_type"],
             "locked": bool(event["uploads_locked"]),
         }
+        with db() as conn:
+            pick_rows = conn.execute(
+                "SELECT photo_id, voter FROM book_picks WHERE event_id = ?",
+                (event["id"],),
+            ).fetchall()
+        counts: dict[str, int] = {}
+        mine = []
+        for row in pick_rows:
+            counts[row["photo_id"]] = counts.get(row["photo_id"], 0) + 1
+            if voter and row["voter"] == voter:
+                mine.append(row["photo_id"])
+        out["book_picks"] = counts
+        out["my_book_picks"] = mine
         if member is not None:
             with db() as conn:
                 picked = conn.execute(

@@ -898,3 +898,110 @@ def test_guest_book_order(client, monkeypatch):
     # not signed in -> 401
     client.cookies.clear()
     assert client.post(f"{EVENT}/api/book-order").status_code == 401
+
+
+def test_promo_code_redemption(client):
+    _signup(client)
+    # invalid code
+    assert client.post(f"{BASE}/api/redeem", data={"code": "nope"}).status_code == 404
+    # the family & friends code grants a free Celebration once
+    res = client.post(f"{BASE}/api/redeem", data={"code": "Armstrong"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["granted"] == "Celebration" and body["credits"] == 1
+    assert "Event credits: <strong>1</strong>" in client.get(f"{BASE}/dashboard").text
+    # no double-dipping
+    assert client.post(f"{BASE}/api/redeem", data={"code": "armstrong"}).status_code == 400
+    # a different account can still use it
+    client.post(f"{BASE}/logout", follow_redirects=False)
+    _signup(client, email="cousin@example.com")
+    assert client.post(f"{BASE}/api/redeem", data={"code": "armstrong"}).status_code == 200
+
+
+def test_celebrations_page(client):
+    res = client.get(f"{BASE}/celebrations")
+    assert res.status_code == 200
+    assert "reunion" in res.text.lower()
+    assert "birthday" in res.text.lower()
+
+
+def test_photo_editing(client):
+    _signup(client)
+    _create_event(client)
+    res = client.post(
+        f"{EVENT}/api/upload",
+        files=[
+            ("files", ("dance.jpg", _fake_jpeg(), "image/jpeg")),
+            ("files", ("toast.mp4", b"\x00" * 1024, "video/mp4")),
+        ],
+    )
+    saved = res.json()["saved"]
+    photo_id = next(p["id"] for p in saved if p["type"] == "photo")
+    video_id = next(p["id"] for p in saved if p["type"] == "video")
+
+    # rotate swaps dimensions (fixture photo is 640x480)
+    meta = client.post(f"{EVENT}/api/photos/{photo_id}/edit",
+                       data={"op": "rotate_left"}).json()
+    assert (meta["width"], meta["height"]) == (480, 640)
+    assert meta["edited_at"] > 0
+    # enhance succeeds; unknown op and video edits are rejected
+    assert client.post(f"{EVENT}/api/photos/{photo_id}/edit",
+                       data={"op": "enhance"}).status_code == 200
+    assert client.post(f"{EVENT}/api/photos/{photo_id}/edit",
+                       data={"op": "sepia"}).status_code == 400
+    assert client.post(f"{EVENT}/api/photos/{video_id}/edit",
+                       data={"op": "rotate_left"}).status_code == 400
+    # caption/credit editing works for videos too
+    meta = client.post(f"{EVENT}/api/photos/{video_id}/meta",
+                       data={"caption": "The toast!", "uploader": "Aunt Carol"}).json()
+    assert meta["caption"] == "The toast!" and meta["uploader"] == "Aunt Carol"
+
+    # guests can't edit
+    client.cookies.clear()
+    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    assert client.post(f"{EVENT}/api/photos/{photo_id}/edit",
+                       data={"op": "enhance"}).status_code == 403
+
+
+def test_book_picks_after_close(client, tmp_path):
+    import re as _re
+    _signup(client)
+    _create_event(client)
+    ids = []
+    for i in range(3):
+        res = client.post(f"{EVENT}/api/upload",
+                          files=[("files", (f"p{i}.jpg", _fake_jpeg(), "image/jpeg"))])
+        ids.append(res.json()["saved"][0]["id"])
+
+    # before the album closes, guests can't pick for the book
+    client.cookies.clear()
+    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    res = client.post(f"{EVENT}/api/photos/{ids[0]}/book-pick", data={"voter": "guest-aaa-111"})
+    assert res.status_code == 400
+
+    # host closes the album
+    client.post(f"{BASE}/login",
+                data={"email": "host@example.com", "password": "hunter2hunter2"},
+                follow_redirects=False)
+    dashboard = client.get(f"{BASE}/dashboard").text
+    event_id = _re.search(r"/api/events/([0-9a-f]{32})/lock", dashboard).group(1)
+    client.post(f"{BASE}/api/events/{event_id}/lock", data={"locked": "1"},
+                follow_redirects=False)
+
+    # now the guest stars two photos into the book
+    client.cookies.clear()
+    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    assert client.post(f"{EVENT}/api/photos/{ids[0]}/book-pick",
+                       data={"voter": "guest-aaa-111"}).json()["picked"] is True
+    assert client.post(f"{EVENT}/api/photos/{ids[1]}/book-pick",
+                       data={"voter": "guest-aaa-111"}).json()["picked"] is True
+    listing = client.get(f"{EVENT}/api/photos?voter=guest-aaa-111").json()
+    assert set(listing["my_book_picks"]) == {ids[0], ids[1]}
+    assert listing["book_picks"][ids[0]] == 1
+
+    # the book builds from exactly the starred set
+    client.post(f"{BASE}/login",
+                data={"email": "host@example.com", "password": "hunter2hunter2"},
+                follow_redirects=False)
+    res = client.post(f"{BASE}/api/events/{event_id}/book")
+    assert res.status_code == 200 and res.json()["pages"] == 2

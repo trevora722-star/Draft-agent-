@@ -124,6 +124,20 @@ VENUE_TIERS = {
 }
 
 
+# Promo codes: code -> package granted free (one redemption per account).
+# Extend via CR_PROMO_CODES="code:package,code2:package2".
+PROMO_CODES = {"armstrong": "celebration"}
+for _pair in os.environ.get("CR_PROMO_CODES", "").split(","):
+    if ":" in _pair:
+        _code, _pkg = _pair.split(":", 1)
+        if _pkg.strip() in PACKAGES:
+            PROMO_CODES[_code.strip().lower()] = _pkg.strip()
+
+
+def promo_package(code: str) -> str | None:
+    return PROMO_CODES.get(code.strip().lower())
+
+
 def price_label(key: str) -> str:
     cents = PACKAGES[key]["price_cents"]
     return "Free" if cents == 0 else f"${cents // 100}"

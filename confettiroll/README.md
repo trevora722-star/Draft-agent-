@@ -139,6 +139,43 @@ The host's finish-line flow, built into every event card:
   and hosts (`POST /api/book-order`) that opens Stripe Checkout for the
   $59 printed book ("free PDF today" beta message without Stripe keys).
 
+## Host editing & guest book picks
+
+- **Photo editing (host)**: in the lightbox, admins get rotate left/right,
+  one-click auto-enhance (brightness/contrast/color/sharpness via Pillow),
+  and ✏️ caption/credit editing (captions work for videos too). Thumbs are
+  regenerated and cache-busted via `edited_at`.
+- **Click-to-book after close**: once the host closes the album, every
+  guest sees ☆ on tiles — starring a photo votes it into the keepsake
+  book (per-browser voter id, `book_picks` table). The host sees vote
+  counts, and book generation uses exactly the starred set when any picks
+  exist (falling back to the whole album otherwise).
+
+## Family reunions & birthdays page
+
+`/celebrations` — a dedicated vertical page (linked from the landing nav)
+pitching reunions, birthdays, and anniversaries: no-app sharing for every
+generation, the living-room slideshow, AI search, and the reunion book.
+
+## Promo codes
+
+`billing.PROMO_CODES` maps codes to free packages — one redemption per
+account, granted via the dashboard's "Have a code?" box (`POST
+/api/redeem`, recorded as a $0 purchase + credits). The built-in
+**armstrong** code grants a free Celebration (family & friends). Add more
+via `CR_PROMO_CODES="code:package,code2:package2"`.
+
+## Sample keepsake books (Gemini)
+
+`make_samples.py` generates three complete sample Heirloom books —
+a vineyard wedding, a 50th-birthday pool party, and a high school prom —
+using Gemini image generation (`GEMINI_API_KEY`; model override
+`GEMINI_IMAGE_MODEL`, default `gemini-2.5-flash-image`) with a detailed,
+diverse shot list per event, then composes real PDFs with `book.py`. Output
+lands in `static/samples/`, and the landing page links "Flip through a
+sample book" automatically when the PDFs exist. Images cache in
+`samples_work/` (gitignored) so re-runs only fill gaps.
+
 ## Pricing packages & billing (Stripe)
 
 Packages are defined once in `billing.py` and rendered everywhere (landing
