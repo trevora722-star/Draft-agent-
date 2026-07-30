@@ -888,12 +888,16 @@ def test_guest_book_order(client, monkeypatch):
 
     # with Stripe configured, guests get a checkout URL
     monkeypatch.setattr(app_module.billing, "stripe_enabled", lambda: True)
-    monkeypatch.setattr(
-        app_module.billing, "create_checkout",
-        lambda package, user_id, base, event_id="": "https://checkout.stripe.com/pay/cs_test_book",
-    )
+    seen = {}
+    def fake_checkout(package, user_id, base, event_id="", success_url=None, cancel_url=None):
+        seen.update(package=package, success_url=success_url)
+        return "https://checkout.stripe.com/pay/cs_test_book"
+    monkeypatch.setattr(app_module.billing, "create_checkout", fake_checkout)
     res = client.post(f"{EVENT}/api/book-order").json()
     assert res["url"].startswith("https://checkout.stripe.com/")
+    # each order is a single copy that returns to the gallery to order again
+    assert seen["package"] == "printed_book"
+    assert seen["success_url"].endswith("/?ordered=1")
 
     # not signed in -> 401
     client.cookies.clear()

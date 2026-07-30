@@ -1938,7 +1938,9 @@ def create_app() -> FastAPI:
             f"{event_url(event)}\n\n"
             f"Want it on your coffee table? Order the printed 8×8\" hardcover "
             f"({price}, shipped) right from the album - look for the "
-            f"\U0001f6d2 Order printed book button.\n\n"
+            f"\U0001f6d2 Order printed book button. Each copy is its own quick "
+            f"checkout with its own shipping address, so order as many copies "
+            f"as you like - they can all go to the same address.\n\n"
             f"With love,\n{host_name or 'Your host'} - via ConfettiRoll"
         )
         return subject, body
@@ -2108,6 +2110,8 @@ def create_app() -> FastAPI:
             url = billing.create_checkout(
                 "printed_book", event["owner_id"],
                 f"https://{base_domain}", event_id=event["id"],
+                success_url=f"{event_url(event)}/?ordered=1",
+                cancel_url=f"{event_url(event)}/",
             )
         except Exception:
             return JSONResponse({"error": "couldn't start checkout"}, status_code=502)
