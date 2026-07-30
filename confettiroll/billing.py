@@ -91,6 +91,20 @@ PACKAGES = {
             "Students order printed books directly — no money through the school",
         ],
     },
+    "gala": {
+        "name": "Gala Evening",
+        "price_cents": 49900,
+        "credits": 1,
+        "kind": "event",
+        "tagline": "White-glove mode for benefits, museum evenings & private dinners",
+        "features": [
+            "Unlimited photos & HD videos — up to 500 guests",
+            "Table-host codes: guests watch, your hosts capture",
+            "Live photo wall on the venue's big screens",
+            "Printable QR table cards with your logo or crest",
+            "Executive Edition books for patrons & sponsors",
+        ],
+    },
 }
 
 # Printed keepsake books: priced by cover type and page count (8×8",
@@ -106,7 +120,16 @@ BOOK_PRICING = {
         "blurb": "Rigid wrap cover, thick archival pages - the heirloom",
         "tiers": [(40, 5900), (80, 7900), (150, 9900)],
     },
+    "executive": {
+        "name": "Executive Edition",
+        "blurb": "Leather-look cover, foil-stamped title, presentation gift box",
+        "tiers": [(40, 19900), (80, 24900), (150, 29900)],
+    },
 }
+
+# Committee and sponsor orders of 10+ Executive Edition books are quoted
+# individually (engraving, slipcases, bulk rates) — routed to this address.
+CONCIERGE_EMAIL = os.environ.get("CR_CONCIERGE_EMAIL", "hello@confettiroll.com")
 
 
 def book_price_cents(cover: str, pages: int) -> int:

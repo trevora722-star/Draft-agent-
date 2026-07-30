@@ -539,11 +539,24 @@ def test_packages_and_landing(client):
     assert data["venue_tiers"]["estate"]["monthly"] == "$199"
     assert data["stripe"] is False
 
+    assert data["packages"]["gala"]["price"] == "$499"
+
     landing = client.get(f"{BASE}/").text
     for expected in ("Celebration", "Heirloom", "$49", "$99", "$245",
                      "Boutique", "Estate", "Grand", "$199", "$399",
-                     "Most popular", "Founding beta"):
+                     "Most popular", "Founding beta",
+                     "Gala Evening package", "$499", "Executive Edition",
+                     "Request\n        a custom quote"):
         assert expected in landing
+
+
+def test_executive_book_pricing():
+    import billing
+
+    assert billing.book_price_cents("executive", 30) == 19900
+    assert billing.book_price_cents("executive", 80) == 24900
+    assert billing.book_price_cents("executive", 999) == 29900
+    assert billing.book_tier_label("executive", 30) == "up to 40 pages"
 
 
 def test_checkout_and_webhook(client, monkeypatch):

@@ -294,6 +294,7 @@
       <p id="order-pages" style="color:var(--soft); font-size:13.5px; margin-bottom:14px"></p>
       <div id="order-covers"></div>
       <p id="order-note" style="color:var(--soft); font-size:13px; margin-top:10px"></p>
+      <p id="order-custom" style="color:var(--soft); font-size:13px; margin-top:6px"></p>
       <p style="text-align:right; margin-top:12px"><button class="btn ghost" id="order-cancel" type="button">Cancel</button></p>
     </div>
   </div>
@@ -657,6 +658,9 @@
       document.getElementById("order-note").textContent = q.discount
         ? "🎁 Heirloom perk applied: 50% off your first book for this event."
         : "Choose how many copies at checkout — they all ship to one address. A different address is simply another order.";
+      document.getElementById("order-custom").innerHTML = q.concierge
+        ? `Ordering 10+ Executive Editions for a committee or sponsors? <a href="mailto:${q.concierge}?subject=Executive%20Edition%20custom%20quote">Email us for custom pricing</a> — engraving, slipcases, and bulk rates included.`
+        : "";
       orderModal.style.display = "flex";
     } catch {
       setStatus("Ordering isn't available right now.", "error");

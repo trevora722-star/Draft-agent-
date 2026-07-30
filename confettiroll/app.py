@@ -709,6 +709,8 @@ def create_app() -> FastAPI:
             p_heirloom=billing.price_label("heirloom"),
             p_pack=billing.price_label("wholesale10"),
             p_prom=billing.price_label("prom"),
+            p_gala=billing.price_label("gala"),
+            concierge=billing.CONCIERGE_EMAIL,
             p_venue_boutique=f"${billing.VENUE_TIERS['boutique']['monthly_cents'] // 100}",
             p_venue_estate=f"${billing.VENUE_TIERS['estate']['monthly_cents'] // 100}",
             p_venue_grand=f"${billing.VENUE_TIERS['grand']['monthly_cents'] // 100}",
@@ -2184,7 +2186,7 @@ def create_app() -> FastAPI:
             f"See the finished album and download the book (the PDF is free):\n"
             f"{event_url(event)}\n\n"
             f"Want it on your coffee table? Order the printed 8×8\" book "
-            f"({price}, softcover or hardcover, shipped) right from the album - look for the "
+            f"({price}, softcover, hardcover, or Executive Edition, shipped) right from the album - look for the "
             f"\U0001f6d2 Order printed book button. Pick as many copies as you "
             f"like at checkout - they all ship together to one address. "
             f"Sending books somewhere else too? Just place another order.\n\n"
@@ -2396,7 +2398,8 @@ def create_app() -> FastAPI:
                 "price_cents": cents,
                 "final_cents": cents // 2 if discount else cents,
             }
-        return {"pages": pages, "discount": discount, "covers": covers}
+        return {"pages": pages, "discount": discount, "covers": covers,
+                "concierge": billing.CONCIERGE_EMAIL}
 
     @app.post("/api/book-order")
     def book_order(request: Request, cover: str = Form(...)):
@@ -2408,7 +2411,8 @@ def create_app() -> FastAPI:
         if role is None:
             return JSONResponse({"error": "not logged in"}, status_code=401)
         if cover not in billing.BOOK_PRICING:
-            return JSONResponse({"error": "pick softcover or hardcover"}, status_code=400)
+            return JSONResponse({"error": "pick softcover, hardcover, or executive"},
+                                status_code=400)
         if not billing.stripe_enabled():
             return {
                 "beta": True,
