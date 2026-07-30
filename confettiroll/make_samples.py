@@ -65,6 +65,25 @@ EVENTS = {
             "caucasian with a few Black and East Asian guests, a natural variety "
             "of ages and body types, dressed in summer formal attire. "
         ),
+        "cast": (
+            "THE WEDDING PARTY (the same individuals in every photo): "
+            "GROOM James - early 30s, tall and lean, short dark-brown hair, "
+            "neatly trimmed short beard, navy-blue suit, white boutonniere. "
+            "BRIDE Anna - early 30s, honey-blonde hair in a loose updo, ivory "
+            "fitted lace gown, long veil. "
+            "FIVE GROOMSMEN in matching light-grey suits with blush ties, each "
+            "clearly different: a stocky broad-shouldered man with ginger hair "
+            "and a full red beard; a tall slim Black man with a short fade "
+            "haircut; a medium-build man with a shaved head and round glasses; "
+            "an East Asian man with side-parted black hair; a heavyset "
+            "clean-shaven man with light-brown curls. "
+            "FIVE BRIDESMAIDS in mismatched dusty-rose gowns, each clearly "
+            "different: a Black woman with a braided updo; an East Asian woman "
+            "with long straight black hair; a curvy blonde woman with "
+            "shoulder-length waves; a petite brunette with a pixie cut; a tall "
+            "red-haired woman with freckles. "
+        ),
+        "anchor": "The whole wedding party",
         "shots": [
             ("The ceremony among the vines", "Wide shot of an outdoor wedding ceremony between rows of grapevines at golden hour, guests seated on white chairs, the couple at a floral arch, white tent in the background."),
             ("First look under the oaks", "A bride in a lace gown and a groom in a navy suit sharing an emotional first look at the edge of a vineyard, soft afternoon light."),
@@ -162,9 +181,17 @@ def _extract_image(payload: dict) -> bytes | None:
     return None
 
 
-def generate_image(prompt: str, api_key: str, retries: int = 3) -> bytes | None:
+def generate_image(prompt: str, api_key: str, retries: int = 3,
+                   reference: bytes | None = None) -> bytes | None:
     url = API.format(model=MODEL)
-    body = {"contents": [{"parts": [{"text": prompt}]}]}
+    parts: list = []
+    if reference is not None:
+        parts.append({"inline_data": {
+            "mime_type": "image/jpeg",
+            "data": base64.b64encode(reference).decode(),
+        }})
+    parts.append({"text": prompt})
+    body = {"contents": [{"parts": parts}]}
     for attempt in range(retries):
         try:
             res = httpx.post(
@@ -189,13 +216,40 @@ def build_event(key: str, api_key: str) -> None:
     photos_dir.mkdir(parents=True, exist_ok=True)
     OUT.mkdir(parents=True, exist_ok=True)
 
+    # Character consistency: generate the anchor shot (the full group photo)
+    # first, then pass it as a reference image to every other shot so the
+    # same people appear on every page.
+    reference = None
+    cast = spec.get("cast", "")
+    anchor_caption = spec.get("anchor")
+    if anchor_caption:
+        idx = next(i for i, (c, _) in enumerate(spec["shots"], 1) if c == anchor_caption)
+        caption, scene = spec["shots"][idx - 1]
+        dest = photos_dir / f"{spec['slug']}-{idx:02d}.jpg"
+        if not dest.exists():
+            print(f"  [anchor] {caption}…")
+            raw = generate_image(STYLE + spec["setting"] + cast + scene, api_key)
+            if raw is None:
+                sys.exit("couldn't generate the anchor group shot - try again")
+            Image.open(io.BytesIO(raw)).convert("RGB").save(dest, "JPEG", quality=90)
+        reference = dest.read_bytes()
+
     photos = []
     for idx, (caption, scene) in enumerate(spec["shots"], 1):
         photo_id = f"{spec['slug']}-{idx:02d}"
         dest = photos_dir / f"{photo_id}.jpg"
         if not dest.exists():
             print(f"  [{idx}/{len(spec['shots'])}] {caption}…")
-            raw = generate_image(STYLE + spec["setting"] + scene, api_key)
+            if reference is not None:
+                prompt = (
+                    STYLE + spec["setting"] + cast +
+                    "The reference photo shows this exact wedding party. Photograph "
+                    "THE SAME PEOPLE - identical faces, hairstyles, and outfits as "
+                    "the reference - in this new scene: " + scene
+                )
+            else:
+                prompt = STYLE + spec["setting"] + scene
+            raw = generate_image(prompt, api_key, reference=reference)
             if raw is None:
                 print("    ! couldn't generate, skipping")
                 continue
