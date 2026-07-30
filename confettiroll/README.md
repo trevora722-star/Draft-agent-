@@ -137,7 +137,11 @@ The host's finish-line flow, built into every event card:
   message to copy-send manually.
 - **🛒 Order printed book**: a button in the gallery toolbar for guests
   and hosts (`POST /api/book-order`) that opens Stripe Checkout for the
-  $59 printed book ("free PDF today" beta message without Stripe keys).
+  printed book ("free PDF today" beta message without Stripe keys). The
+  gallery's order button opens a cover chooser priced from `/api/book-quote`:
+  softcover $39/$49/$59, hardcover $59/$79/$99 by page tier (≤40/≤80/≤150
+  pages), shipping included; Heirloom buyers get 50% off the first book
+  per event (consumed on first purchase).
   **Multiple copies, one address per order**: the buyer picks a quantity
   (1-20) in a single checkout and every order collects exactly one
   shipping address — books for a different address are a separate order
@@ -192,7 +196,7 @@ page, dashboard, `/api/packages`):
 | Heirloom | $99/event | Celebration + printed book + custom domain + 24 months |
 | Prom Night | $199/event | School flat fee: tagged safety mode, roster codes, staff uploads, student book builders |
 | Partner 10-Pack | $245 | 10 Celebration credits at ~50% off — pros resell at their price |
-| Printed book | $59 | 8×8" hardcover (fulfillment via print-on-demand, next build) |
+| Printed book | from $39 | 8×8" softcover or hardcover, priced by page tier; Heirloom: 50% off first book |
 | Venue Boutique | $99/mo | White-label, up to 2 hosted events/month |
 | Venue Estate | $199/mo | White-label, up to 6 hosted events/month |
 | Venue Grand | $399/mo | White-label, unlimited events |
