@@ -1274,3 +1274,37 @@ def test_gala_table_host_flow(client):
     listing = client.get(f"{GALA}/api/photos").json()
     assert len(listing["photos"]) == 1
     assert client.get(f"{GALA}/photos/{photo_id}").status_code == 200
+
+
+def test_table_cards_pdf(client, tmp_path):
+    import re as _re
+
+    _signup(client)
+    _create_event(client)
+    dashboard = client.get(f"{BASE}/dashboard").text
+    assert "Table cards (PDF)" in dashboard
+    event_id = _re.search(r"/api/events/([0-9a-f]{32})/table-cards\.pdf", dashboard).group(1)
+
+    # cards render without a custom photo
+    res = client.get(f"{BASE}/api/events/{event_id}/table-cards.pdf")
+    assert res.status_code == 200
+    assert res.content.startswith(b"%PDF")
+    assert res.headers["content-type"] == "application/pdf"
+
+    # upload a couple photo / logo, cards still render (with the photo)
+    res = client.post(f"{BASE}/api/events/{event_id}/card-photo",
+                      files={"photo": ("us.jpg", _fake_jpeg(), "image/jpeg")},
+                      follow_redirects=False)
+    assert res.status_code == 303
+    assert (tmp_path / "events" / event_id / "card.jpg").exists()
+    assert "✓ set" in client.get(f"{BASE}/dashboard").text
+    res = client.get(f"{BASE}/api/events/{event_id}/table-cards.pdf")
+    assert res.status_code == 200 and res.content.startswith(b"%PDF")
+
+    # only the owner can fetch cards or set the photo
+    client.cookies.clear()
+    assert client.get(f"{BASE}/api/events/{event_id}/table-cards.pdf").status_code == 404
+    res = client.post(f"{BASE}/api/events/{event_id}/card-photo",
+                      files={"photo": ("x.jpg", _fake_jpeg(), "image/jpeg")},
+                      follow_redirects=False)
+    assert res.headers["location"] == "/login"

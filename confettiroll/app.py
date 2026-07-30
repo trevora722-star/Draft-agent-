@@ -49,6 +49,7 @@ import qrcode
 import ai_agents
 import billing
 import book as book_maker
+import cards as card_maker
 import google_auth
 import mailer
 
@@ -1056,9 +1057,17 @@ def create_app() -> FastAPI:
                 <button class="mini" type="submit" style="cursor:pointer; background:none">Save</button>
                 <span>(0 = unlimited{' · currently ' + str(ev['guest_upload_limit']) + ' each' if ev['guest_upload_limit'] else ''})</span>
               </form>
+              <form method="post" action="/api/events/{ev['id']}/card-photo" enctype="multipart/form-data"
+                    style="display:flex; gap:8px; align-items:center; margin:6px 0 0; font-size:13.5px; color:var(--soft); font-family:'Helvetica Neue', Arial, sans-serif">
+                Table-card photo/logo:
+                <input type="file" name="photo" accept="image/*" required style="font-size:12.5px">
+                <button class="mini" type="submit" style="cursor:pointer; background:none">Upload</button>
+                <span>{'✓ set' if (data_dir / 'events' / ev['id'] / 'card.jpg').exists() else '(couple photo or company logo)'}</span>
+              </form>
               <p class="event-actions">
                 <a class="mini" href="{esc(url)}" target="_blank">Open gallery</a>
                 <a class="mini" href="/api/events/{ev['id']}/qr.png" download="{esc(ev['slug'])}-qr.png">Download QR code</a>
+                <a class="mini" href="/api/events/{ev['id']}/table-cards.pdf">🪧 Table cards (PDF)</a>
                 <a class="mini" href="{esc(url)}/stream" target="_blank">📺 Live slideshow</a>
                 <button class="mini recap-btn" data-event="{ev['id']}" type="button">✨ AI recap</button>
                 <button class="mini book-btn" data-event="{ev['id']}" data-url="{esc(url)}" type="button">📖 Keepsake book</button>
@@ -1268,6 +1277,62 @@ def create_app() -> FastAPI:
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         return Response(buf.getvalue(), media_type="image/png")
+
+    @app.post("/api/events/{event_id}/card-photo")
+    async def card_photo(request: Request, event_id: str,
+                         photo: UploadFile = File(...)):
+        """Upload the photo/logo shown on the printable table cards."""
+        event = owned_event(request, event_id)
+        if event is None:
+            return RedirectResponse("/login", status_code=303)
+        data = await photo.read(MAX_IMAGE_BYTES + 1)
+        if not data or len(data) > MAX_IMAGE_BYTES:
+            return RedirectResponse("/dashboard?error=That+image+couldn't+be+used.", status_code=303)
+        try:
+            img = ImageOps.exif_transpose(Image.open(io.BytesIO(data)))
+            img.thumbnail((1200, 1200))
+            img.convert("RGB").save(
+                data_dir / "events" / event_id / "card.jpg", "JPEG", quality=90)
+        except Exception:
+            return RedirectResponse("/dashboard?error=That+image+couldn't+be+read.", status_code=303)
+        return RedirectResponse("/dashboard", status_code=303)
+
+    @app.get("/api/events/{event_id}/table-cards.pdf")
+    def table_cards(request: Request, event_id: str):
+        """Print-ready table cards: 4 per page with QR, title, photo/logo."""
+        event = owned_event(request, event_id)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        url = event_url(event)
+        accent = "#7d8c6f"
+        if event["venue_id"]:
+            with db() as conn:
+                venue = conn.execute(
+                    "SELECT accent FROM venues WHERE id = ?", (event["venue_id"],)
+                ).fetchone()
+            if venue is not None and venue["accent"]:
+                accent = venue["accent"]
+        if event["event_type"] == "prom":
+            notes = [url.replace("https://", ""),
+                     "Sign in with your personal access code"]
+        elif event["event_type"] == "gala":
+            notes = [url.replace("https://", ""),
+                     f"Password to watch: {event['guest_password']}",
+                     "Table hosts: use your host code"]
+        else:
+            notes = [url.replace("https://", ""),
+                     f"Password: {event['guest_password']}"]
+        photo_path = data_dir / "events" / event_id / "card.jpg"
+        pdf = card_maker.generate_cards(
+            event["title"], url, accent, notes,
+            photo_path=photo_path if photo_path.exists() else None,
+            footer=f"powered by {base_domain}",
+        )
+        safe = re.sub(r"[^\w\- ]", "_", event["title"]) or "event"
+        return Response(
+            pdf, media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{safe} - table cards.pdf"'},
+        )
 
     # ---- trade show kiosk (virtual booth agent) ----------------------------
 

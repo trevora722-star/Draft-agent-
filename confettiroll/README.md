@@ -162,6 +162,16 @@ The host's finish-line flow, built into every event card:
   shipping address — books for a different address are a separate order
   (checkout returns to the gallery with a prompt for that).
 
+## Printable table cards (custom QR cards)
+
+Every event card has "🪧 Table cards (PDF)": a print-ready US-Letter page
+with four cut-out cards — each with an optional round photo (the couple,
+or a corporate logo, uploaded per event), the title in the event's accent
+color, the QR code, and per-type join instructions (password for parties;
+"personal access code" for proms; viewing password + host-code note for
+galas). Card art lives at data/events/<id>/card.jpg; generation is
+cards.py (reportlab + qrcode).
+
 ## Per-guest photo allowance
 
 Hosts can cap how many photos each guest may share ("Photos per guest" on
