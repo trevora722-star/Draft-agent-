@@ -1308,3 +1308,19 @@ def test_table_cards_pdf(client, tmp_path):
                       files={"photo": ("x.jpg", _fake_jpeg(), "image/jpeg")},
                       follow_redirects=False)
     assert res.headers["location"] == "/login"
+
+
+def test_howto_page_and_site_preview(client):
+    # the tutorial gallery has a typeable address
+    res = client.get(f"{BASE}/howto")
+    assert res.status_code == 200
+    assert "How-to videos" in res.text
+
+    # signed-in hosts can still see the public landing page
+    _signup(client)
+    res = client.get(f"{BASE}/", follow_redirects=False)
+    assert res.status_code == 303  # normally straight to the dashboard
+    res = client.get(f"{BASE}/?preview=1")
+    assert res.status_code == 200
+    assert "Private events" in res.text  # the gala section is visible
+    assert 'href="/howto"' in res.text

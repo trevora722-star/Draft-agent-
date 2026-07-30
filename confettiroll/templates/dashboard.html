@@ -90,7 +90,10 @@
 <body>
   <nav>
     <div class="logo">Confetti<span>●</span>Roll</div>
-    <div class="who">{{USER_NAME}}
+    <div class="who">
+      <a href="/?preview=1" style="color:var(--soft); text-decoration:none; margin-right:10px">View site</a>
+      <a href="/howto" style="color:var(--soft); text-decoration:none; margin-right:10px">How-to videos</a>
+      {{USER_NAME}}
       <form method="post" action="/logout"><button type="submit">Sign out</button></form>
     </div>
   </nav>

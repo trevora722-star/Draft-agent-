@@ -682,7 +682,7 @@ def create_app() -> FastAPI:
         venue = resolve_venue(request)
         if venue is not None:
             return venue_page(venue)
-        if current_user(request) is not None:
+        if current_user(request) is not None and not request.query_params.get("preview"):
             return RedirectResponse("/dashboard", status_code=303)
         sample_labels = {
             "vineyard-wedding": "📖 A vineyard wedding",
@@ -1889,6 +1889,13 @@ def create_app() -> FastAPI:
             pdf=esc(data.get("pdf", "")),
             payload=json.dumps(data),
         )
+
+    @app.get("/howto", response_class=HTMLResponse)
+    def howto(request: Request):
+        """The how-to video gallery, at an address people can actually type."""
+        if resolve_event(request) is not None:
+            return RedirectResponse("/", status_code=303)
+        return FileResponse(BASE_DIR / "static" / "howto" / "index.html")
 
     @app.get("/celebrations", response_class=HTMLResponse)
     def celebrations(request: Request):
