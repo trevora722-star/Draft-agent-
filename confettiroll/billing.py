@@ -152,10 +152,9 @@ def create_checkout(package_key: str, user_id: int, base_url: str,
                     cancel_url: str | None = None) -> str:
     """Create a Stripe Checkout Session; returns its URL.
 
-    Printed books are deliberately one copy per order: the quantity is
-    locked at 1 (no quantity selector) and each order collects its own
-    shipping address — so any number of copies can go to the same address,
-    each as its own quick checkout.
+    Printed books: the buyer picks how many copies they want (1-20) in a
+    single checkout, all shipped to the one address that order collects.
+    Books for a different address are simply a separate order.
     """
     package = PACKAGES[package_key]
     stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
@@ -173,7 +172,7 @@ def create_checkout(package_key: str, user_id: int, base_url: str,
                 "unit_amount": package["price_cents"],
             },
             "quantity": 1,
-            "adjustable_quantity": {"enabled": False},
+            "adjustable_quantity": {"enabled": True, "minimum": 1, "maximum": 20},
         }],
         success_url=success_url or f"{base_url}/dashboard?paid=1",
         cancel_url=cancel_url or f"{base_url}/dashboard",

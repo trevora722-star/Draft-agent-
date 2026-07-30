@@ -138,10 +138,10 @@ The host's finish-line flow, built into every event card:
 - **🛒 Order printed book**: a button in the gallery toolbar for guests
   and hosts (`POST /api/book-order`) that opens Stripe Checkout for the
   $59 printed book ("free PDF today" beta message without Stripe keys).
-  **One copy per order, by design**: quantity is locked at 1 and each
-  checkout collects its own shipping address — so any number of copies
-  can ship to the same address, each as its own quick order (checkout
-  returns to the gallery with an "order another copy" prompt).
+  **Multiple copies, one address per order**: the buyer picks a quantity
+  (1-20) in a single checkout and every order collects exactly one
+  shipping address — books for a different address are a separate order
+  (checkout returns to the gallery with a prompt for that).
 
 ## Host editing & guest book picks
 

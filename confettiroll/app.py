@@ -1938,9 +1938,9 @@ def create_app() -> FastAPI:
             f"{event_url(event)}\n\n"
             f"Want it on your coffee table? Order the printed 8×8\" hardcover "
             f"({price}, shipped) right from the album - look for the "
-            f"\U0001f6d2 Order printed book button. Each copy is its own quick "
-            f"checkout with its own shipping address, so order as many copies "
-            f"as you like - they can all go to the same address.\n\n"
+            f"\U0001f6d2 Order printed book button. Pick as many copies as you "
+            f"like at checkout - they all ship together to one address. "
+            f"Sending books somewhere else too? Just place another order.\n\n"
             f"With love,\n{host_name or 'Your host'} - via ConfettiRoll"
         )
         return subject, body

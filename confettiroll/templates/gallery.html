@@ -563,11 +563,11 @@
   if (new URLSearchParams(location.search).get("ordered")) {
     history.replaceState(null, "", location.pathname);
     setTimeout(() => setStatus(
-      "📦 Book ordered — thank you! Want another copy? Each one is its own quick checkout, and they can all ship to the same address."), 400);
+      "📦 Books ordered — thank you! Shipping to another address too? Just tap Order again for a separate delivery."), 400);
   }
 
   document.getElementById("order-book").addEventListener("click", async () => {
-    setStatus("Starting your book order… (one copy per order — come back and tap again for extra copies)", "busy");
+    setStatus("Starting your book order… (choose how many copies at checkout — they ship together to one address)", "busy");
     try {
       const res = await fetch("/api/book-order", { method: "POST" });
       if (res.status === 401) { location.href = "/login"; return; }
