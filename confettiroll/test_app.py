@@ -1020,3 +1020,85 @@ def test_sample_flipbook_route(client):
     # unknown or invalid slugs 404
     assert client.get(f"{BASE}/samples/not-a-book").status_code == 404
     assert client.get(f"{BASE}/samples/..%2Fsecrets").status_code in (404, 400)
+
+
+def test_free_week_trial_hook(client, tmp_path, monkeypatch):
+    import sqlite3 as _sq
+    import app as app_module
+
+    _signup(client)
+    _create_event(client)
+
+    # a fresh event is on its free week
+    listing = client.get(f"{EVENT}/api/photos").json()
+    assert listing["trial"]["paid"] is False
+    assert listing["trial"]["expired"] is False
+    assert listing["trial"]["days_left"] == 7
+    dashboard = client.get(f"{BASE}/dashboard").text
+    assert "free week: 7 days left" in dashboard
+
+    # eight days later the trial has ended: uploads stop, photos stay
+    with _sq.connect(tmp_path / "confettiroll.sqlite") as conn:
+        conn.execute("UPDATE events SET created_at = created_at - 8*86400")
+    res = client.post(f"{EVENT}/api/upload",
+                      files=[("files", ("late.jpg", _fake_jpeg(), "image/jpeg"))])
+    assert res.status_code == 403 and "free week" in res.json()["error"]
+    assert client.get(f"{EVENT}/api/photos").json()["trial"]["expired"] is True
+    dashboard = client.get(f"{BASE}/dashboard").text
+    assert "free week ended" in dashboard
+    assert "Unlock forever" in dashboard  # no credits yet -> buy button
+
+    # the ending-soon email goes out once when a mailer is configured
+    sent = []
+    monkeypatch.setattr(app_module.mailer, "enabled", lambda: True)
+    monkeypatch.setattr(app_module.mailer, "send",
+                        lambda to, subject, text: sent.append(to) or True)
+    client.get(f"{BASE}/dashboard")
+    client.get(f"{BASE}/dashboard")
+    assert sent == ["host@example.com"]  # once, not on every visit
+
+    # redeeming a code gives a credit; applying it unlocks the album forever
+    assert client.post(f"{BASE}/api/redeem", data={"code": "armstrong"}).status_code == 200
+    dashboard = client.get(f"{BASE}/dashboard").text
+    assert "Use 1 credit to unlock" in dashboard
+    import re as _re
+    event_id = _re.search(r"/api/events/([0-9a-f]{32})/apply-credit", dashboard).group(1)
+    res = client.post(f"{BASE}/api/events/{event_id}/apply-credit", follow_redirects=False)
+    assert res.headers["location"] == "/dashboard"
+    listing = client.get(f"{EVENT}/api/photos").json()
+    assert listing["trial"]["paid"] is True
+    assert client.post(
+        f"{EVENT}/api/upload",
+        files=[("files", ("back.jpg", _fake_jpeg(), "image/jpeg"))],
+    ).status_code == 200
+    # credit is spent
+    assert "Event credits: <strong>0</strong>" in client.get(f"{BASE}/dashboard").text
+
+
+def test_checkout_for_event_unlocks_it(client, monkeypatch):
+    import re as _re
+    import app as app_module
+
+    _signup(client)
+    _create_event(client)
+    dashboard = client.get(f"{BASE}/dashboard").text
+    event_id = _re.search(r"/api/events/([0-9a-f]{32})/lock", dashboard).group(1)
+
+    # a paid checkout tied to the event unlocks it via the webhook
+    monkeypatch.setattr(app_module.billing, "stripe_enabled", lambda: True)
+    fake_event = {
+        "type": "checkout.session.completed",
+        "data": {"object": {
+            "id": "cs_test_unlock", "amount_total": 4900,
+            "metadata": {"user_id": "1", "package": "celebration",
+                         "event_id": event_id},
+        }},
+    }
+    monkeypatch.setattr(app_module.billing, "parse_webhook", lambda p, s: fake_event)
+    res = client.post(f"{BASE}/stripe/webhook", json={},
+                      headers={"stripe-signature": "sig"})
+    assert res.status_code == 200
+    listing = client.get(f"{EVENT}/api/photos").json()
+    assert listing["trial"]["paid"] is True
+    # the single celebration credit was consumed by the unlock
+    assert "Event credits: <strong>0</strong>" in client.get(f"{BASE}/dashboard").text

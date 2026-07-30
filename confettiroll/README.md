@@ -187,7 +187,7 @@ page, dashboard, `/api/packages`):
 
 | Package | Price | What it is |
 |---|---|---|
-| Starter | Free | 1 event, 100 photos, 3-month gallery |
+| Starter | Free | 1 event, 100 photos, free 1-week gallery — unlock to keep forever |
 | Celebration | $49/event | Unlimited media, AI features, live wall, book PDF, 12 months |
 | Heirloom | $99/event | Celebration + printed book + custom domain + 24 months |
 | Prom Night | $199/event | School flat fee: tagged safety mode, roster codes, staff uploads, student book builders |

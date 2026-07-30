@@ -540,6 +540,16 @@
     nameInput.hidden = memberView || (locked && !isAdmin);
     // Members order via their personal book flow; guests/hosts via the event book.
     document.getElementById("order-book").hidden = !data.book || memberView;
+    const trial = data.trial || {};
+    if (trial.expired) {
+      document.getElementById("upload-btn").hidden = true;
+      nameInput.hidden = true;
+      document.querySelector(".sub").textContent = isAdmin
+        ? "Your free week has ended — every photo is safe. Unlock the album from your dashboard to keep the uploads coming."
+        : "This album's free week has ended — the photos are safe, and the host can unlock it to keep the memories growing.";
+    } else if (isAdmin && trial.paid === false) {
+      setTimeout(() => setStatus("Free week: " + trial.days_left + " day" + (trial.days_left === 1 ? "" : "s") + " left — unlock from your dashboard to keep this album forever."), 300);
+    }
     if (locked && !isAdmin && !memberView) {
       document.querySelector(".sub").textContent =
         "The host has closed the album — tap ☆ on your favourites to vote them into the keepsake book. ✨";

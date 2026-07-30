@@ -24,6 +24,7 @@ import hmac
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import secrets
@@ -259,6 +260,14 @@ def init_db(db_path: Path) -> None:
         if "uploads_locked" not in event_cols:
             conn.execute(
                 "ALTER TABLE events ADD COLUMN uploads_locked INTEGER NOT NULL DEFAULT 0"
+            )
+        if "paid" not in event_cols:
+            conn.execute("ALTER TABLE events ADD COLUMN paid INTEGER NOT NULL DEFAULT 0")
+            # events created before the free-week model keep their access
+            conn.execute("UPDATE events SET paid = 1")
+        if "trial_notified" not in event_cols:
+            conn.execute(
+                "ALTER TABLE events ADD COLUMN trial_notified INTEGER NOT NULL DEFAULT 0"
             )
 
 
@@ -562,6 +571,22 @@ def create_app() -> FastAPI:
             f'style="color:var(--accent)">{esc(venue["name"])}</a></p>'
         )
         return subs
+
+    TRIAL_DAYS = 7
+
+    def trial_state(event: sqlite3.Row) -> dict:
+        """Every event starts with a free week; a credit or purchase unlocks
+        it for good. Photos are never deleted - an expired trial just stops
+        new uploads until the host upgrades."""
+        if event["paid"]:
+            return {"paid": True, "days_left": None, "expired": False}
+        elapsed = time.time() - event["created_at"]
+        left_days = TRIAL_DAYS - elapsed / 86400
+        return {
+            "paid": False,
+            "days_left": max(0, math.ceil(left_days)),
+            "expired": left_days <= 0,
+        }
 
     def is_tagged_event(event: sqlite3.Row) -> bool:
         return event["event_type"] == "prom"
@@ -906,6 +931,47 @@ def create_app() -> FastAPI:
             ).fetchall())
         rows = []
         for ev in events:
+            ts = trial_state(ev)
+            if ts["paid"]:
+                trial_badge = ""
+                unlock_html = ""
+            else:
+                trial_badge = (
+                    " · ⏰ free week ended" if ts["expired"]
+                    else f" · 🕐 free week: {ts['days_left']} day{'' if ts['days_left'] == 1 else 's'} left"
+                )
+                unlock_now = ("Your free week has ended - photos are safe, but uploads are paused. "
+                              if ts["expired"] else "")
+                credit_btn = (
+                    f'<form method="post" action="/api/events/{ev["id"]}/apply-credit" style="display:inline">'
+                    f'<button class="mini" type="submit" style="cursor:pointer; background:var(--pink); color:#fff; border-color:var(--pink)">Use 1 credit to unlock</button></form>'
+                    if balance > 0 else
+                    f'<button class="mini buy-btn" data-package="celebration" data-event="{ev["id"]}" type="button" style="background:var(--pink); color:#fff; border-color:var(--pink)">Unlock forever - $49</button>'
+                )
+                unlock_html = (
+                    f'<p style="margin-top:10px; font-size:14px; color:var(--soft)">{unlock_now}'
+                    f'Unlock this album to keep it forever - unlimited photos, the live wall, and the keepsake book. {credit_btn}</p>'
+                )
+            # gentle nudge as the free week runs out (once, if email works)
+            if (not ts["paid"] and not ev["trial_notified"]
+                    and (ts["expired"] or (ts["days_left"] or 0) <= 2)
+                    and mailer.enabled()):
+                when = ("has ended" if ts["expired"]
+                        else f"ends in {ts['days_left']} day(s)")
+                body = (
+                    f"Hi {user['name'] or 'there'},\n\n"
+                    f"The free week for \"{ev['title']}\" {when}. All the photos "
+                    f"your guests shared are safe - unlock the album to keep it "
+                    f"forever and keep the uploads coming:\n\n"
+                    f"https://{base_domain}/dashboard\n\n"
+                    f"- ConfettiRoll"
+                )
+                if mailer.send(user["email"],
+                               f"Your free week for {ev['title']} is ending", body):
+                    with db() as conn:
+                        conn.execute(
+                            "UPDATE events SET trial_notified = 1 WHERE id = ?", (ev["id"],)
+                        )
             count = len(list((data_dir / "events" / ev["id"] / "meta").glob("*.json"))) \
                 if (data_dir / "events" / ev["id"] / "meta").exists() else 0
             url = event_url(ev)
@@ -946,7 +1012,7 @@ def create_app() -> FastAPI:
             <div class="event">
               <div class="event-head">
                 <h3>{esc(ev['title'])}</h3>
-                <span class="count">{count} item{'' if count == 1 else 's'}{' · 🔒 album closed' if ev['uploads_locked'] else ''}</span>
+                <span class="count">{count} item{'' if count == 1 else 's'}{' · 🔒 album closed' if ev['uploads_locked'] else ''}{trial_badge}</span>
               </div>
               <p class="event-link"><a href="{esc(url)}" target="_blank">{esc(url.replace('https://', ''))}</a></p>
               {cred_line}
@@ -966,6 +1032,7 @@ def create_app() -> FastAPI:
                   <button class="mini" type="submit" style="cursor:pointer; background:none; color:#94433a; border-color:#e8cfcb">Delete forever</button>
                 </form>
               </p>
+              {unlock_html}
               <div class="recap" id="recap-{ev['id']}" hidden></div>{roster_panel}
             </div>""")
         error_html = f'<p class="error">{esc(error)}</p>' if error else ""
@@ -1665,11 +1732,21 @@ def create_app() -> FastAPI:
                              session.get("id", ""), meta.get("event_id", ""),
                              int(time.time())),
                         )
-                        if package["credits"]:
+                        target_event = meta.get("event_id", "")
+                        grant = package["credits"]
+                        if target_event and grant:
+                            # buying for a specific event: unlock it directly,
+                            # one credit is consumed by that unlock
+                            conn.execute(
+                                "UPDATE events SET paid = 1 WHERE id = ? AND owner_id = ?",
+                                (target_event, user_id),
+                            )
+                            grant -= 1
+                        if grant:
                             conn.execute(
                                 "INSERT INTO credits (user_id, delta, reason, created_at)"
                                 " VALUES (?,?,?,?)",
-                                (user_id, package["credits"],
+                                (user_id, grant,
                                  f"purchase:{package_key}", int(time.time())),
                             )
         return {"received": True}
@@ -1912,6 +1989,28 @@ def create_app() -> FastAPI:
             ).fetchone()
 
     # ---- close the album, announce the book, sell the book -----------------
+
+    @app.post("/api/events/{event_id}/apply-credit")
+    def apply_credit(request: Request, event_id: str):
+        """Spend one event credit to unlock an event forever."""
+        event = owned_event(request, event_id)
+        if event is None:
+            return RedirectResponse("/login", status_code=303)
+        if event["paid"]:
+            return RedirectResponse("/dashboard", status_code=303)
+        user = current_user(request)
+        with db() as conn:
+            if credit_balance(conn, user["id"]) < 1:
+                return RedirectResponse(
+                    "/dashboard?error=No+event+credits+yet+-+buy+a+package+or+redeem+a+code.",
+                    status_code=303,
+                )
+            conn.execute(
+                "INSERT INTO credits (user_id, delta, reason, created_at) VALUES (?,?,?,?)",
+                (user["id"], -1, f"apply:{event_id}", int(time.time())),
+            )
+            conn.execute("UPDATE events SET paid = 1 WHERE id = ?", (event_id,))
+        return RedirectResponse("/dashboard", status_code=303)
 
     @app.post("/api/events/{event_id}/lock")
     def lock_event(request: Request, event_id: str, locked: str = Form("1")):
@@ -2393,6 +2492,7 @@ def create_app() -> FastAPI:
             "book": (data_dir / "events" / event["id"] / "book.pdf").exists(),
             "mode": event["event_type"],
             "locked": bool(event["uploads_locked"]),
+            "trial": trial_state(event),
         }
         with db() as conn:
             pick_rows = conn.execute(
@@ -2461,6 +2561,12 @@ def create_app() -> FastAPI:
             # The host has closed the album to finish the keepsake book.
             return JSONResponse(
                 {"error": "the host has closed the album to new uploads"},
+                status_code=403,
+            )
+        if trial_state(event)["expired"]:
+            return JSONResponse(
+                {"error": "the free week for this album has ended - the host"
+                          " can unlock it to keep adding photos"},
                 status_code=403,
             )
         dirs = event_dirs(data_dir, event["id"])

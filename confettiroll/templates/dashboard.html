@@ -140,8 +140,9 @@
     <div class="panel">
       <h2>Packages &amp; credits</h2>
       <p style="color:var(--soft); font-size:14.5px; margin-bottom:12px">
-        Event credits: <strong>{{CREDITS}}</strong> · everything is free while
-        we're in beta — buying early locks in launch pricing and supports the build.</p>
+        Event credits: <strong>{{CREDITS}}</strong> · every event starts with a
+        <strong>free week</strong> — unlock it with a credit or a package to keep
+        the album forever. Buying during the beta locks in launch pricing.</p>
       <p>
         <button class="mini buy-btn" data-package="celebration" type="button">Celebration — $49</button>
         <button class="mini buy-btn" data-package="heirloom" type="button">Heirloom — $99</button>
@@ -257,7 +258,8 @@
       const status = document.getElementById("buy-status");
       status.textContent = "Opening checkout…";
       try {
-        const res = await fetch(`/api/checkout/${btn.dataset.package}`, { method: "POST" });
+        const qs = btn.dataset.event ? `?event_id=${btn.dataset.event}` : "";
+        const res = await fetch(`/api/checkout/${btn.dataset.package}${qs}`, { method: "POST" });
         const data = await res.json();
         if (data.url) { location.href = data.url; return; }
         status.textContent = data.message || data.error || "Checkout isn't available yet.";

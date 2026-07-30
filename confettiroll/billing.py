@@ -28,12 +28,12 @@ PACKAGES = {
         "price_cents": 0,
         "credits": 1,
         "kind": "event",
-        "tagline": "Try it with a small gathering",
+        "tagline": "Free for 1 week - unlock once to keep it forever",
         "features": [
             "1 event gallery",
             "Up to 100 photos",
             "QR code + password access",
-            "3-month gallery life",
+            "Free 1-week gallery - unlock to keep",
         ],
     },
     "celebration": {
