@@ -118,19 +118,33 @@ EVENTS = {
         "setting": (
             "Setting: a lively 50th birthday party at a suburban house with a "
             "backyard swimming pool and a large green lawn, summer afternoon. "
-            "Guests are a warm mix of family and friends, mostly caucasian with "
-            "a few Black and Latino guests, all ages and a natural variety of "
-            "body types, casual summer party clothes. "
+            "Everyone around the pool wears swimwear - swimsuits, swim trunks, "
+            "light cover-ups - never t-shirts. "
         ),
+        "cast": (
+            "THE FAMILY (the same individuals in every photo): MARIA, the "
+            "birthday woman - just turned 50, warm smile, sun-kissed "
+            "shoulder-length blonde bob, navy-blue one-piece swimsuit with a "
+            "coral sarong. Her HUSBAND - late 50s, salt-and-pepper hair, trim "
+            "beard, blue swim trunks. Her adult DAUGHTER - mid-20s, long "
+            "brunette hair, red swimsuit. Her adult SON - late 20s, short "
+            "brown hair and stubble, green swim trunks. Her PARENTS - "
+            "silver-haired mother in a floral swimsuit with a white cover-up, "
+            "bald father with a white mustache in navy trunks. CLOSE FRIENDS: "
+            "a Black couple in their 50s in matching yellow swimwear; a Latino "
+            "man with black curly hair in red trunks; a curvy red-haired woman "
+            "in a black swimsuit. "
+        ),
+        "anchor": "Four generations",
         "shots": [
-            ("The backyard, ready to go", "Wide shot of a backyard birthday party: swimming pool, large lawn, gold '50' balloons over a drinks table, guests mingling in the sun."),
+            ("The backyard, ready to go", "Wide shot of a backyard birthday party: swimming pool, large lawn, gold '50' balloons over a drinks table, guests in swimsuits and swim trunks mingling in the sun."),
             ("Fifty candles", "A joyful 50-year-old woman blowing out candles on a birthday cake with a gold '50' number topper, family leaning in around her at a patio table, warm afternoon light. The cake decoration shows only the number 50 - no names or written words anywhere."),
-            ("The cannonball", "A man mid-air in a cannonball jump over a backyard pool, huge splash rising, guests laughing and shielding themselves at the pool edge, summer party."),
-            ("Poolside laughter", "Friends of varied ages and body types laughing hard together on pool loungers with drinks, one wiping tears of laughter, backyard summer party."),
-            ("At the grill", "A smiling man grilling burgers at a backyard barbecue, smoke rising, a friend leaning in with a plate, pool and balloons in the background."),
-            ("The toast", "A circle of guests raising mixed drinks and lemonade toward the birthday woman in the middle of a green lawn, golden hour light, genuine laughter."),
+            ("The cannonball", "The instant just after a man has plunged into the backyard pool in a cannonball: a huge splash erupting at his point of entry, only his silhouette visible inside the burst of water, guests in swimsuits laughing and shielding themselves from the spray at the pool edge."),
+            ("Poolside laughter", "Friends in swimsuits and swim trunks laughing hard together on pool loungers with drinks, one wiping tears of laughter, backyard summer party."),
+            ("At the grill", "A smiling man in swim trunks and a barbecue apron grilling burgers, smoke rising, a friend in swimwear leaning in with a plate, pool and balloons in the background."),
+            ("The toast", "A circle of guests in swimwear and light cover-ups raising mixed drinks and lemonade toward the birthday woman in the middle of a green lawn, golden hour light, genuine laughter."),
             ("Kids own the pool", "Children playing on colorful floaties in a backyard pool, splashing, adults chatting at the edge, bright summer day."),
-            ("Four generations", "A relaxed multi-generation family group photo on a green lawn, from grandparents to toddlers, a few Black and Latino family members, everyone laughing between poses."),
+            ("Four generations", "A relaxed multi-generation family group photo beside the backyard pool, everyone in swimwear, from grandparents to toddlers, everyone laughing between poses."),
             ("The gift that got a scream", "A woman laughing with her hand over her mouth as she opens a gift, friends around her reacting with delight, backyard party table with cake and balloons."),
             ("Lawn games at dusk", "Guests playing cornhole on a large lawn at dusk, string lights coming on over the patio, pool glowing behind them, relaxed summer evening."),
         ],
@@ -151,11 +165,20 @@ EVENTS = {
         "setting": (
             "Setting: a high school prom in a decorated ballroom with purple and "
             "silver balloons, a lit dance floor, and a photo backdrop. Students "
-            "are 18-year-old high school seniors, a healthy mix of ethnicities - "
-            "Black, white, Asian, Latino, South Asian - in a variety of dress "
-            "styles: ball gowns, sleek modern dresses, classic tuxedos, colorful "
-            "suits. All attire is formal and tasteful. "
+            "are 18-year-old high school seniors. All attire is formal and "
+            "tasteful. "
         ),
+        "cast": (
+            "THE FRIEND GROUP (the same eight seniors in every photo): a "
+            "curly-blonde girl in an emerald satin gown; a tall Black boy in a "
+            "classic navy tuxedo; a Latina girl in a deep-purple ball gown; an "
+            "East Asian boy in a black tuxedo with bow tie; a blonde girl in a "
+            "powder-blue sequined gown; a South Asian boy in a burgundy velvet "
+            "jacket; a Black girl in a silver slip dress; a tall white boy in "
+            "a black tuxedo. Other students may appear in backgrounds, but "
+            "these eight are always the focus. "
+        ),
+        "anchor": "The squad",
         "shots": [
             ("The grand entrance", "Students arriving at prom on a red carpet into a decorated ballroom, a diverse group in gowns, tuxedos and colorful suits, excited faces, evening light."),
             ("The squad", "A group of eight diverse high school seniors posing together at prom - ball gowns, modern dresses, classic tuxedos and a burgundy suit - laughing between formal poses in front of a balloon arch."),
