@@ -269,6 +269,10 @@ def init_db(db_path: Path) -> None:
             conn.execute(
                 "ALTER TABLE events ADD COLUMN trial_notified INTEGER NOT NULL DEFAULT 0"
             )
+        if "guest_upload_limit" not in event_cols:
+            conn.execute(
+                "ALTER TABLE events ADD COLUMN guest_upload_limit INTEGER NOT NULL DEFAULT 0"
+            )
 
 
 def new_referral_code() -> str:
@@ -1015,6 +1019,14 @@ def create_app() -> FastAPI:
               </div>
               <p class="event-link"><a href="{esc(url)}" target="_blank">{esc(url.replace('https://', ''))}</a></p>
               {cred_line}
+              <form method="post" action="/api/events/{ev['id']}/settings"
+                    style="display:flex; gap:8px; align-items:center; margin:6px 0 0; font-size:13.5px; color:var(--soft); font-family:'Helvetica Neue', Arial, sans-serif">
+                Photos per guest:
+                <input type="number" name="guest_upload_limit" value="{ev['guest_upload_limit']}"
+                       min="0" max="500" style="width:70px; padding:6px 8px; font-size:13.5px; border:1px solid var(--line); border-radius:6px; background:#fdfcfa">
+                <button class="mini" type="submit" style="cursor:pointer; background:none">Save</button>
+                <span>(0 = unlimited{' · currently ' + str(ev['guest_upload_limit']) + ' each' if ev['guest_upload_limit'] else ''})</span>
+              </form>
               <p class="event-actions">
                 <a class="mini" href="{esc(url)}" target="_blank">Open gallery</a>
                 <a class="mini" href="/api/events/{ev['id']}/qr.png" download="{esc(ev['slug'])}-qr.png">Download QR code</a>
@@ -2013,6 +2025,24 @@ def create_app() -> FastAPI:
             conn.execute("UPDATE events SET paid = 1 WHERE id = ?", (event_id,))
         return RedirectResponse("/dashboard", status_code=303)
 
+    @app.post("/api/events/{event_id}/settings")
+    def event_settings(request: Request, event_id: str,
+                       guest_upload_limit: str = Form("0")):
+        """Host settings: how many photos each guest may share (0 = unlimited)."""
+        event = owned_event(request, event_id)
+        if event is None:
+            return RedirectResponse("/login", status_code=303)
+        try:
+            limit = max(0, min(500, int(guest_upload_limit)))
+        except ValueError:
+            limit = 0
+        with db() as conn:
+            conn.execute(
+                "UPDATE events SET guest_upload_limit = ? WHERE id = ?",
+                (limit, event_id),
+            )
+        return RedirectResponse("/dashboard", status_code=303)
+
     @app.post("/api/events/{event_id}/lock")
     def lock_event(request: Request, event_id: str, locked: str = Form("1")):
         """Host closes (or reopens) the album: no more uploads, the book is
@@ -2538,6 +2568,7 @@ def create_app() -> FastAPI:
         member = current_member(request, event) if role == "member" else None
         if member is not None:
             photos = [p for p in photos if member["id"] in p.get("tagged", [])]
+        my_upload_count = sum(1 for p in photos if voter and p.get("device") == voter)
         q = q.strip().lower()
         if q:
             def matches(p):
@@ -2559,7 +2590,10 @@ def create_app() -> FastAPI:
             "mode": event["event_type"],
             "locked": bool(event["uploads_locked"]),
             "trial": trial_state(event),
+            "upload_limit": event["guest_upload_limit"],
         }
+        if event["guest_upload_limit"] and voter and role not in ("admin", "staff"):
+            out["my_upload_count"] = my_upload_count
         with db() as conn:
             pick_rows = conn.execute(
                 "SELECT photo_id, voter FROM book_picks WHERE event_id = ?",
@@ -2610,7 +2644,8 @@ def create_app() -> FastAPI:
 
     @app.post("/api/upload")
     async def upload(request: Request, background: BackgroundTasks,
-                     files: list[UploadFile] = File(...), uploader: str = Form("")):
+                     files: list[UploadFile] = File(...), uploader: str = Form(""),
+                     device: str = Form("")):
         event = resolve_event(request)
         if event is None:
             return JSONResponse({"error": "not found"}, status_code=404)
@@ -2636,11 +2671,34 @@ def create_app() -> FastAPI:
                 status_code=403,
             )
         dirs = event_dirs(data_dir, event["id"])
+        device = re.sub(r"[^\w-]", "", device)[:40]
+        limit = event["guest_upload_limit"]
+        remaining = None
+        if limit and role not in ("admin", "staff"):
+            # Per-guest photo allowance, chosen by the host. Guests are
+            # identified by a per-browser id (same one used for book picks).
+            bucket = device or f"ip-{request.client.host if request.client else 'unknown'}"
+            used = 0
+            for meta_file in dirs["meta"].glob("*.json"):
+                meta = _read_meta(dirs, meta_file.stem)
+                if meta is not None and meta.get("device") == bucket:
+                    used += 1
+            remaining = limit - used
+            if remaining <= 0:
+                return JSONResponse(
+                    {"error": f"you've shared your {limit} photos - thank you!"},
+                    status_code=403,
+                )
+            device = bucket
         uploader = re.sub(r"\s+", " ", uploader).strip()[:60]
         saved, errors = [], []
         for upload_file in files:
             original_name = upload_file.filename or "photo"
             ext = Path(original_name).suffix.lower()
+            if remaining is not None and remaining <= 0:
+                errors.append({"file": original_name,
+                               "reason": f"the host's limit is {limit} photos per guest"})
+                continue
             try:
                 if ext in VIDEO_EXTENSIONS:
                     meta = await _save_video(upload_file, original_name, uploader, ext, dirs)
@@ -2648,7 +2706,12 @@ def create_app() -> FastAPI:
                     meta = await _save_photo(upload_file, original_name, uploader, ext, dirs)
                     if ai_agents.ai_enabled():
                         background.add_task(_caption_task, event["id"], meta["id"])
+                if device and role not in ("admin", "staff"):
+                    meta["device"] = device
+                    (dirs["meta"] / f"{meta['id']}.json").write_text(json.dumps(meta))
                 saved.append(meta)
+                if remaining is not None:
+                    remaining -= 1
             except PhotoError as exc:
                 errors.append({"file": original_name, "reason": str(exc)})
         return {"saved": saved, "errors": errors}

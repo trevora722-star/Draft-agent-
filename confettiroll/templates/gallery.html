@@ -550,6 +550,17 @@
     nameInput.hidden = memberView || (locked && !isAdmin);
     // Members order via their personal book flow; guests/hosts via the event book.
     document.getElementById("order-book").hidden = !data.book || memberView;
+    // Host-set per-guest photo allowance
+    if (data.upload_limit && !isAdmin && !isStaff && !memberView) {
+      const left = Math.max(0, data.upload_limit - (data.my_upload_count || 0));
+      if (left <= 0) {
+        document.getElementById("upload-btn").hidden = true;
+        nameInput.hidden = true;
+        setTimeout(() => setStatus(`You've shared your ${data.upload_limit} photos — thank you! ⭐`), 300);
+      } else {
+        setTimeout(() => setStatus(`The host is collecting up to ${data.upload_limit} photos per guest — you can share ${left} more.`), 300);
+      }
+    }
     const trial = data.trial || {};
     if (trial.expired) {
       document.getElementById("upload-btn").hidden = true;
@@ -673,6 +684,7 @@
     const form = new FormData();
     files.forEach(f => form.append("files", f));
     form.append("uploader", nameInput.value.trim());
+    form.append("device", voter);
     try {
       const res = await fetch("/api/upload", { method: "POST", body: form });
       if (res.status === 401) { location.href = "/login"; return; }

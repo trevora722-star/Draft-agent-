@@ -147,6 +147,15 @@ The host's finish-line flow, built into every event card:
   shipping address — books for a different address are a separate order
   (checkout returns to the gallery with a prompt for that).
 
+## Per-guest photo allowance
+
+Hosts can cap how many photos each guest may share ("Photos per guest" on
+the event card, 0 = unlimited, e.g. 6). Guests are identified by the same
+per-browser id used for book picks; the gallery shows each guest how many
+they have left ("you can share 3 more"), the server enforces the cap
+(extra files in a batch are skipped with a clear reason, further uploads
+403), and hosts/staff are never limited. Deleting a photo frees its slot.
+
 ## Host editing & guest book picks
 
 - **Photo editing (host)**: in the lightbox, admins get rotate left/right,

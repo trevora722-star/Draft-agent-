@@ -1148,3 +1148,68 @@ def test_checkout_for_event_unlocks_it(client, monkeypatch):
     assert listing["trial"]["paid"] is True
     # the single celebration credit was consumed by the unlock
     assert "Event credits: <strong>0</strong>" in client.get(f"{BASE}/dashboard").text
+
+
+def test_host_set_guest_upload_limit(client):
+    import re as _re
+
+    _signup(client)
+    _create_event(client)
+    dashboard = client.get(f"{BASE}/dashboard").text
+    assert "Photos per guest" in dashboard
+    event_id = _re.search(r"/api/events/([0-9a-f]{32})/settings", dashboard).group(1)
+
+    # host sets a 2-photo allowance per guest
+    client.post(f"{BASE}/api/events/{event_id}/settings",
+                data={"guest_upload_limit": "2"}, follow_redirects=False)
+
+    # a guest device gets exactly 2 photos through
+    client.cookies.clear()
+    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    res = client.post(
+        f"{EVENT}/api/upload",
+        files=[("files", (f"g{i}.jpg", _fake_jpeg(), "image/jpeg")) for i in range(3)],
+        data={"uploader": "Aunt Carol", "device": "device-carol-1"},
+    ).json()
+    assert len(res["saved"]) == 2
+    assert "limit is 2" in res["errors"][0]["reason"]
+    # further uploads from the same device are refused outright
+    res = client.post(
+        f"{EVENT}/api/upload",
+        files=[("files", ("extra.jpg", _fake_jpeg(), "image/jpeg"))],
+        data={"device": "device-carol-1"},
+    )
+    assert res.status_code == 403 and "thank you" in res.json()["error"]
+    # the listing tells the guest where they stand
+    listing = client.get(f"{EVENT}/api/photos?voter=device-carol-1").json()
+    assert listing["upload_limit"] == 2 and listing["my_upload_count"] == 2
+
+    # another guest's device has its own allowance
+    res = client.post(
+        f"{EVENT}/api/upload",
+        files=[("files", ("other.jpg", _fake_jpeg(), "image/jpeg"))],
+        data={"uploader": "Uncle Bob", "device": "device-bob-22"},
+    ).json()
+    assert len(res["saved"]) == 1
+
+    # the host is never limited
+    client.post(f"{BASE}/login",
+                data={"email": "host@example.com", "password": "hunter2hunter2"},
+                follow_redirects=False)
+    res = client.post(
+        f"{EVENT}/api/upload",
+        files=[("files", (f"h{i}.jpg", _fake_jpeg(), "image/jpeg")) for i in range(4)],
+    ).json()
+    assert len(res["saved"]) == 4
+
+    # back to unlimited
+    client.post(f"{BASE}/api/events/{event_id}/settings",
+                data={"guest_upload_limit": "0"}, follow_redirects=False)
+    client.cookies.clear()
+    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    res = client.post(
+        f"{EVENT}/api/upload",
+        files=[("files", ("free.jpg", _fake_jpeg(), "image/jpeg"))],
+        data={"device": "device-carol-1"},
+    ).json()
+    assert len(res["saved"]) == 1
