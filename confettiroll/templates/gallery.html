@@ -540,6 +540,20 @@
     document.getElementById("book-link").hidden = !data.book || (isProm && !isAdmin);
     document.getElementById("mybook-btn").hidden = !(isProm && memberName);
     document.getElementById("stream-link").hidden = isProm && !isAdmin;
+    // Private events & galas: guests watch, table hosts hold the camera.
+    const isGala = data.mode === "gala";
+    if (isGala) {
+      if (memberName) {
+        document.querySelector(".sub").textContent =
+          `Welcome, ${memberName} — add photos of your table's guests as the evening unfolds.`;
+        nameInput.hidden = true;
+      } else if (!isAdmin && !isStaff) {
+        document.getElementById("upload-btn").hidden = true;
+        nameInput.hidden = true;
+        document.querySelector(".sub").textContent =
+          "Tonight's photos are captured by the table hosts — sit back and watch the album grow. ✨";
+      }
+    }
     // On tagged events only staff upload — students view, pick, and print.
     const memberView = isProm && !!memberName;
     const locked = !!data.locked;

@@ -595,6 +595,12 @@ def create_app() -> FastAPI:
     def is_tagged_event(event: sqlite3.Row) -> bool:
         return event["event_type"] == "prom"
 
+    def is_gala(event: sqlite3.Row) -> bool:
+        """Private events & galas: guests view with the shared password;
+        only table hosts (roster members) add photos, credited to their
+        table. Everyone sees the whole album."""
+        return event["event_type"] == "gala"
+
     def current_member(request: Request, event: sqlite3.Row) -> sqlite3.Row | None:
         payload = parse_token(request.cookies.get(GUEST_COOKIE), "m")
         if payload is None or ":" not in payload:
@@ -620,6 +626,13 @@ def create_app() -> FastAPI:
                 return "member"
             if parse_token(request.cookies.get(GUEST_COOKIE), "s") == event["id"]:
                 return "staff"
+            return None
+        if is_gala(event):
+            if current_member(request, event) is not None:
+                return "member"  # a table host
+            event_id = parse_token(request.cookies.get(GUEST_COOKIE), "g")
+            if event_id == event["id"]:
+                return "guest"  # view-only attendee
             return None
         event_id = parse_token(request.cookies.get(GUEST_COOKIE), "g")
         if event_id == event["id"]:
@@ -863,6 +876,10 @@ def create_app() -> FastAPI:
             sub = ("Students: enter your personal access code to see your "
                    "photos. Event staff sign in with the upload code.")
             label = "Your access code"
+        elif is_gala(event):
+            sub = ("Enter the event password to watch the album. Table hosts "
+                   "sign in with their personal host code to add photos.")
+            label = "Password or host code"
         else:
             sub = "Enter the event password to see and share photos."
             label = "Event password"
@@ -978,12 +995,17 @@ def create_app() -> FastAPI:
             count = len(list((data_dir / "events" / ev["id"] / "meta").glob("*.json"))) \
                 if (data_dir / "events" / ev["id"] / "meta").exists() else 0
             url = event_url(ev)
-            if ev["event_type"] == "prom":
+            if ev["event_type"] in ("prom", "gala"):
+                gala = ev["event_type"] == "gala"
                 with db() as conn:
                     roster = conn.execute(
                         "SELECT * FROM members WHERE event_id = ? ORDER BY name",
                         (ev["id"],),
                     ).fetchall()
+                roster_label = "Table hosts" if gala else "Class roster"
+                roster_unit = "table host" if gala else "student"
+                roster_placeholder = ("One table host per line&#10;Table 1 - The Smith party&#10;Table 2 - Chen family"
+                                      if gala else "One student per line&#10;Ava Martin&#10;Noah Chen")
                 roster_rows = "".join(
                     f'''<tr><td>{esc(m["name"])}</td><td><code>{esc(m["code"])}</code></td>
                         <td><form method="post" action="/api/events/{ev['id']}/members/{m['id']}/delete" style="display:inline">
@@ -991,20 +1013,27 @@ def create_app() -> FastAPI:
                         </form></td></tr>'''
                     for m in roster
                 ) or '<tr><td colspan="3" style="color:var(--soft); font-style:italic">No students yet — paste the class list below.</td></tr>'
-                cred_line = (
-                    f'<p class="event-cred">🎓 Tagged event — students sign in with their own codes '
-                    f'and only see photos they\'re tagged in. Photos are uploaded by your designated '
-                    f'staff member (e.g. the Vice Principal) with the upload code: '
-                    f'<code>{esc(ev["guest_password"])}</code></p>'
-                )
+                if gala:
+                    cred_line = (
+                        f'<p class="event-cred">🥂 Private event — guests view the album with the password '
+                        f'<code>{esc(ev["guest_password"])}</code>; only the table hosts below add photos, '
+                        f'each with their own host code.</p>'
+                    )
+                else:
+                    cred_line = (
+                        f'<p class="event-cred">🎓 Tagged event — students sign in with their own codes '
+                        f'and only see photos they\'re tagged in. Photos are uploaded by your designated '
+                        f'staff member (e.g. the Vice Principal) with the upload code: '
+                        f'<code>{esc(ev["guest_password"])}</code></p>'
+                    )
                 roster_panel = f"""
               <details style="margin-top:12px">
-                <summary style="cursor:pointer; font-size:14px; color:var(--soft)">Class roster — {len(roster)} student{'' if len(roster) == 1 else 's'}</summary>
+                <summary style="cursor:pointer; font-size:14px; color:var(--soft)">{roster_label} — {len(roster)} {roster_unit}{'' if len(roster) == 1 else 's'}</summary>
                 <table style="width:100%; margin-top:10px; font-size:14px; border-collapse:collapse">{roster_rows}</table>
                 <form method="post" action="/api/events/{ev['id']}/members" style="margin-top:10px">
-                  <textarea name="names" rows="3" placeholder="One student per line&#10;Ava Martin&#10;Noah Chen"
+                  <textarea name="names" rows="3" placeholder="{roster_placeholder}"
                     style="width:100%; padding:10px 12px; font-size:14px; border:1px solid var(--line); border-radius:8px; background:#fdfcfa; font-family:inherit"></textarea>
-                  <button class="mini" type="submit" style="cursor:pointer; background:none; margin-top:8px">Add students</button>
+                  <button class="mini" type="submit" style="cursor:pointer; background:none; margin-top:8px">Add {roster_unit}s</button>
                   <a class="mini" href="/api/events/{ev['id']}/members.csv">Download codes CSV</a>
                 </form>
               </details>"""
@@ -1177,7 +1206,7 @@ def create_app() -> FastAPI:
                      guest_password: str = Form(...), event_date: str = Form(""),
                      custom_domain: str = Form(""), venue_id: str = Form(""),
                      event_type: str = Form("party")):
-        if event_type not in ("party", "prom"):
+        if event_type not in ("party", "prom", "gala"):
             event_type = "party"
         user = current_user(request)
         if user is None:
@@ -1896,6 +1925,22 @@ def create_app() -> FastAPI:
                 max_age=SESSION_TTL_SECONDS, httponly=True, samesite="lax",
             )
             return response
+        if is_gala(event):
+            code = password.strip().lower()
+            with db() as conn:
+                member = conn.execute(
+                    "SELECT * FROM members WHERE event_id = ? AND code = ?",
+                    (event["id"], code),
+                ).fetchone()
+            if member is not None:
+                if email:
+                    remember_subscriber(event["id"], email, member["name"])
+                response = RedirectResponse("/", status_code=303)
+                response.set_cookie(
+                    GUEST_COOKIE, make_member_token(event["id"], member["id"]),
+                    max_age=SESSION_TTL_SECONDS, httponly=True, samesite="lax",
+                )
+                return response
         if not hmac.compare_digest(password, event["guest_password"]):
             record_attempt(key)
             return guest_login_page(event, "That password isn't right.")
@@ -2409,6 +2454,8 @@ def create_app() -> FastAPI:
         event = resolve_event(request)
         if event is None:
             return JSONResponse({"error": "not found"}, status_code=404)
+        if not is_tagged_event(event):
+            return JSONResponse({"error": "not found"}, status_code=404)
         if gallery_role(request, event) != "member":
             return JSONResponse({"error": "not logged in"}, status_code=401)
         member = current_member(request, event)
@@ -2434,7 +2481,7 @@ def create_app() -> FastAPI:
     def make_my_book(request: Request):
         """A student's personal keepsake book from the photos they picked."""
         event = resolve_event(request)
-        if event is None:
+        if event is None or not is_tagged_event(event):
             return JSONResponse({"error": "not found"}, status_code=404)
         if gallery_role(request, event) != "member":
             return JSONResponse({"error": "not logged in"}, status_code=401)
@@ -2472,7 +2519,7 @@ def create_app() -> FastAPI:
     @app.get("/my-book.pdf")
     def my_book_pdf(request: Request):
         event = resolve_event(request)
-        if event is None:
+        if event is None or not is_tagged_event(event):
             return JSONResponse({"error": "not found"}, status_code=404)
         if gallery_role(request, event) != "member":
             return JSONResponse({"error": "not logged in"}, status_code=401)
@@ -2566,7 +2613,7 @@ def create_app() -> FastAPI:
             except (OSError, json.JSONDecodeError):
                 continue
         member = current_member(request, event) if role == "member" else None
-        if member is not None:
+        if member is not None and is_tagged_event(event):
             photos = [p for p in photos if member["id"] in p.get("tagged", [])]
         my_upload_count = sum(1 for p in photos if voter and p.get("device") == voter)
         q = q.strip().lower()
@@ -2608,13 +2655,14 @@ def create_app() -> FastAPI:
         out["book_picks"] = counts
         out["my_book_picks"] = mine
         if member is not None:
-            with db() as conn:
-                picked = conn.execute(
-                    "SELECT photo_id FROM selections WHERE member_id = ?",
-                    (member["id"],),
-                ).fetchall()
             out["member_name"] = member["name"]
-            out["picked"] = [row["photo_id"] for row in picked]
+            if is_tagged_event(event):
+                with db() as conn:
+                    picked = conn.execute(
+                        "SELECT photo_id FROM selections WHERE member_id = ?",
+                        (member["id"],),
+                    ).fetchall()
+                out["picked"] = [row["photo_id"] for row in picked]
         if role in ("admin", "staff") and is_tagged_event(event):
             with db() as conn:
                 rows = conn.execute(
@@ -2658,6 +2706,11 @@ def create_app() -> FastAPI:
             return JSONResponse(
                 {"error": "photos are added by event staff only"}, status_code=403
             )
+        if is_gala(event) and role == "guest":
+            return JSONResponse(
+                {"error": "tonight's photos are added by the table hosts - enjoy the show!"},
+                status_code=403,
+            )
         if event["uploads_locked"] and role != "admin":
             # The host has closed the album to finish the keepsake book.
             return JSONResponse(
@@ -2671,7 +2724,10 @@ def create_app() -> FastAPI:
                 status_code=403,
             )
         dirs = event_dirs(data_dir, event["id"])
+        member = current_member(request, event) if role == "member" else None
         device = re.sub(r"[^\w-]", "", device)[:40]
+        if member is not None:
+            device = f"member-{member['id']}"
         limit = event["guest_upload_limit"]
         remaining = None
         if limit and role not in ("admin", "staff"):
@@ -2691,6 +2747,8 @@ def create_app() -> FastAPI:
                 )
             device = bucket
         uploader = re.sub(r"\s+", " ", uploader).strip()[:60]
+        if member is not None and not uploader:
+            uploader = member["name"]
         saved, errors = [], []
         for upload_file in files:
             original_name = upload_file.filename or "photo"
@@ -2706,8 +2764,15 @@ def create_app() -> FastAPI:
                     meta = await _save_photo(upload_file, original_name, uploader, ext, dirs)
                     if ai_agents.ai_enabled():
                         background.add_task(_caption_task, event["id"], meta["id"])
+                changed = False
                 if device and role not in ("admin", "staff"):
                     meta["device"] = device
+                    changed = True
+                if member is not None:
+                    # a table host's photos are tagged to their table
+                    meta["tagged"] = [member["id"]]
+                    changed = True
+                if changed:
                     (dirs["meta"] / f"{meta['id']}.json").write_text(json.dumps(meta))
                 saved.append(meta)
                 if remaining is not None:

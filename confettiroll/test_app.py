@@ -1213,3 +1213,64 @@ def test_host_set_guest_upload_limit(client):
         data={"device": "device-carol-1"},
     ).json()
     assert len(res["saved"]) == 1
+
+
+GALA = "http://autumn-benefit.confettiroll.test"
+
+
+def test_gala_table_host_flow(client):
+    """Private events: guests view with the password, only table hosts
+    upload, and everyone sees the whole album."""
+    import re as _re
+
+    _signup(client)
+    _create_event(client, slug="autumn-benefit", title="Autumn Benefit",
+                  event_type="gala", guest_password="orsay25")
+    dashboard = client.get(f"{BASE}/dashboard").text
+    assert "Private event" in dashboard and "Table hosts" in dashboard
+    event_id = _re.search(r"/api/events/([0-9a-f]{32})/members", dashboard).group(1)
+
+    # add two table hosts; each gets a personal host code
+    client.post(f"{BASE}/api/events/{event_id}/members",
+                data={"names": "Table 1 - Smith party\nTable 2 - Chen family"},
+                follow_redirects=False)
+    import csv as _csv, io as _io
+    rows = list(_csv.reader(_io.StringIO(
+        client.get(f"{BASE}/api/events/{event_id}/members.csv").text)))
+    codes = {name: code for name, code, _ in rows[1:]}
+
+    # an attendee with the shared password can view but not upload
+    client.cookies.clear()
+    res = client.post(f"{GALA}/login", data={"password": "orsay25"},
+                      follow_redirects=False)
+    assert res.status_code == 303
+    assert client.get(f"{GALA}/api/photos").status_code == 200
+    res = client.post(f"{GALA}/api/upload",
+                      files=[("files", ("x.jpg", _fake_jpeg(), "image/jpeg"))])
+    assert res.status_code == 403 and "table hosts" in res.json()["error"]
+
+    # a table host signs in with their code and uploads — credited to the table
+    client.cookies.clear()
+    res = client.post(f"{GALA}/login",
+                      data={"password": codes["Table 1 - Smith party"]},
+                      follow_redirects=False)
+    assert res.status_code == 303
+    res = client.post(f"{GALA}/api/upload",
+                      files=[("files", ("t1.jpg", _fake_jpeg(), "image/jpeg"))]).json()
+    assert len(res["saved"]) == 1
+    assert res["saved"][0]["uploader"] == "Table 1 - Smith party"
+    listing = client.get(f"{GALA}/api/photos").json()
+    assert listing["member_name"] == "Table 1 - Smith party"
+    assert listing["mode"] == "gala"
+    # table hosts see the whole album, and prom-only endpoints stay closed
+    assert len(listing["photos"]) == 1
+    photo_id = listing["photos"][0]["id"]
+    assert client.post(f"{GALA}/api/photos/{photo_id}/pick").status_code in (404, 422)
+    assert client.post(f"{GALA}/api/my-book").status_code == 404
+
+    # the attendee sees the host's photo too (whole-album visibility)
+    client.cookies.clear()
+    client.post(f"{GALA}/login", data={"password": "orsay25"}, follow_redirects=False)
+    listing = client.get(f"{GALA}/api/photos").json()
+    assert len(listing["photos"]) == 1
+    assert client.get(f"{GALA}/photos/{photo_id}").status_code == 200

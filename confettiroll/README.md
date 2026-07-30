@@ -118,6 +118,21 @@ photo picks); personal books are stored at
 `m.<event>:<member>` (student) and `s.<event>` (staff) tokens in the
 guest cookie, signed the same way as every other session.
 
+## Private events & galas (table-host mode)
+
+A third event type ("🥂 Private event / gala") for museum benefits, charity
+dinners, and corporate evenings — 300 guests, curated camera:
+
+- **Guests view with one password** (print it in the programme) — they can
+  watch the album and the live wall but cannot upload.
+- **Only table hosts add photos.** The organizer lists the table hosts
+  (reusing the roster machinery; e.g. "Table 1 - Smith party"), each gets
+  a personal host code, and their uploads are auto-credited and tagged to
+  their table. Everyone sees the whole album — the scoping is about who
+  holds the camera, not who can look.
+- Works with the per-guest allowance (per table host), the close-album
+  flow, and keepsake books for patrons.
+
 ## Close the album → announce the book → sell the book
 
 The host's finish-line flow, built into every event card:
