@@ -71,13 +71,13 @@ EVENTS = {
             "neatly trimmed short beard, navy-blue suit, white boutonniere. "
             "BRIDE Anna - early 30s, honey-blonde hair in a loose updo, ivory "
             "fitted lace gown, long veil. "
-            "FIVE GROOMSMEN in matching light-grey suits with blush ties, each "
+            "FIVE GROOMSMEN in matching navy-blue suits with blush ties, each "
             "clearly different: a stocky broad-shouldered man with ginger hair "
             "and a full red beard; a tall slim Black man with a short fade "
             "haircut; a medium-build man with a shaved head and round glasses; "
             "an East Asian man with side-parted black hair; a heavyset "
             "clean-shaven man with light-brown curls. "
-            "FIVE BRIDESMAIDS in mismatched dusty-rose gowns, each clearly "
+            "FIVE BRIDESMAIDS in mismatched gowns in champagne and blush tones, each clearly "
             "different: a Black woman with a braided updo; an East Asian woman "
             "with long straight black hair; a curvy blonde woman with "
             "shoulder-length waves; a petite brunette with a pixie cut; a tall "
@@ -87,8 +87,8 @@ EVENTS = {
         "shots": [
             ("The ceremony among the vines", "Wide shot of an outdoor wedding ceremony between rows of grapevines at golden hour, guests seated on white chairs, the couple at a floral arch, white tent in the background."),
             ("First look under the oaks", "A bride in a lace gown and a groom in a navy suit sharing an emotional first look at the edge of a vineyard, soft afternoon light."),
-            ("The groom and his groomsmen", "A groom in a navy suit laughing with his five groomsmen in matching grey suits among the vineyard rows, varied body types, candid laughter, one adjusting his boutonniere."),
-            ("The bride and her bridesmaids", "A bride with her five bridesmaids in mismatched dusty-rose gowns, walking together along a vineyard path holding bouquets, laughing, one Black bridesmaid and one Asian bridesmaid among them, varied body types."),
+            ("The groom and his groomsmen", "The groom laughing with his five groomsmen in matching navy-blue suits among the vineyard rows, varied body types, candid laughter, one adjusting his boutonniere."),
+            ("The bride and her bridesmaids", "The bride with her five bridesmaids in mismatched champagne and blush gowns, walking together along a vineyard path holding bouquets, laughing, one Black bridesmaid and one Asian bridesmaid among them, varied body types."),
             ("The whole wedding party", "Full wedding party group photo, bride and groom in the center with groomsmen and bridesmaids, in front of a white tent at a vineyard, relaxed and joyful, diverse ages and body types."),
             ("Golden hour on the terrace", "Waist-up portrait of the bride and groom together among the grapevines at sunset, both faces clearly visible and in sharp focus, warm backlight, her veil catching the breeze."),
             ("Cutting the cake", "A bride and groom cutting a three-tier white wedding cake together under string lights inside a white tent, guests blurred in the background raising glasses."),
