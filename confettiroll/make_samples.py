@@ -83,14 +83,14 @@ EVENTS = {
             "shoulder-length waves; a petite brunette with a pixie cut; a tall "
             "red-haired woman with freckles. "
         ),
-        "anchor": "The whole wedding party",
+        "anchors": ["Golden hour on the terrace", "The whole wedding party"],
         "shots": [
             ("The ceremony among the vines", "Wide shot of an outdoor wedding ceremony between rows of grapevines at golden hour, guests seated on white chairs, the couple at a floral arch, white tent in the background."),
             ("First look under the oaks", "A bride in a lace gown and a groom in a navy suit sharing an emotional first look at the edge of a vineyard, soft afternoon light."),
             ("The groom and his groomsmen", "A groom in a navy suit laughing with his five groomsmen in matching grey suits among the vineyard rows, varied body types, candid laughter, one adjusting his boutonniere."),
             ("The bride and her bridesmaids", "A bride with her five bridesmaids in mismatched dusty-rose gowns, walking together along a vineyard path holding bouquets, laughing, one Black bridesmaid and one Asian bridesmaid among them, varied body types."),
             ("The whole wedding party", "Full wedding party group photo, bride and groom in the center with groomsmen and bridesmaids, in front of a white tent at a vineyard, relaxed and joyful, diverse ages and body types."),
-            ("Golden hour on the terrace", "The bride and groom alone among the grapevines at sunset, warm backlight, her veil catching the breeze."),
+            ("Golden hour on the terrace", "Waist-up portrait of the bride and groom together among the grapevines at sunset, both faces clearly visible and in sharp focus, warm backlight, her veil catching the breeze."),
             ("Cutting the cake", "A bride and groom cutting a three-tier white wedding cake together under string lights inside a white tent, guests blurred in the background raising glasses."),
             ("A bite of cake, mostly on target", "A laughing bride playfully feeding wedding cake to the groom, a smudge of frosting on his cheek, string lights bokeh behind them."),
             ("The father-daughter dance", "A bride dancing with her silver-haired father under warm string lights in a white tent, both smiling, guests watching softly out of focus."),
@@ -103,6 +103,10 @@ EVENTS = {
             ("The kiss", "The bride and groom's first kiss at the floral arch as the ceremony ends, guests standing and cheering, petals in the air, vineyard golden hour.", 15),
             ("Cocktail hour on the lawn", "Guests mingling with drinks on a lawn beside the vineyard during cocktail hour, lawn games in the background, relaxed laughter, late-afternoon sun.", 62),
             ("The sparkler send-off", "The bride and groom running hand in hand through a tunnel of guests holding sparklers at night, joyful motion, sparks lighting their faces.", 200),
+            ("The maid of honour's speech", "The curvy blonde bridesmaid in a dusty-rose gown giving a heartfelt maid-of-honour speech with a microphone at the head table, the bride laughing with happy tears, warm tent candlelight.", 122),
+            ("The father of the bride speaks", "The bride's silver-haired father in a dark suit giving a warm speech with a raised glass at the head table, guests smiling, the bride and groom listening hand in hand, string lights above.", 124),
+            ("Friends take the floor", "Candid shot of wedding guests only - no bride or groom - dancing exuberantly under string lights in the white tent at night, arms up, pure joy, motion blur on the edges.", 152),
+            ("The dance circle", "Wedding guests forming a clapping circle around two friends showing off dance moves in the middle of the tent dance floor at night, laughter everywhere, string lights bokeh.", 156),
         ],
     },
     "birthday": {
@@ -216,13 +220,13 @@ def _extract_image(payload: dict) -> bytes | None:
 
 
 def generate_image(prompt: str, api_key: str, retries: int = 3,
-                   reference: bytes | None = None) -> bytes | None:
+                   references: list[bytes] | None = None) -> bytes | None:
     url = API.format(model=MODEL)
     parts: list = []
-    if reference is not None:
+    for ref in references or []:
         parts.append({"inline_data": {
             "mime_type": "image/jpeg",
-            "data": base64.b64encode(reference).decode(),
+            "data": base64.b64encode(ref).decode(),
         }})
     parts.append({"text": prompt})
     body = {"contents": [{"parts": parts}]}
@@ -253,20 +257,25 @@ def build_event(key: str, api_key: str) -> None:
     # Character consistency: generate the anchor shot (the full group photo)
     # first, then pass it as a reference image to every other shot so the
     # same people appear on every page.
-    reference = None
+    references: list[bytes] = []
     cast = spec.get("cast", "")
-    anchor_caption = spec.get("anchor")
-    if anchor_caption:
+    anchor_captions = spec.get("anchors") or ([spec["anchor"]] if spec.get("anchor") else [])
+    anchor_set = set(anchor_captions)
+    for anchor_caption in anchor_captions:
         idx = next(i for i, s in enumerate(spec["shots"], 1) if s[0] == anchor_caption)
         caption, scene = spec["shots"][idx - 1][0], spec["shots"][idx - 1][1]
         dest = photos_dir / f"{spec['slug']}-{idx:02d}.jpg"
         if not dest.exists():
             print(f"  [anchor] {caption}…")
-            raw = generate_image(STYLE + spec["setting"] + cast + scene, api_key)
+            prompt = STYLE + spec["setting"] + cast + (
+                "The reference photos show these exact people - keep their faces "
+                "identical. " if references else ""
+            ) + scene
+            raw = generate_image(prompt, api_key, references=references or None)
             if raw is None:
-                sys.exit("couldn't generate the anchor group shot - try again")
+                sys.exit("couldn't generate an anchor shot - try again")
             Image.open(io.BytesIO(raw)).convert("RGB").save(dest, "JPEG", quality=90)
-        reference = dest.read_bytes()
+        references.append(dest.read_bytes())
 
     photos = []
     for idx, shot in enumerate(spec["shots"], 1):
@@ -276,16 +285,16 @@ def build_event(key: str, api_key: str) -> None:
         dest = photos_dir / f"{photo_id}.jpg"
         if not dest.exists():
             print(f"  [{idx}/{len(spec['shots'])}] {caption}…")
-            if reference is not None:
+            if references:
                 prompt = (
                     STYLE + spec["setting"] + cast +
-                    "The reference photo shows this exact wedding party. Photograph "
-                    "THE SAME PEOPLE - identical faces, hairstyles, and outfits as "
-                    "the reference - in this new scene: " + scene
+                    "The reference photos show these exact people. Photograph THE "
+                    "SAME PEOPLE - identical faces, hairstyles, and outfits as in "
+                    "the references - in this new scene: " + scene
                 )
             else:
                 prompt = STYLE + spec["setting"] + scene
-            raw = generate_image(prompt, api_key, reference=reference)
+            raw = generate_image(prompt, api_key, references=references or None)
             if raw is None:
                 print("    ! couldn't generate, skipping")
                 continue
