@@ -635,8 +635,8 @@ def test_prom_tagged_event_flow(client):
                 data={"names": "Ava Martin\nNoah Chen\n\n"}, follow_redirects=False)
     rows = list(_csv.reader(io.StringIO(
         client.get(f"{BASE}/api/events/{event_id}/members.csv").text)))
-    assert rows[0] == ["name", "access code", "gallery"]
-    codes = {name: code for name, code, _ in rows[1:]}
+    assert rows[0] == ["name", "email", "access code", "personal link", "gallery"]
+    codes = {name: code for name, _, code, _, _ in rows[1:]}
     assert set(codes) == {"Ava Martin", "Noah Chen"}
 
     # the host uploads a group shot (untagged for now)
@@ -1250,7 +1250,8 @@ def test_gala_table_host_flow(client):
     import csv as _csv, io as _io
     rows = list(_csv.reader(_io.StringIO(
         client.get(f"{BASE}/api/events/{event_id}/members.csv").text)))
-    codes = {name: code for name, code, _ in rows[1:]}
+    assert rows[0] == ["name", "email", "access code", "personal link", "gallery"]
+    codes = {name: code for name, _, code, _, _ in rows[1:]}
 
     # an attendee with the shared password can view but not upload
     client.cookies.clear()
@@ -1275,11 +1276,17 @@ def test_gala_table_host_flow(client):
     listing = client.get(f"{GALA}/api/photos").json()
     assert listing["member_name"] == "Table 1 - Smith party"
     assert listing["mode"] == "gala"
-    # table hosts see the whole album, and prom-only endpoints stay closed
+    # table hosts see the whole album and can star photos for their own book
     assert len(listing["photos"]) == 1
     photo_id = listing["photos"][0]["id"]
-    assert client.post(f"{GALA}/api/photos/{photo_id}/pick").status_code in (404, 422)
-    assert client.post(f"{GALA}/api/my-book").status_code == 404
+    assert client.post(f"{GALA}/api/photos/{photo_id}/pick").json()["picked"] is True
+    book = client.post(f"{GALA}/api/my-book").json()
+    assert book["pages"] >= 1 and book["url"] == "/my-book.pdf"
+    assert client.get(f"{GALA}/my-book.pdf").status_code == 200
+    # ...and print the card for their own table
+    card = client.get(f"{GALA}/my-table-card.pdf")
+    assert card.status_code == 200
+    assert card.headers["content-type"] == "application/pdf"
 
     # the attendee sees the host's photo too (whole-album visibility)
     client.cookies.clear()
@@ -1287,6 +1294,69 @@ def test_gala_table_host_flow(client):
     listing = client.get(f"{GALA}/api/photos").json()
     assert len(listing["photos"]) == 1
     assert client.get(f"{GALA}/photos/{photo_id}").status_code == 200
+
+
+def test_gala_host_invites(client, monkeypatch):
+    """Creating a gala asks for the table count, pre-creates a host slot per
+    table, and each host can be emailed their personal access link."""
+    import re as _re
+    import app as app_module
+
+    _signup(client)
+    _create_event(client, slug="winter-gala", title="Winter Gala",
+                  event_type="gala", guest_password="frost25", num_hosts="3")
+    dashboard = client.get(f"{BASE}/dashboard").text
+    assert "Table 1" in dashboard and "Table 3" in dashboard
+    assert "Email all hosts their access" in dashboard
+    event_id = _re.search(r"/api/events/([0-9a-f]{32})/members", dashboard).group(1)
+
+    # roster line with an email attaches the address to the host
+    client.post(f"{BASE}/api/events/{event_id}/members",
+                data={"names": "Table 4 - Armstrong party, armstrong@example.com"},
+                follow_redirects=False)
+    import csv as _csv, io as _io
+    rows = list(_csv.reader(_io.StringIO(
+        client.get(f"{BASE}/api/events/{event_id}/members.csv").text)))
+    by_name = {r[0]: r for r in rows[1:]}
+    assert len(by_name) == 4
+    assert by_name["Table 4 - Armstrong party"][1] == "armstrong@example.com"
+    code = by_name["Table 4 - Armstrong party"][2]
+    assert by_name["Table 4 - Armstrong party"][3].endswith(f"/host/{code}")
+    member_id = _re.search(
+        r"/api/events/%s/members/(\d+)/invite[^-]" % event_id,
+        client.get(f"{BASE}/dashboard").text).group(1)
+
+    # with no mail provider, the invite hands the organizer the link instead
+    res = client.post(f"{BASE}/api/events/{event_id}/members/{member_id}/invite",
+                      follow_redirects=False)
+    assert res.status_code == 303
+
+    # with mail "configured", invites are sent to hosts with addresses
+    sent = []
+    monkeypatch.setattr(app_module.mailer, "enabled", lambda: True)
+    monkeypatch.setattr(app_module.mailer, "send",
+                        lambda to, subject, body: sent.append((to, subject, body)) or True)
+    res = client.post(f"{BASE}/api/events/{event_id}/members/invite-all",
+                      follow_redirects=False)
+    assert res.status_code == 303
+    assert "1+invite" in res.headers["location"] or "1%20invite" in res.headers["location"]
+    assert len(sent) == 1
+    to, subject, body = sent[0]
+    assert to == "armstrong@example.com"
+    assert f"/host/{code}" in body
+    assert "table card" in body and "keepsake book" in body
+
+    # the emailed magic link signs the host straight in
+    winter = "http://winter-gala.confettiroll.test"
+    client.cookies.clear()
+    res = client.get(f"{winter}/host/{code}", follow_redirects=False)
+    assert res.status_code == 303 and res.headers["location"] == "/"
+    listing = client.get(f"{winter}/api/photos").json()
+    assert listing["member_name"] == "Table 4 - Armstrong party"
+    # a wrong code just bounces to the login page
+    client.cookies.clear()
+    res = client.get(f"{winter}/host/nope99", follow_redirects=False)
+    assert res.headers["location"] == "/login"
 
 
 def test_table_cards_pdf(client, tmp_path):

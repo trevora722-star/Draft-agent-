@@ -123,6 +123,13 @@
             </select>
             <div class="hint" id="type-hint">Guests share one password for the album.</div>
           </div>
+          <div id="hosts-row" hidden>
+            <label for="num_hosts">Number of tables / hosts</label>
+            <input id="num_hosts" name="num_hosts" type="number" min="1" max="100" value="10">
+            <div class="hint">We'll create a host slot per table — add each
+              host's name &amp; email after, then email everyone their access
+              link in one click.</div>
+          </div>
           <div>
             <label for="guest_password">Guest password</label>
             <input id="guest_password" name="guest_password" required minlength="4">
@@ -219,6 +226,7 @@
   slug.addEventListener("input", () => { slugTouched = true; echo.textContent = slug.value || "your-event"; });
   document.getElementById("event_type").addEventListener("change", e => {
     const kind = e.target.value;
+    document.getElementById("hosts-row").hidden = kind !== "gala";
     document.getElementById("type-hint").textContent =
       kind === "prom"
         ? "Each student gets their own access code — add the class roster after creating the event. Photos are uploaded by your designated staff member only, tagged to students, and everyone only sees their own."

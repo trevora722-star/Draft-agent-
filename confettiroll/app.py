@@ -33,6 +33,7 @@ import sqlite3
 import time
 import uuid
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
 from fastapi.staticfiles import StaticFiles
@@ -274,6 +275,9 @@ def init_db(db_path: Path) -> None:
             conn.execute(
                 "ALTER TABLE events ADD COLUMN guest_upload_limit INTEGER NOT NULL DEFAULT 0"
             )
+        member_cols = {row[1] for row in conn.execute("PRAGMA table_info(members)")}
+        if "email" not in member_cols:
+            conn.execute("ALTER TABLE members ADD COLUMN email TEXT NOT NULL DEFAULT ''")
 
 
 def new_referral_code() -> str:
@@ -1007,20 +1011,42 @@ def create_app() -> FastAPI:
                     ).fetchall()
                 roster_label = "Table hosts" if gala else "Class roster"
                 roster_unit = "table host" if gala else "student"
-                roster_placeholder = ("One table host per line&#10;Table 1 - The Smith party&#10;Table 2 - Chen family"
+                roster_placeholder = ("One table host per line, with their email to invite them&#10;Table 1 - The Smith party, smith@email.com&#10;Table 2 - Chen family, mchen@email.com"
                                       if gala else "One student per line&#10;Ava Martin&#10;Noah Chen")
-                roster_rows = "".join(
-                    f'''<tr><td>{esc(m["name"])}</td><td><code>{esc(m["code"])}</code></td>
-                        <td><form method="post" action="/api/events/{ev['id']}/members/{m['id']}/delete" style="display:inline">
-                        <button type="submit" style="border:none; background:none; color:var(--soft); cursor:pointer">✕</button>
-                        </form></td></tr>'''
-                    for m in roster
-                ) or '<tr><td colspan="3" style="color:var(--soft); font-style:italic">No students yet — paste the class list below.</td></tr>'
+                def roster_row(m):
+                    invite_cell = ""
+                    if gala:
+                        invite_cell = (
+                            f'<td><form method="post" action="/api/events/{ev["id"]}/members/{m["id"]}/invite"'
+                            f' style="display:flex; gap:4px; align-items:center">'
+                            f'<input name="email" type="email" value="{esc(m["email"])}" placeholder="host@email.com"'
+                            f' style="width:160px; padding:5px 7px; font-size:12.5px; border:1px solid var(--line); border-radius:6px; background:#fdfcfa">'
+                            f'<button class="mini" type="submit" style="cursor:pointer; background:none"'
+                            f' title="Save the email and send this host their personal access link">✉️ Invite</button>'
+                            f'</form></td>'
+                        )
+                    return (
+                        f'<tr><td>{esc(m["name"])}</td>{invite_cell}<td><code>{esc(m["code"])}</code></td>'
+                        f'<td><form method="post" action="/api/events/{ev["id"]}/members/{m["id"]}/delete" style="display:inline">'
+                        f'<button type="submit" style="border:none; background:none; color:var(--soft); cursor:pointer">✕</button>'
+                        f'</form></td></tr>'
+                    )
+                roster_rows = "".join(roster_row(m) for m in roster) or (
+                    f'<tr><td colspan="4" style="color:var(--soft); font-style:italic">'
+                    f'No {roster_unit}s yet — paste the list below.</td></tr>'
+                )
+                invite_all_btn = (
+                    f'<form method="post" action="/api/events/{ev["id"]}/members/invite-all" style="display:inline">'
+                    f'<button class="mini" type="submit" style="cursor:pointer; background:none">'
+                    f'✉️ Email all hosts their access</button></form>'
+                ) if gala else ""
                 if gala:
                     cred_line = (
                         f'<p class="event-cred">🥂 Private event — guests view the album with the password '
                         f'<code>{esc(ev["guest_password"])}</code>; only the table hosts below add photos, '
-                        f'each with their own host code.</p>'
+                        f'each with their own host code. Add each host\'s email and send their invite — '
+                        f'their personal link signs them in to upload for their table, print their own '
+                        f'table card, and build their table\'s keepsake book.</p>'
                     )
                 else:
                     cred_line = (
@@ -1039,6 +1065,7 @@ def create_app() -> FastAPI:
                   <button class="mini" type="submit" style="cursor:pointer; background:none; margin-top:8px">Add {roster_unit}s</button>
                   <a class="mini" href="/api/events/{ev['id']}/members.csv">Download codes CSV</a>
                 </form>
+                {invite_all_btn}
               </details>"""
             else:
                 cred_line = f'<p class="event-cred">Guest password: <code>{esc(ev["guest_password"])}</code></p>'
@@ -1216,7 +1243,7 @@ def create_app() -> FastAPI:
     def create_event(request: Request, title: str = Form(...), slug: str = Form(...),
                      guest_password: str = Form(...), event_date: str = Form(""),
                      custom_domain: str = Form(""), venue_id: str = Form(""),
-                     event_type: str = Form("party")):
+                     event_type: str = Form("party"), num_hosts: str = Form("")):
         if event_type not in ("party", "prom", "gala"):
             event_type = "party"
         user = current_user(request)
@@ -1261,6 +1288,22 @@ def create_app() -> FastAPI:
                 )
         except sqlite3.IntegrityError:
             return RedirectResponse("/dashboard?error=That+web+address+is+already+taken.", status_code=303)
+        if event_type == "gala" and num_hosts.strip().isdigit():
+            # Pre-create one host slot per table; the organizer fills in
+            # names and emails from the roster, then emails each host their
+            # personal access link.
+            with db() as conn:
+                for n in range(1, min(100, int(num_hosts)) + 1):
+                    for _ in range(20):
+                        try:
+                            conn.execute(
+                                "INSERT INTO members (event_id, name, code, created_at)"
+                                " VALUES (?,?,?,?)",
+                                (event_id, f"Table {n}", new_member_code(), int(time.time())),
+                            )
+                            break
+                        except sqlite3.IntegrityError:
+                            continue
         event_dirs(data_dir, event_id)
         return RedirectResponse("/dashboard", status_code=303)
 
@@ -1334,6 +1377,42 @@ def create_app() -> FastAPI:
         return Response(
             pdf, media_type="application/pdf",
             headers={"Content-Disposition": f'attachment; filename="{safe} - table cards.pdf"'},
+        )
+
+    @app.get("/my-table-card.pdf")
+    def my_table_card(request: Request):
+        """A table host prints the card for their own table: the album QR,
+        the viewing password, and their name as host."""
+        event = resolve_event(request)
+        if event is None or not is_gala(event):
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if gallery_role(request, event) != "member":
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        member = current_member(request, event)
+        if member is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        url = event_url(event)
+        accent = "#7d8c6f"
+        if event["venue_id"]:
+            with db() as conn:
+                venue = conn.execute(
+                    "SELECT accent FROM venues WHERE id = ?", (event["venue_id"],)
+                ).fetchone()
+            if venue is not None and venue["accent"]:
+                accent = venue["accent"]
+        notes = [url.replace("https://", ""),
+                 f"Password to watch: {event['guest_password']}",
+                 f"Your table host: {member['name']}"]
+        photo_path = data_dir / "events" / event["id"] / "card.jpg"
+        pdf = card_maker.generate_cards(
+            event["title"], url, accent, notes,
+            photo_path=photo_path if photo_path.exists() else None,
+            footer=f"powered by {base_domain}",
+        )
+        safe = re.sub(r"[^\w\- ]", "_", member["name"]) or "table"
+        return Response(
+            pdf, media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{safe} - table card.pdf"'},
         )
 
     # ---- trade show kiosk (virtual booth agent) ----------------------------
@@ -1964,6 +2043,32 @@ def create_app() -> FastAPI:
         except sqlite3.Error:
             pass
 
+    @app.get("/host/{code}")
+    def host_link(request: Request, code: str):
+        """Magic link from a table host's invite email: signs them straight
+        in as that host on this event's domain."""
+        event = resolve_event(request)
+        if event is None or not (is_gala(event) or is_tagged_event(event)):
+            return RedirectResponse("/", status_code=303)
+        ip = request.client.host if request.client else "unknown"
+        key = f"host:{event['id']}:{ip}"
+        if too_many_attempts(key):
+            return guest_login_page(event, "Too many attempts - please wait a few minutes.")
+        with db() as conn:
+            member = conn.execute(
+                "SELECT * FROM members WHERE event_id = ? AND code = ?",
+                (event["id"], code.strip().lower()),
+            ).fetchone()
+        if member is None:
+            record_attempt(key)
+            return RedirectResponse("/login", status_code=303)
+        response = RedirectResponse("/", status_code=303)
+        response.set_cookie(
+            GUEST_COOKIE, make_member_token(event["id"], member["id"]),
+            max_age=SESSION_TTL_SECONDS, httponly=True, samesite="lax",
+        )
+        return response
+
     def tenant_login(request: Request, event: sqlite3.Row, password: str, email: str = ""):
         ip = request.client.host if request.client else "unknown"
         key = f"guest:{event['id']}:{ip}"
@@ -2448,26 +2553,134 @@ def create_app() -> FastAPI:
         shutil.rmtree(data_dir / "events" / event_id, ignore_errors=True)
         return RedirectResponse("/dashboard", status_code=303)
 
+    MEMBER_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+
     @app.post("/api/events/{event_id}/members")
     def add_members(request: Request, event_id: str, names: str = Form("")):
         event = owned_event(request, event_id)
         if event is None:
             return RedirectResponse("/login", status_code=303)
-        cleaned = [re.sub(r"\s+", " ", n).strip()[:60] for n in names.splitlines()]
-        cleaned = [n for n in cleaned if n][:500]
+        entries = []
+        for line in names.splitlines():
+            email_match = MEMBER_EMAIL_RE.search(line)
+            email = email_match.group(0).lower() if email_match else ""
+            if email_match:
+                line = line[:email_match.start()] + line[email_match.end():]
+            name = re.sub(r"\s+", " ", line).strip(" ,;-<>\t").strip()[:60]
+            if name or email:
+                entries.append((name or email.split("@")[0], email))
         with db() as conn:
-            for name in cleaned:
+            for name, email in entries[:500]:
                 for _ in range(20):  # retry on the rare per-event code collision
                     try:
                         conn.execute(
-                            "INSERT INTO members (event_id, name, code, created_at)"
-                            " VALUES (?,?,?,?)",
-                            (event_id, name, new_member_code(), int(time.time())),
+                            "INSERT INTO members (event_id, name, email, code, created_at)"
+                            " VALUES (?,?,?,?,?)",
+                            (event_id, name, email, new_member_code(), int(time.time())),
                         )
                         break
                     except sqlite3.IntegrityError:
                         continue
         return RedirectResponse("/dashboard", status_code=303)
+
+    def host_invite_message(event: sqlite3.Row, member: sqlite3.Row) -> tuple[str, str]:
+        url = event_url(event)
+        link = f"{url}/host/{member['code']}"
+        subject = f"You're a table host for {event['title']} 🥂"
+        body = (
+            f"Hi {member['name']},\n\n"
+            f"You've been asked to be a table host for {event['title']}"
+            f"{' on ' + event['event_date'] if event['event_date'] else ''}.\n\n"
+            f"Your personal host link (no password needed - it signs you straight in):\n"
+            f"{link}\n\n"
+            f"As a table host you can:\n"
+            f"  1. Add photos of your table's guests as the evening unfolds -\n"
+            f"     they appear in the event album credited to you.\n"
+            f"  2. Print your own table card - open your link and tap\n"
+            f"     \"My table card\" for a print-ready PDF with the album's QR code.\n"
+            f"  3. Build your table's own keepsake book - tap the star on your\n"
+            f"     favourite photos, then \"My keepsake book\" to download it.\n\n"
+            f"Your guests can watch the album live at {url.replace('https://', '')} "
+            f"with the password: {event['guest_password']}\n\n"
+            f"See you there!\n- via ConfettiRoll"
+        )
+        return subject, body
+
+    @app.post("/api/events/{event_id}/members/{member_id}/invite")
+    def invite_member(request: Request, event_id: str, member_id: int,
+                      email: str = Form("")):
+        """Save a table host's email (if given) and send them their personal
+        access link. With no mail provider configured, the dashboard shows
+        the link so the organizer can pass it along themselves."""
+        event = owned_event(request, event_id)
+        if event is None:
+            return RedirectResponse("/login", status_code=303)
+        email = email.strip().lower()
+        with db() as conn:
+            if email and MEMBER_EMAIL_RE.fullmatch(email):
+                conn.execute(
+                    "UPDATE members SET email = ? WHERE id = ? AND event_id = ?",
+                    (email, member_id, event_id),
+                )
+            member = conn.execute(
+                "SELECT * FROM members WHERE id = ? AND event_id = ?",
+                (member_id, event_id),
+            ).fetchone()
+        if member is None:
+            return RedirectResponse("/dashboard?error=Host+not+found.", status_code=303)
+        link = f"{event_url(event)}/host/{member['code']}"
+        if not member["email"]:
+            return RedirectResponse(
+                "/dashboard?error=" + quote(
+                    f"Add an email for {member['name']} first — or share their "
+                    f"link directly: {link}"
+                ), status_code=303)
+        if not mailer.enabled():
+            return RedirectResponse(
+                "/dashboard?error=" + quote(
+                    f"Email isn't configured yet — share {member['name']}'s "
+                    f"personal link directly: {link}"
+                ), status_code=303)
+        subject, body = host_invite_message(event, member)
+        ok = mailer.send(member["email"], subject, body)
+        msg = (f"Invite sent to {member['name']} ({member['email']}). ✉️" if ok
+               else f"Couldn't send to {member['email']} — check the address and try again.")
+        return RedirectResponse("/dashboard?error=" + quote(msg), status_code=303)
+
+    @app.post("/api/events/{event_id}/members/invite-all")
+    def invite_all_members(request: Request, event_id: str):
+        """Email every table host with an address on file their access link."""
+        event = owned_event(request, event_id)
+        if event is None:
+            return RedirectResponse("/login", status_code=303)
+        with db() as conn:
+            roster = conn.execute(
+                "SELECT * FROM members WHERE event_id = ? ORDER BY name",
+                (event_id,),
+            ).fetchall()
+        if not mailer.enabled():
+            return RedirectResponse(
+                "/dashboard?error=" + quote(
+                    "Email isn't configured yet — download the codes CSV and "
+                    "share each host's personal link from there."
+                ), status_code=303)
+        sent = failed = no_email = 0
+        for member in roster:
+            if not member["email"]:
+                no_email += 1
+                continue
+            subject, body = host_invite_message(event, member)
+            if mailer.send(member["email"], subject, body):
+                sent += 1
+            else:
+                failed += 1
+        parts = [f"{sent} invite{'s' if sent != 1 else ''} sent"]
+        if failed:
+            parts.append(f"{failed} failed")
+        if no_email:
+            parts.append(f"{no_email} host{'s' if no_email != 1 else ''} still need an email")
+        return RedirectResponse(
+            "/dashboard?error=" + quote(" · ".join(parts) + "."), status_code=303)
 
     @app.post("/api/events/{event_id}/members/{member_id}/delete")
     def delete_member(request: Request, event_id: str, member_id: int):
@@ -2489,15 +2702,16 @@ def create_app() -> FastAPI:
             return JSONResponse({"error": "not found"}, status_code=404)
         with db() as conn:
             rows = conn.execute(
-                "SELECT name, code FROM members WHERE event_id = ? ORDER BY name",
+                "SELECT name, email, code FROM members WHERE event_id = ? ORDER BY name",
                 (event_id,),
             ).fetchall()
         url = event_url(event)
         buf = io.StringIO()
         writer = csv.writer(buf)
-        writer.writerow(["name", "access code", "gallery"])
+        writer.writerow(["name", "email", "access code", "personal link", "gallery"])
         for row in rows:
-            writer.writerow([row["name"], row["code"], url])
+            writer.writerow([row["name"], row["email"], row["code"],
+                             f"{url}/host/{row['code']}", url])
         return Response(
             buf.getvalue(), media_type="text/csv",
             headers={"Content-Disposition": f'attachment; filename="{event["slug"]}-codes.csv"'},
@@ -2530,13 +2744,20 @@ def create_app() -> FastAPI:
         event = resolve_event(request)
         if event is None:
             return JSONResponse({"error": "not found"}, status_code=404)
-        if not is_tagged_event(event):
+        if not (is_tagged_event(event) or is_gala(event)):
             return JSONResponse({"error": "not found"}, status_code=404)
         if gallery_role(request, event) != "member":
             return JSONResponse({"error": "not logged in"}, status_code=401)
         member = current_member(request, event)
         dirs = event_dirs(data_dir, event["id"])
-        if member is None or not member_can_view(dirs, photo_id, member["id"]):
+        if member is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        # Prom safety rule: students pick only photos they're tagged in.
+        # Gala table hosts see the whole album and may pick any photo.
+        if is_tagged_event(event):
+            if not member_can_view(dirs, photo_id, member["id"]):
+                return JSONResponse({"error": "not found"}, status_code=404)
+        elif _read_meta(dirs, photo_id) is None:
             return JSONResponse({"error": "not found"}, status_code=404)
         with db() as conn:
             existing = conn.execute(
@@ -2555,9 +2776,11 @@ def create_app() -> FastAPI:
 
     @app.post("/api/my-book")
     def make_my_book(request: Request):
-        """A student's personal keepsake book from the photos they picked."""
+        """A personal keepsake book: a student's tagged photos on prom
+        nights, or a table host's own picks (defaulting to the photos they
+        took of their table) on gala evenings."""
         event = resolve_event(request)
-        if event is None or not is_tagged_event(event):
+        if event is None or not (is_tagged_event(event) or is_gala(event)):
             return JSONResponse({"error": "not found"}, status_code=404)
         if gallery_role(request, event) != "member":
             return JSONResponse({"error": "not logged in"}, status_code=401)
@@ -2575,9 +2798,19 @@ def create_app() -> FastAPI:
         photos = []
         for meta_file in dirs["meta"].glob("*.json"):
             meta = _read_meta(dirs, meta_file.stem)
-            if meta is None or member["id"] not in meta.get("tagged", []):
+            if meta is None:
                 continue
-            if picked and meta["id"] not in picked:
+            if is_tagged_event(event):
+                if member["id"] not in meta.get("tagged", []):
+                    continue
+                if picked and meta["id"] not in picked:
+                    continue
+            elif picked:
+                if meta["id"] not in picked:
+                    continue
+            elif meta.get("uploader", "") != member["name"]:
+                # No stars yet: default a table host's book to their table -
+                # the photos they took themselves.
                 continue
             photos.append(meta)
         if not any(p.get("type") != "video" for p in photos):
@@ -2595,7 +2828,7 @@ def create_app() -> FastAPI:
     @app.get("/my-book.pdf")
     def my_book_pdf(request: Request):
         event = resolve_event(request)
-        if event is None or not is_tagged_event(event):
+        if event is None or not (is_tagged_event(event) or is_gala(event)):
             return JSONResponse({"error": "not found"}, status_code=404)
         if gallery_role(request, event) != "member":
             return JSONResponse({"error": "not logged in"}, status_code=401)
@@ -2732,13 +2965,12 @@ def create_app() -> FastAPI:
         out["my_book_picks"] = mine
         if member is not None:
             out["member_name"] = member["name"]
-            if is_tagged_event(event):
-                with db() as conn:
-                    picked = conn.execute(
-                        "SELECT photo_id FROM selections WHERE member_id = ?",
-                        (member["id"],),
-                    ).fetchall()
-                out["picked"] = [row["photo_id"] for row in picked]
+            with db() as conn:
+                picked = conn.execute(
+                    "SELECT photo_id FROM selections WHERE member_id = ?",
+                    (member["id"],),
+                ).fetchall()
+            out["picked"] = [row["photo_id"] for row in picked]
         if role in ("admin", "staff") and is_tagged_event(event):
             with db() as conn:
                 rows = conn.execute(

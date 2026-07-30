@@ -269,6 +269,7 @@
     <a class="btn ghost" href="/stream" id="stream-link" target="_blank" style="text-decoration:none">📺 Live slideshow</a>
     <a class="btn ghost" href="/book.pdf" id="book-link" style="text-decoration:none" hidden>📖 Keepsake book</a>
     <button class="btn" id="mybook-btn" type="button" hidden>📖 My keepsake book</button>
+    <a class="btn ghost" id="card-link" href="/my-table-card.pdf" style="text-decoration:none" hidden>🪧 My table card</a>
     <button class="btn ghost" id="order-book" type="button" hidden>🛒 Order printed book</button>
     <form method="post" action="/logout" style="display:inline">
       <button class="btn ghost" type="submit">Sign out</button>
@@ -349,6 +350,7 @@
   let isAdmin = false;
   let lbIndex = 0;
   let isProm = false;
+  let isGala = false;
   let isStaff = false;
   let memberName = "";
   let picked = new Set();
@@ -429,7 +431,7 @@
         del.addEventListener("click", e => { e.stopPropagation(); deletePhoto(p); });
         tile.appendChild(del);
       }
-      if (isProm && memberName) {
+      if ((isProm || isGala) && memberName) {
         const pick = document.createElement("button");
         pick.className = "pick" + (picked.has(p.id) ? " on" : "");
         pick.textContent = picked.has(p.id) ? "★" : "☆";
@@ -437,7 +439,7 @@
         pick.addEventListener("click", e => { e.stopPropagation(); togglePick(p, pick); });
         tile.appendChild(pick);
       }
-      if (!isProm && isLocked) {
+      if (!isProm && !(isGala && memberName) && isLocked) {
         const bp = document.createElement("button");
         const mine = myBookPicks.has(p.id);
         const n = bookPicks[p.id] || 0;
@@ -538,15 +540,16 @@
     picked = new Set(data.picked || []);
     members = data.members || [];
     document.getElementById("ai-toolbar").hidden = !data.ai_enabled;
+    isGala = data.mode === "gala";
     document.getElementById("book-link").hidden = !data.book || (isProm && !isAdmin);
-    document.getElementById("mybook-btn").hidden = !(isProm && memberName);
+    document.getElementById("mybook-btn").hidden = !((isProm || isGala) && memberName);
+    document.getElementById("card-link").hidden = !(isGala && memberName);
     document.getElementById("stream-link").hidden = isProm && !isAdmin;
     // Private events & galas: guests watch, table hosts hold the camera.
-    const isGala = data.mode === "gala";
     if (isGala) {
       if (memberName) {
         document.querySelector(".sub").textContent =
-          `Welcome, ${memberName} — add photos of your table's guests as the evening unfolds.`;
+          `Welcome, ${memberName} — add photos of your table's guests, tap ☆ on favourites for your table's keepsake book, and print your table card from the button above.`;
         nameInput.hidden = true;
       } else if (!isAdmin && !isStaff) {
         document.getElementById("upload-btn").hidden = true;
@@ -557,12 +560,13 @@
     }
     // On tagged events only staff upload — students view, pick, and print.
     const memberView = isProm && !!memberName;
+    const galaViewer = isGala && !memberName && !isAdmin && !isStaff;
     const locked = !!data.locked;
     isLocked = locked;
     bookPicks = data.book_picks || {};
     myBookPicks = new Set(data.my_book_picks || []);
-    document.getElementById("upload-btn").hidden = memberView || (locked && !isAdmin);
-    nameInput.hidden = memberView || (locked && !isAdmin);
+    document.getElementById("upload-btn").hidden = memberView || galaViewer || (locked && !isAdmin);
+    nameInput.hidden = memberView || galaViewer || (locked && !isAdmin);
     // Members order via their personal book flow; guests/hosts via the event book.
     document.getElementById("order-book").hidden = !data.book || memberView;
     // Host-set per-guest photo allowance
