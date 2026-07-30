@@ -147,12 +147,35 @@
     animation: fall linear infinite; top: -20px; z-index: 0; pointer-events: none;
   }
   @keyframes fall { to { transform: translateY(110vh) rotate(540deg); } }
+  /* rotating hero: one book-worthy photo per event type */
+  .rotator {
+    position: relative; border-radius: 16px; overflow: hidden;
+    aspect-ratio: 16 / 10; box-shadow: 0 18px 44px rgba(44, 39, 51, 0.18);
+    background: linear-gradient(135deg, #e85d8a, #7c5cbf);
+  }
+  .rotator img {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+    opacity: 0; transition: opacity 1.1s ease;
+  }
+  .rotator img.show { opacity: 1; }
+  .rot-label {
+    position: absolute; left: 14px; bottom: 14px; z-index: 2;
+    background: rgba(30, 26, 22, 0.72); color: #fff; border-radius: 999px;
+    padding: 7px 16px; font: 500 13px "Helvetica Neue", Arial, sans-serif;
+    letter-spacing: 1.2px; text-transform: uppercase;
+  }
   @media (max-width: 760px) {
-    .hero { grid-template-columns: 1fr; text-align: center; }
-    .hero p.sub { margin-left: auto; margin-right: auto; }
-    .collage { max-width: 420px; margin: 0 auto; }
+    nav { padding: 14px 16px; }
+    nav .links a.secondary { display: none; }
+    nav .links a { margin-left: 10px; font-size: 13px; }
+    nav .links a.cta { padding: 9px 16px; }
+    .hero { grid-template-columns: 1fr; text-align: center; gap: 26px; padding: 24px 18px 36px; }
+    .hero p.sub { margin: 14px auto 22px; font-size: 16px; }
+    .demo-url { margin-top: 18px; font-size: 13px; }
+    .subnote { margin-top: 10px; }
+    .rotator { max-width: 460px; margin: 0 auto; width: 100%; }
     .showcase { grid-template-columns: 1fr; }
-    h1 { font-size: 33px; }
+    h1 { font-size: 31px; }
   }
 </style>
 </head>
@@ -160,10 +183,10 @@
   <nav>
     <div class="logo">Confetti<span>•</span>Roll</div>
     <div class="links">
-      <a href="#pricing">Pricing</a>
-      <a href="/celebrations">Reunions &amp; birthdays</a>
-      <a href="/howto">How-to videos</a>
-      <a href="/partners">For planners &amp; venues</a>
+      <a href="#pricing" class="secondary">Pricing</a>
+      <a href="/celebrations" class="secondary">Reunions &amp; birthdays</a>
+      <a href="/howto" class="secondary">How-to videos</a>
+      <a href="/partners" class="secondary">For planners &amp; venues</a>
       <a href="/login">Sign in</a>
       <a class="cta" href="/signup">Get started</a>
     </div>
@@ -179,19 +202,10 @@
       <p class="subnote">Free while in beta · guests never install anything</p>
       <div class="demo-url">your-event.{{BASE}}</div>
     </div>
-    <div class="collage">
-      <div class="snap"><img loading="lazy" alt="Newlyweds holding hands"
-        src="https://images.unsplash.com/photo-1519741497674-611481863552?w=600&q=80"
-        onerror="this.outerHTML='<div class=ph></div>'"></div>
-      <div class="snap"><img loading="lazy" alt="Confetti thrown at a celebration"
-        src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&q=80"
-        onerror="this.outerHTML='<div class=ph></div>'"></div>
-      <div class="snap"><img loading="lazy" alt="Friends at a dinner party"
-        src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=600&q=80"
-        onerror="this.outerHTML='<div class=ph></div>'"></div>
-      <div class="snap"><img loading="lazy" alt="Birthday party with confetti"
-        src="https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=600&q=80"
-        onerror="this.outerHTML='<div class=ph></div>'"></div>
+    <div class="rotator" id="hero-rotator">
+      <img id="rot-a" src="/static/hero/wedding.jpg" alt="Event photo" class="show">
+      <img id="rot-b" src="/static/hero/birthday.jpg" alt="">
+      <div class="rot-label" id="rot-label">Weddings</div>
     </div>
   </div>
 
@@ -472,6 +486,29 @@
     c.style.width = c.style.height = 6 + Math.random() * 7 + "px";
     hero.appendChild(c);
   }
+</script>
+<script>
+  const HEROES = [
+    ["/static/hero/wedding.jpg", "Weddings"],
+    ["/static/hero/birthday.jpg", "Birthdays"],
+    ["/static/hero/graduation.jpg", "Graduations"],
+    ["/static/hero/corporate.jpg", "Corporate events"],
+    ["/static/hero/golf.jpg", "Golf tournaments"],
+    ["/static/hero/gala.jpg", "Black-tie galas"],
+  ];
+  HEROES.forEach(([src]) => { const i = new Image(); i.src = src; });
+  const rotA = document.getElementById("rot-a");
+  const rotB = document.getElementById("rot-b");
+  const rotLabel = document.getElementById("rot-label");
+  let heroIdx = 0, front = rotA, back = rotB;
+  setInterval(() => {
+    heroIdx = (heroIdx + 1) % HEROES.length;
+    back.src = HEROES[heroIdx][0];
+    back.classList.add("show");
+    front.classList.remove("show");
+    [front, back] = [back, front];
+    rotLabel.textContent = HEROES[heroIdx][1];
+  }, 3800);
 </script>
 </body>
 </html>
