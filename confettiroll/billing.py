@@ -82,13 +82,13 @@ PACKAGES = {
         "price_cents": 19900,
         "credits": 1,
         "kind": "event",
-        "tagline": "One flat set-up fee for the school — students order their own books",
+        "tagline": "One flat set-up fee for the school — families order the book directly",
         "features": [
-            "Tagged safety mode: personal student codes",
             "Staff-only uploads (your Vice Principal runs the camera)",
-            "Every student sees only their own photos",
-            "Personal keepsake book builder for each student",
-            "Students order printed books directly — no money through the school",
+            "No student codes — one shared password for students & families",
+            "Album revealed only when the keepsake book is ready",
+            "Optional name tags so everyone finds themselves",
+            "One school book — families order copies directly, no money through the school",
         ],
     },
     "gala": {
@@ -145,29 +145,6 @@ def book_tier_label(cover: str, pages: int) -> str:
         if pages <= limit:
             return f"up to {limit} pages"
     return f"up to {BOOK_PRICING[cover]['tiers'][-1][0]} pages"
-
-# White-label venue license, tiered by hosted event volume (monthly billing).
-VENUE_TIERS = {
-    "boutique": {
-        "name": "Boutique",
-        "monthly_cents": 9900,
-        "events_per_month": 2,
-        "blurb": "Up to 2 hosted events a month — intimate venues and tasting rooms",
-    },
-    "estate": {
-        "name": "Estate",
-        "monthly_cents": 19900,
-        "events_per_month": 6,
-        "blurb": "Up to 6 hosted events a month — busy wedding venues in season",
-    },
-    "grand": {
-        "name": "Grand",
-        "monthly_cents": 39900,
-        "events_per_month": None,  # unlimited
-        "blurb": "Unlimited events — resorts, golf clubs, and multi-room properties",
-    },
-}
-
 
 # Promo codes: code -> package granted free (one redemption per account).
 # Extend via CR_PROMO_CODES="code:package,code2:package2".

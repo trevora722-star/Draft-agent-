@@ -81,24 +81,6 @@
   }
   .bar .brand { font-size: 14px; color: var(--soft); margin-top: 4px; }
   .bar .brand img { height: 22px; vertical-align: middle; margin-right: 8px; border-radius: 3px; }
-  .join {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 14px;
-    padding: 10px 16px;
-  }
-  .join img { width: 84px; height: 84px; border-radius: 8px; background: #fff; padding: 4px; }
-  .join .how {
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 13.5px;
-    line-height: 1.5;
-    color: #e8e2d9;
-    max-width: 200px;
-  }
-  .join .how strong { color: #fff; letter-spacing: 1px; }
   .empty {
     position: absolute;
     inset: 0;
@@ -131,10 +113,6 @@
     <div>
       <div class="title">{{TITLE}}</div>
       <div class="brand" id="brand-line">{{BRAND_LINE}}</div>
-    </div>
-    <div class="join">
-      <img src="/stream-qr.png" alt="QR code to open this album" onerror="this.remove()">
-      <div class="how"><strong>SCAN TO ADD YOUR PHOTOS</strong><br>{{JOIN_URL}}</div>
     </div>
   </div>
 

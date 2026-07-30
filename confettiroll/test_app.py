@@ -99,7 +99,7 @@ def test_guest_flow_and_owner_admin(client, tmp_path):
     assert client.get(f"{EVENT}/", follow_redirects=False).status_code == 303
     res = client.post(f"{EVENT}/login", data={"password": "wrong"})
     assert "isn't right" in res.text
-    res = client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    res = client.post(f"{EVENT}/login", data={"password": "cake123", "email": "guest@example.com"}, follow_redirects=False)
     assert res.status_code == 303
 
     # guest uploads a photo and a video
@@ -144,7 +144,7 @@ def test_guest_session_is_scoped_to_its_event(client):
     _create_event(client, slug="smith-reunion", guest_password="beer456")
     client.cookies.clear()
 
-    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    client.post(f"{EVENT}/login", data={"password": "cake123", "email": "guest@example.com"}, follow_redirects=False)
     assert client.get(f"{EVENT}/api/photos").status_code == 200
     # the same cookie must not unlock a different event
     assert client.get("http://smith-reunion.confettiroll.test/api/photos").status_code == 401
@@ -157,7 +157,7 @@ def test_custom_domain_routing(client):
     client.cookies.clear()
     res = client.post(
         "http://photos.smithwedding.test/login",
-        data={"password": "fete789"},
+        data={"password": "fete789", "email": "guest@example.com"},
         follow_redirects=False,
     )
     assert res.status_code == 303
@@ -212,7 +212,7 @@ def test_ai_captioning_search_and_highlights(client, monkeypatch):
 
     _signup(client)
     _create_event(client)
-    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    client.post(f"{EVENT}/login", data={"password": "cake123", "email": "guest@example.com"}, follow_redirects=False)
     for name in ("cake.jpg", "dance.jpg"):
         client.post(f"{EVENT}/api/upload", files={"files": (name, _fake_jpeg(), "image/jpeg")})
 
@@ -278,124 +278,23 @@ def test_referral_qr_and_charity(client):
     assert "Local Food Bank" not in client.get(f"{BASE}/dashboard").text
 
 
-def _create_venue(client, slug="silver-oak", **overrides):
-    data = {"name": "Silver Oak Winery", "slug": slug,
-            "venue_type": "winery", "custom_domain": ""}
-    data.update(overrides)
-    return client.post(f"{BASE}/api/venues", data=data, follow_redirects=False)
-
-
-def test_venue_white_label_flow(client):
-    _signup(client)
-    assert _create_venue(client, custom_domain="photos.silveroak.test").status_code == 303
-    assert "brand studio" in client.get(f"{BASE}/dashboard").text
-
-    # only one venue per account; slug collisions blocked both ways
-    assert "error" in _create_venue(client, slug="other").headers["location"]
-    assert "already+taken" in _create_event(client, slug="silver-oak").headers["location"]
-
-    # upload a logo: accent auto-extracted from its dominant color
-    buf = io.BytesIO()
-    Image.new("RGB", (200, 200), color=(120, 30, 60)).save(buf, "PNG")
-    res = client.post(f"{BASE}/api/venues/" + _venue_id(client) + "/logo",
-                      files={"logo": ("logo.png", buf.getvalue(), "image/png")},
-                      follow_redirects=False)
-    assert res.status_code == 303
-
-    # upload two showcase photos
-    client.post(f"{BASE}/api/venues/" + _venue_id(client) + "/photos",
-                files=[("files", ("a.jpg", _fake_jpeg(), "image/jpeg")),
-                       ("files", ("b.jpg", _fake_jpeg(), "image/jpeg"))],
-                follow_redirects=False)
-
-    # save brand copy
-    client.post(f"{BASE}/api/venues/" + _venue_id(client) + "/brand",
-                data={"tagline": "Est. 1987 on the lake", "headline": "Welcome, friends",
-                      "about": "Our winery hosts weddings and galas.",
-                      "accent": "#336699", "custom_domain": "photos.silveroak.test"},
-                follow_redirects=False)
-
-    # the venue page answers on its subdomain AND its custom domain
-    for host in ("http://silver-oak.confettiroll.test", "http://photos.silveroak.test"):
-        page = client.get(f"{host}/")
-        assert page.status_code == 200
-        assert "Silver Oak Winery" in page.text
-        assert "Welcome, friends" in page.text
-        assert "#336699" in page.text
-        assert page.text.count("vsnap") >= 2  # showcase photos present
-
-    # venue assets are served
-    dashboard = client.get(f"{BASE}/dashboard").text
-    import re as _re
-    logo_url = _re.search(r'src="(/venue-assets/[0-9a-f]{32}/logo\.png)"', dashboard).group(1)
-    assert client.get(f"{BASE}{logo_url}").status_code == 200
-    assert client.get(f"{BASE}/venue-assets/{_venue_id(client)}/../secret").status_code == 404
-
-
-def test_venue_branded_event_gallery(client):
-    _signup(client)
-    _create_venue(client)
-    vid = _venue_id(client)
-    _create_event(client, slug="harvest-gala", venue_id=vid, guest_password="vino22")
-
-    # the venue page lists the event
-    vpage = client.get("http://silver-oak.confettiroll.test/").text
-    assert "Anna &amp; James&#x27;s Wedding" in vpage or "Anna" in vpage
-
-    # guest login page and gallery carry the venue branding
-    login = client.get("http://harvest-gala.confettiroll.test/login").text
-    assert "Hosted at" in login and "Silver Oak Winery" in login
-    client.post("http://harvest-gala.confettiroll.test/login",
-                data={"password": "vino22"}, follow_redirects=False)
-    gallery = client.get("http://harvest-gala.confettiroll.test/").text
-    assert "Hosted at" in gallery and "--accent:" in gallery
-
-
-def test_venue_ai_brand_kit(client, monkeypatch):
-    import app as app_module
-    monkeypatch.setattr(app_module.ai_agents, "ai_enabled", lambda: True)
-    monkeypatch.setattr(
-        app_module.ai_agents, "generate_brand_kit",
-        lambda name, vtype, notes, logo=None, **kw: {
-            "tagline": "Fairways and forever memories",
-            "headline": "Your day at Pebble Pines",
-            "about": "A golf course that hosts weddings.",
-            "accent": "#2f6e4f",
-        },
-    )
-    _signup(client)
-    _create_venue(client, slug="pebble-pines")
-    res = client.post(f"{BASE}/api/venues/{_venue_id(client)}/ai-brand",
-                      data={"notes": "links course, ocean views"})
-    assert res.status_code == 200
-    assert res.json()["accent"] == "#2f6e4f"
-    vpage = client.get("http://pebble-pines.confettiroll.test/").text
-    assert "Fairways and forever memories" in vpage and "#2f6e4f" in vpage
-
-
 def test_live_stream(client):
     _signup(client)
-    _create_venue(client)
-    _create_event(client, slug="stream-party", venue_id=_venue_id(client),
-                  guest_password="disco9")
+    _create_event(client, slug="stream-party", guest_password="disco9")
 
     # anonymous viewers are sent to the event login
     client.cookies.clear()
     res = client.get("http://stream-party.confettiroll.test/stream", follow_redirects=False)
     assert res.status_code == 303 and res.headers["location"] == "/login"
-    assert client.get("http://stream-party.confettiroll.test/stream-qr.png").status_code == 401
 
-    # a logged-in guest (or the venue's TV) gets the branded slideshow + QR
-    client.cookies.clear()
+    # a logged-in guest (or the TV) gets the slideshow - no QR overlay
     client.post("http://stream-party.confettiroll.test/login",
-                data={"password": "disco9"}, follow_redirects=False)
+                data={"password": "disco9", "email": "tv@example.com"},
+                follow_redirects=False)
     page = client.get("http://stream-party.confettiroll.test/stream")
     assert page.status_code == 200
-    assert "SCAN TO ADD YOUR PHOTOS" in page.text
-    assert "Hosted at Silver Oak Winery" in page.text
-    assert "--accent:" in page.text  # venue accent applied
-    qr = client.get("http://stream-party.confettiroll.test/stream-qr.png")
-    assert qr.status_code == 200 and qr.headers["content-type"] == "image/png"
+    assert "SCAN TO ADD YOUR PHOTOS" not in page.text
+    assert "stream-qr" not in page.text
 
     # /stream on the main site just goes home
     assert client.get(f"{BASE}/stream", follow_redirects=False).status_code == 303
@@ -435,7 +334,7 @@ def test_keepsake_book(client, monkeypatch, tmp_path):
     assert client.get(f"{EVENT}/book.pdf").status_code == 401
 
     # gallery API advertises the book once it exists
-    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    client.post(f"{EVENT}/login", data={"password": "cake123", "email": "guest@example.com"}, follow_redirects=False)
     assert client.get(f"{EVENT}/api/photos").json()["book"] is True
 
     # an event with no photos can't make a book
@@ -448,49 +347,6 @@ def test_keepsake_book(client, monkeypatch, tmp_path):
     ids = _re.findall(r'data-event="([0-9a-f]{32})"', client.get(f"{BASE}/dashboard").text)
     other = [i for i in ids if i != event_id][0]
     assert client.post(f"{BASE}/api/events/{other}/book").status_code == 400
-
-
-def test_kiosk_booth_agent(client, monkeypatch):
-    import app as app_module
-
-    # locked until the device is unlocked with the key
-    assert client.get(f"{BASE}/kiosk", follow_redirects=False).status_code == 403
-    assert client.post(f"{BASE}/api/kiosk/chat", json={"messages": []}).status_code == 403
-
-    res = client.get(f"{BASE}/kiosk", params={"key": "expo-key-1"})
-    assert res.status_code == 200
-    assert "Meet Callie" in res.text          # the avatar host
-    assert 'id="avatar"' in res.text          # animated SVG face
-    assert 'id="tts-toggle"' in res.text      # voice on/off
-    assert client.get(f"{BASE}/kiosk-qr.png").status_code == 200
-
-    # the booth agent replies and saves leads via its tool
-    monkeypatch.setattr(app_module.ai_agents, "ai_enabled", lambda: True)
-
-    def fake_booth_reply(history, save_lead):
-        if "planner" in history[-1]["content"]:
-            save_lead("Pat Planner", "pat@events.com", "planner", "referral program")
-            return "Saved! The team will reach out about your 20% partner link."
-        return "Welcome to the booth!"
-
-    monkeypatch.setattr(app_module.ai_agents, "booth_reply", fake_booth_reply)
-
-    res = client.post(f"{BASE}/api/kiosk/chat",
-                      json={"messages": [{"role": "user", "content": "hi"}]})
-    assert res.json()["reply"] == "Welcome to the booth!"
-
-    res = client.post(f"{BASE}/api/kiosk/chat",
-                      json={"messages": [{"role": "user", "content": "I'm a planner"}]})
-    assert "20%" in res.json()["reply"]
-
-    # the lead landed and exports as CSV (with the key, not just the cookie)
-    csv = client.get(f"{BASE}/kiosk/leads.csv", params={"key": "expo-key-1"})
-    assert csv.status_code == 200
-    assert "pat@events.com" in csv.text and "planner" in csv.text
-    assert client.get(f"{BASE}/kiosk/leads.csv").status_code == 403
-
-    # malformed chat bodies are rejected
-    assert client.post(f"{BASE}/api/kiosk/chat", json={"messages": "hi"}).status_code == 400
 
 
 def test_outreach_engine(client, monkeypatch):
@@ -536,15 +392,13 @@ def test_packages_and_landing(client):
     data = client.get(f"{BASE}/api/packages").json()
     assert data["packages"]["celebration"]["price"] == "$49"
     assert data["packages"]["wholesale10"]["kind"] == "wholesale"
-    assert data["venue_tiers"]["estate"]["monthly"] == "$199"
     assert data["stripe"] is False
 
     assert data["packages"]["gala"]["price"] == "$499"
 
     landing = client.get(f"{BASE}/").text
     for expected in ("Celebration", "Heirloom", "$49", "$99", "$245",
-                     "Boutique", "Estate", "Grand", "$199", "$399",
-                     "Most popular", "Founding beta",
+                     "$199", "Most popular", "Founding beta",
                      "Gala Evening package", "$499", "Executive Edition",
                      "Request\n        a custom quote"):
         assert expected in landing
@@ -594,12 +448,6 @@ def test_checkout_and_webhook(client, monkeypatch):
     assert "Event credits: <strong>10</strong>" in dashboard
 
 
-def _venue_id(client):
-    import re as _re
-    dashboard = client.get(f"{BASE}/dashboard").text
-    return _re.search(r"/api/venues/([0-9a-f]{32})/", dashboard).group(1)
-
-
 def test_qr_code_owner_only(client):
     _signup(client)
     _create_event(client)
@@ -617,9 +465,8 @@ PROM = "http://grad-gala.confettiroll.test"
 
 
 def test_prom_tagged_event_flow(client):
-    """Prom / grad-night mode: personal codes, tag-gated visibility, picks,
-    and per-student keepsake books."""
-    import csv as _csv
+    """Prom mode: staff-only uploads with a private code, optional name
+    tags, the album sealed until the school's one keepsake book is ready."""
     import re as _re
 
     _signup(client)
@@ -627,47 +474,29 @@ def test_prom_tagged_event_flow(client):
                   event_type="prom")
 
     dashboard = client.get(f"{BASE}/dashboard").text
-    assert "Tagged event" in dashboard
+    assert "Prom mode" in dashboard
     event_id = _re.search(r"/api/events/([0-9a-f]{32})/members", dashboard).group(1)
+    staff_code = _re.search(r"upload code\s+<code>([a-z0-9]{6})</code>", dashboard).group(1)
+    assert staff_code != "cake123"
 
-    # school loads the roster; each student gets a personal code
+    # optional roster of names for tagging - no codes involved
     client.post(f"{BASE}/api/events/{event_id}/members",
                 data={"names": "Ava Martin\nNoah Chen\n\n"}, follow_redirects=False)
-    rows = list(_csv.reader(io.StringIO(
-        client.get(f"{BASE}/api/events/{event_id}/members.csv").text)))
-    assert rows[0] == ["name", "email", "access code", "personal link", "gallery"]
-    codes = {name: code for name, _, code, _, _ in rows[1:]}
-    assert set(codes) == {"Ava Martin", "Noah Chen"}
 
-    # the host uploads a group shot (untagged for now)
-    res = client.post(
-        f"{PROM}/api/upload",
-        files=[("files", ("group.jpg", _fake_jpeg(), "image/jpeg"))],
-        data={"uploader": "Chaperone"},
-    )
-    group_photo = res.json()["saved"][0]["id"]
-
-    # a wrong code is rejected outright
+    # the Vice Principal signs in with the staff code (no email needed)
     client.cookies.clear()
-    res = client.post(f"{PROM}/login", data={"password": "not-a-code"})
-    assert "isn't right" in res.text
-
-    # the event password is the STAFF upload code — the Vice Principal signs
-    # in with it and can upload and tag, but is not an admin
-    res = client.post(f"{PROM}/login", data={"password": "cake123"},
+    res = client.post(f"{PROM}/login", data={"password": staff_code},
                       follow_redirects=False)
     assert res.status_code == 303
     staff_listing = client.get(f"{PROM}/api/photos").json()
-    assert staff_listing["is_staff"] is True
-    assert staff_listing["is_admin"] is False
-    assert len(staff_listing["photos"]) == 1  # sees everything uploaded so far
+    assert staff_listing["is_staff"] is True and staff_listing["is_admin"] is False
     res = client.post(
         f"{PROM}/api/upload",
         files=[("files", ("ava.jpg", _fake_jpeg(), "image/jpeg"))],
         data={"uploader": "Vice Principal"},
     )
     ava_photo = res.json()["saved"][0]["id"]
-    # staff tags Ava in the shot they just took, but cannot delete anything
+    # staff tags Ava by name, but cannot delete anything
     ava_id = next(m["id"] for m in staff_listing["members"]
                   if m["name"] == "Ava Martin")
     res = client.post(f"{PROM}/api/photos/{ava_photo}/tags",
@@ -675,64 +504,50 @@ def test_prom_tagged_event_flow(client):
     assert res.status_code == 200 and res.json()["tagged"] == [ava_id]
     assert client.delete(f"{PROM}/api/photos/{ava_photo}").status_code == 403
 
-    # Ava signs in with her personal code and sees only her tagged photo
+    # a wrong password is rejected; the right one needs an email
     client.cookies.clear()
-    res = client.post(f"{PROM}/login", data={"password": codes["Ava Martin"]},
+    assert "isn't right" in client.post(f"{PROM}/login",
+                                        data={"password": "not-right"}).text
+    assert "add your email" in client.post(f"{PROM}/login",
+                                           data={"password": "cake123"}).text
+
+    # a student signs in with the shared password - album still sealed
+    res = client.post(f"{PROM}/login",
+                      data={"password": "cake123", "email": "ava@example.com"},
                       follow_redirects=False)
     assert res.status_code == 303
     listing = client.get(f"{PROM}/api/photos").json()
-    assert [p["id"] for p in listing["photos"]] == [ava_photo]
-    assert listing["member_name"] == "Ava Martin"
-    assert listing["mode"] == "prom"
-
-    # students can't upload — photos come from staff only
+    assert listing["photos"] == [] and listing["book_pending"] is True
+    assert client.get(f"{PROM}/photos/{ava_photo}").status_code == 404
+    assert client.get(f"{PROM}/thumbs/{ava_photo}").status_code == 404
+    assert client.get(f"{PROM}/book.pdf").status_code == 404
+    # students can't upload, can't build personal books
     res = client.post(f"{PROM}/api/upload",
                       files=[("files", ("selfie.jpg", _fake_jpeg(), "image/jpeg"))])
     assert res.status_code == 403
+    assert client.post(f"{PROM}/api/my-book").status_code == 404
 
-    # the untagged group shot is invisible AND unreachable to her
-    assert client.get(f"{PROM}/photos/{group_photo}").status_code == 404
-    assert client.get(f"{PROM}/thumbs/{group_photo}").status_code == 404
-    # the big screen and the all-photos event book stay with the host
-    assert client.get(f"{PROM}/stream", follow_redirects=False).status_code == 303
-    assert client.get(f"{PROM}/book.pdf").status_code == 404
-
-    # she picks her photo and builds her personal keepsake book
-    assert client.post(f"{PROM}/api/photos/{ava_photo}/pick").json()["picked"] is True
-    res = client.post(f"{PROM}/api/my-book")
-    assert res.status_code == 200 and res.json()["pages"] == 1
-    book = client.get(f"{PROM}/my-book.pdf")
-    assert book.status_code == 200
-    assert book.headers["content-type"] == "application/pdf"
-
-    # Noah can't see or pick Ava's photo
-    client.cookies.clear()
-    client.post(f"{PROM}/login", data={"password": codes["Noah Chen"]},
-                follow_redirects=False)
-    assert client.get(f"{PROM}/api/photos").json()["photos"] == []
-    assert client.get(f"{PROM}/photos/{ava_photo}").status_code == 404
-    assert client.post(f"{PROM}/api/photos/{ava_photo}/pick").status_code == 404
-
-    # the host tags the group shot to both students
-    client.cookies.clear()
+    # the school closes the album and builds the one keepsake book
     client.post(f"{BASE}/login",
                 data={"email": "host@example.com", "password": "hunter2hunter2"},
                 follow_redirects=False)
-    admin_listing = client.get(f"{PROM}/api/photos").json()
-    assert admin_listing["is_admin"] is True
-    assert len(admin_listing["photos"]) == 2  # host sees everything
-    member_ids = ",".join(str(m["id"]) for m in admin_listing["members"])
-    res = client.post(f"{PROM}/api/photos/{group_photo}/tags",
-                      data={"members": member_ids})
-    assert res.status_code == 200 and len(res.json()["tagged"]) == 2
-
-    # now Noah sees exactly the group shot
-    client.cookies.clear()
-    client.post(f"{PROM}/login", data={"password": codes["Noah Chen"]},
+    client.post(f"{BASE}/api/events/{event_id}/lock", data={"locked": "1"},
                 follow_redirects=False)
-    noah_listing = client.get(f"{PROM}/api/photos").json()
-    assert [p["id"] for p in noah_listing["photos"]] == [group_photo]
-    assert client.get(f"{PROM}/photos/{group_photo}").status_code == 200
+    res = client.post(f"{BASE}/api/events/{event_id}/book")
+    assert res.status_code == 200 and res.json()["pages"] >= 1
+
+    # now the student sees every photo and can order the book
+    client.cookies.clear()
+    client.post(f"{PROM}/login",
+                data={"password": "cake123", "email": "ava@example.com"},
+                follow_redirects=False)
+    listing = client.get(f"{PROM}/api/photos").json()
+    assert [p["id"] for p in listing["photos"]] == [ava_photo]
+    assert listing["book"] is True
+    assert client.get(f"{PROM}/photos/{ava_photo}").status_code == 200
+    assert client.get(f"{PROM}/book.pdf").status_code == 200
+    quote = client.get(f"{PROM}/api/book-quote").json()
+    assert quote["pages"] >= 1 and "softcover" in quote["covers"]
 
 
 def test_google_signin_flow(client, monkeypatch):
@@ -893,7 +708,7 @@ def test_guest_book_order(client, monkeypatch):
     client.post(f"{BASE}/api/events", data={
         "title": "x", "slug": "x-e", "guest_password": "cake123"})
     client.cookies.clear()
-    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    client.post(f"{EVENT}/login", data={"password": "cake123", "email": "guest@example.com"}, follow_redirects=False)
 
     # the quote prices both covers by page count
     client.post(f"{EVENT}/api/upload",
@@ -1021,7 +836,7 @@ def test_photo_editing(client):
 
     # guests can't edit
     client.cookies.clear()
-    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    client.post(f"{EVENT}/login", data={"password": "cake123", "email": "guest@example.com"}, follow_redirects=False)
     assert client.post(f"{EVENT}/api/photos/{photo_id}/edit",
                        data={"op": "enhance"}).status_code == 403
 
@@ -1038,7 +853,7 @@ def test_book_picks_after_close(client, tmp_path):
 
     # before the album closes, guests can't pick for the book
     client.cookies.clear()
-    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    client.post(f"{EVENT}/login", data={"password": "cake123", "email": "guest@example.com"}, follow_redirects=False)
     res = client.post(f"{EVENT}/api/photos/{ids[0]}/book-pick", data={"voter": "guest-aaa-111"})
     assert res.status_code == 400
 
@@ -1053,7 +868,7 @@ def test_book_picks_after_close(client, tmp_path):
 
     # now the guest stars two photos into the book
     client.cookies.clear()
-    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    client.post(f"{EVENT}/login", data={"password": "cake123", "email": "guest@example.com"}, follow_redirects=False)
     assert client.post(f"{EVENT}/api/photos/{ids[0]}/book-pick",
                        data={"voter": "guest-aaa-111"}).json()["picked"] is True
     assert client.post(f"{EVENT}/api/photos/{ids[1]}/book-pick",
@@ -1178,7 +993,7 @@ def test_host_set_guest_upload_limit(client):
 
     # a guest device gets exactly 2 photos through
     client.cookies.clear()
-    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    client.post(f"{EVENT}/login", data={"password": "cake123", "email": "guest@example.com"}, follow_redirects=False)
     res = client.post(
         f"{EVENT}/api/upload",
         files=[("files", (f"g{i}.jpg", _fake_jpeg(), "image/jpeg")) for i in range(3)],
@@ -1219,7 +1034,7 @@ def test_host_set_guest_upload_limit(client):
     client.post(f"{BASE}/api/events/{event_id}/settings",
                 data={"guest_upload_limit": "0"}, follow_redirects=False)
     client.cookies.clear()
-    client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
+    client.post(f"{EVENT}/login", data={"password": "cake123", "email": "guest@example.com"}, follow_redirects=False)
     res = client.post(
         f"{EVENT}/api/upload",
         files=[("files", ("free.jpg", _fake_jpeg(), "image/jpeg"))],
@@ -1255,7 +1070,7 @@ def test_gala_table_host_flow(client):
 
     # an attendee with the shared password can view but not upload
     client.cookies.clear()
-    res = client.post(f"{GALA}/login", data={"password": "orsay25"},
+    res = client.post(f"{GALA}/login", data={"password": "orsay25", "email": "guest@example.com"},
                       follow_redirects=False)
     assert res.status_code == 303
     assert client.get(f"{GALA}/api/photos").status_code == 200
@@ -1290,7 +1105,7 @@ def test_gala_table_host_flow(client):
 
     # the attendee sees the host's photo too (whole-album visibility)
     client.cookies.clear()
-    client.post(f"{GALA}/login", data={"password": "orsay25"}, follow_redirects=False)
+    client.post(f"{GALA}/login", data={"password": "orsay25", "email": "guest@example.com"}, follow_redirects=False)
     listing = client.get(f"{GALA}/api/photos").json()
     assert len(listing["photos"]) == 1
     assert client.get(f"{GALA}/photos/{photo_id}").status_code == 200

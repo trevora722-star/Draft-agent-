@@ -118,7 +118,7 @@
             <label for="event_type">Event type</label>
             <select id="event_type" name="event_type" style="width:100%; padding:11px 12px; font-size:15px; border:1px solid var(--line); border-radius:8px; background:#fdfcfa; font-family:inherit">
               <option value="party">Wedding / party — shared password</option>
-              <option value="prom">🎓 Prom / grad night — personal student codes</option>
+              <option value="prom">🎓 Prom / grad night — staff uploads, sealed album</option>
               <option value="gala">🥂 Private event / gala — table hosts upload</option>
             </select>
             <div class="hint" id="type-hint">Guests share one password for the album.</div>
@@ -139,7 +139,7 @@
             <label for="custom_domain">Custom domain <span style="text-transform:none">(optional)</span></label>
             <input id="custom_domain" name="custom_domain" placeholder="photos.yourdomain.com">
             <div class="hint">Point a CNAME at us — see the help note below.</div>
-          </div>{{VENUE_SELECT}}
+          </div>
         </div>
         <button class="create" type="submit">Create event</button>
         {{ERROR}}
@@ -169,7 +169,7 @@
       </div>
     </div>
 
-    {{VENUE_PANEL}}
+    
 
     <div class="panel" style="margin-top:30px">
       <h2>Refer &amp; earn — for wedding &amp; event planners</h2>
@@ -229,13 +229,13 @@
     document.getElementById("hosts-row").hidden = kind !== "gala";
     document.getElementById("type-hint").textContent =
       kind === "prom"
-        ? "Each student gets their own access code — add the class roster after creating the event. Photos are uploaded by your designated staff member only, tagged to students, and everyone only sees their own."
+        ? "Photos are uploaded by your designated staff member only (you'll get a separate upload code). Students & families share one password, and the album is revealed once the keepsake book is ready. Add student names later to tag photos — no student codes needed."
       : kind === "gala"
-        ? "Guests view the album with the shared password. Only table hosts can add photos — add them after creating the event; each gets a personal host code and their photos are credited to their table."
+        ? "Guests view the album with the shared password. Only table hosts can add photos — tell us how many tables and we'll email every host their own access link."
         : "Guests share one password for the album.";
     document.getElementById("pw-hint").textContent =
       kind === "prom"
-        ? "This becomes the staff upload code — give it to the Vice Principal (or whoever runs the camera). Students use personal codes instead."
+        ? "The viewing password for students & families. A separate staff upload code is generated for the Vice Principal (or whoever runs the camera)."
       : kind === "gala"
         ? "The viewing password for all attendees — print it on the programme. Table hosts get their own upload codes."
         : "Share this with your guests.";
@@ -250,25 +250,6 @@
   document.getElementById("copy-ref")?.addEventListener("click", () => {
     navigator.clipboard.writeText(document.getElementById("ref-link").textContent)
       .then(() => { document.getElementById("copy-ref").textContent = "Copied!"; });
-  });
-
-  document.getElementById("ai-brand-btn")?.addEventListener("click", async () => {
-    const btn = document.getElementById("ai-brand-btn");
-    const status = document.getElementById("ai-brand-status");
-    status.textContent = "The brand agent is studying your logo and writing your kit…";
-    btn.disabled = true;
-    try {
-      const form = new FormData();
-      form.append("notes", document.getElementById("ai-notes").value.trim());
-      const res = await fetch(`/api/venues/${btn.dataset.venue}/ai-brand`, { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) { status.textContent = data.error || "Couldn't generate a kit."; btn.disabled = false; return; }
-      status.textContent = "Done! Applying your new brand…";
-      location.reload();
-    } catch {
-      status.textContent = "Couldn't generate a kit right now.";
-      btn.disabled = false;
-    }
   });
 
   document.querySelectorAll(".buy-btn").forEach(btn => {

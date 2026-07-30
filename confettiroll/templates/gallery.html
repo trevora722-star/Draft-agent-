@@ -431,7 +431,7 @@
         del.addEventListener("click", e => { e.stopPropagation(); deletePhoto(p); });
         tile.appendChild(del);
       }
-      if ((isProm || isGala) && memberName) {
+      if (isGala && memberName) {
         const pick = document.createElement("button");
         pick.className = "pick" + (picked.has(p.id) ? " on" : "");
         pick.textContent = picked.has(p.id) ? "★" : "☆";
@@ -541,10 +541,10 @@
     members = data.members || [];
     document.getElementById("ai-toolbar").hidden = !data.ai_enabled;
     isGala = data.mode === "gala";
-    document.getElementById("book-link").hidden = !data.book || (isProm && !isAdmin);
-    document.getElementById("mybook-btn").hidden = !((isProm || isGala) && memberName);
+    document.getElementById("book-link").hidden = !data.book;
+    document.getElementById("mybook-btn").hidden = !(isGala && memberName);
     document.getElementById("card-link").hidden = !(isGala && memberName);
-    document.getElementById("stream-link").hidden = isProm && !isAdmin;
+    document.getElementById("stream-link").hidden = isProm && !isAdmin && !isStaff;
     // Private events & galas: guests watch, table hosts hold the camera.
     if (isGala) {
       if (memberName) {
@@ -558,19 +558,22 @@
           "Tonight's photos are captured by the table hosts — sit back and watch the album grow. ✨";
       }
     }
-    // On tagged events only staff upload — students view, pick, and print.
-    const memberView = isProm && !!memberName;
+    // On tagged events only staff upload — students & families view and order.
+    const promViewer = isProm && !isAdmin && !isStaff;
     const galaViewer = isGala && !memberName && !isAdmin && !isStaff;
     const locked = !!data.locked;
     isLocked = locked;
     bookPicks = data.book_picks || {};
     myBookPicks = new Set(data.my_book_picks || []);
-    document.getElementById("upload-btn").hidden = memberView || galaViewer || (locked && !isAdmin);
-    nameInput.hidden = memberView || galaViewer || (locked && !isAdmin);
-    // Members order via their personal book flow; guests/hosts via the event book.
-    document.getElementById("order-book").hidden = !data.book || memberView;
+    document.getElementById("upload-btn").hidden = promViewer || galaViewer || (locked && !isAdmin);
+    nameInput.hidden = promViewer || galaViewer || (locked && !isAdmin);
+    document.getElementById("order-book").hidden = !data.book;
+    if (data.book_pending) {
+      document.querySelector(".sub").textContent =
+        "The keepsake book is being prepared — the album opens here the moment it's ready to order. ✨";
+    }
     // Host-set per-guest photo allowance
-    if (data.upload_limit && !isAdmin && !isStaff && !memberView) {
+    if (data.upload_limit && !isAdmin && !isStaff && !promViewer) {
       const left = Math.max(0, data.upload_limit - (data.my_upload_count || 0));
       if (left <= 0) {
         document.getElementById("upload-btn").hidden = true;
@@ -590,16 +593,16 @@
     } else if (isAdmin && trial.paid === false) {
       setTimeout(() => setStatus("Free week: " + trial.days_left + " day" + (trial.days_left === 1 ? "" : "s") + " left — unlock from your dashboard to keep this album forever."), 300);
     }
-    if (locked && !isAdmin && !memberView) {
+    if (locked && !isAdmin && !promViewer) {
       document.querySelector(".sub").textContent =
         "The host has closed the album — tap ☆ on your favourites to vote them into the keepsake book. ✨";
     } else if (locked && isAdmin) {
       document.querySelector(".sub").textContent =
         "Album closed — guests are picking their favourites (☆ counts show the votes). The book builds from the starred set.";
     }
-    if (memberView) {
+    if (promViewer && data.book) {
       document.querySelector(".sub").textContent =
-        `Welcome, ${memberName} — these are your photos from the night. Tap ☆ to pick the ones for your keepsake book.`;
+        "The keepsake book is ready! Browse every photo from the night and order your copy below. 📖";
     } else if (isProm && isStaff) {
       document.querySelector(".sub").textContent =
         "Staff view — upload the night's photos and tag the students in each shot so it appears in their personal gallery.";
