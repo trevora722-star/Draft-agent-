@@ -690,7 +690,6 @@ def create_app() -> FastAPI:
             p_celebration=billing.price_label("celebration"),
             p_heirloom=billing.price_label("heirloom"),
             p_pack=billing.price_label("wholesale10"),
-            p_book=billing.price_label("printed_book"),
             p_prom=billing.price_label("prom"),
             p_venue_boutique=f"${billing.VENUE_TIERS['boutique']['monthly_cents'] // 100}",
             p_venue_estate=f"${billing.VENUE_TIERS['estate']['monthly_cents'] // 100}",
@@ -1713,11 +1712,12 @@ def create_app() -> FastAPI:
             meta = session.get("metadata") or {}
             package_key = meta.get("package", "")
             package = billing.PACKAGES.get(package_key)
+            is_book = package_key.startswith("book_")
             try:
                 user_id = int(meta.get("user_id", "0"))
             except ValueError:
                 user_id = 0
-            if package and user_id:
+            if (package or is_book) and user_id:
                 with db() as conn:
                     already = conn.execute(
                         "SELECT 1 FROM purchases WHERE stripe_session = ?",
@@ -1728,12 +1728,13 @@ def create_app() -> FastAPI:
                             "INSERT INTO purchases (user_id, package, amount_cents,"
                             " stripe_session, event_id, created_at) VALUES (?,?,?,?,?,?)",
                             (user_id, package_key,
-                             session.get("amount_total") or package["price_cents"],
+                             session.get("amount_total")
+                             or (package["price_cents"] if package else 0),
                              session.get("id", ""), meta.get("event_id", ""),
                              int(time.time())),
                         )
                         target_event = meta.get("event_id", "")
-                        grant = package["credits"]
+                        grant = package["credits"] if package else 0
                         if target_event and grant:
                             # buying for a specific event: unlock it directly,
                             # one credit is consumed by that unlock
@@ -2028,15 +2029,15 @@ def create_app() -> FastAPI:
 
     def book_announcement(event: sqlite3.Row, host_name: str, name: str) -> tuple[str, str]:
         greeting = name.split(" ")[0] if name else "there"
-        price = billing.price_label("printed_book")
+        price = "from $39"
         subject = f"The keepsake book from {event['title']} is ready 📖"
         body = (
             f"Hi {greeting},\n\n"
             f"The keepsake book from {event['title']} is ready!\n\n"
             f"See the finished album and download the book (the PDF is free):\n"
             f"{event_url(event)}\n\n"
-            f"Want it on your coffee table? Order the printed 8×8\" hardcover "
-            f"({price}, shipped) right from the album - look for the "
+            f"Want it on your coffee table? Order the printed 8×8\" book "
+            f"({price}, softcover or hardcover, shipped) right from the album - look for the "
             f"\U0001f6d2 Order printed book button. Pick as many copies as you "
             f"like at checkout - they all ship together to one address. "
             f"Sending books somewhere else too? Just place another order.\n\n"
@@ -2191,8 +2192,67 @@ def create_app() -> FastAPI:
         (dirs["meta"] / f"{photo_id}.json").write_text(json.dumps(meta))
         return meta
 
+    def _book_page_count(event: sqlite3.Row) -> int:
+        """How many photo pages the event's book has (mirrors make_book)."""
+        dirs = event_dirs(data_dir, event["id"])
+        photos = []
+        for meta_file in dirs["meta"].glob("*.json"):
+            meta = _read_meta(dirs, meta_file.stem)
+            if meta is not None and meta.get("type") != "video":
+                photos.append(meta)
+        with db() as conn:
+            picked = {
+                row["photo_id"] for row in conn.execute(
+                    "SELECT DISTINCT photo_id FROM book_picks WHERE event_id = ?",
+                    (event["id"],),
+                )
+            }
+        if picked:
+            chosen = [p for p in photos if p["id"] in picked]
+            if chosen:
+                photos = chosen
+        return min(len(photos), book_maker.MAX_PHOTOS)
+
+    def _heirloom_discount(event: sqlite3.Row) -> bool:
+        """Heirloom buyers get 50% off the FIRST printed book for the event."""
+        with db() as conn:
+            has_heirloom = conn.execute(
+                "SELECT 1 FROM purchases WHERE user_id = ? AND package = 'heirloom'",
+                (event["owner_id"],),
+            ).fetchone()
+            if has_heirloom is None:
+                return False
+            prior_book = conn.execute(
+                "SELECT 1 FROM purchases WHERE event_id = ? AND package LIKE 'book_%'",
+                (event["id"],),
+            ).fetchone()
+        return prior_book is None
+
+    @app.get("/api/book-quote")
+    def book_quote(request: Request):
+        """Price the printed book for this album: cover options, page tier,
+        and any Heirloom first-book discount."""
+        event = resolve_event(request)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if gallery_role(request, event) is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        pages = _book_page_count(event)
+        discount = _heirloom_discount(event)
+        covers = {}
+        for key, spec in billing.BOOK_PRICING.items():
+            cents = billing.book_price_cents(key, pages)
+            covers[key] = {
+                "name": spec["name"],
+                "blurb": spec["blurb"],
+                "tier": billing.book_tier_label(key, pages),
+                "price_cents": cents,
+                "final_cents": cents // 2 if discount else cents,
+            }
+        return {"pages": pages, "discount": discount, "covers": covers}
+
     @app.post("/api/book-order")
-    def book_order(request: Request):
+    def book_order(request: Request, cover: str = Form(...)):
         """Anyone in the album (guest, student, host) orders the printed book."""
         event = resolve_event(request)
         if event is None:
@@ -2200,15 +2260,21 @@ def create_app() -> FastAPI:
         role = gallery_role(request, event)
         if role is None:
             return JSONResponse({"error": "not logged in"}, status_code=401)
+        if cover not in billing.BOOK_PRICING:
+            return JSONResponse({"error": "pick softcover or hardcover"}, status_code=400)
         if not billing.stripe_enabled():
             return {
                 "beta": True,
                 "message": "Printed book ordering opens soon - the PDF is free to download today.",
             }
+        pages = _book_page_count(event)
+        price = billing.book_price_cents(cover, pages)
+        if _heirloom_discount(event):
+            price //= 2
         try:
-            url = billing.create_checkout(
-                "printed_book", event["owner_id"],
-                f"https://{base_domain}", event_id=event["id"],
+            url = billing.create_book_checkout(
+                cover, pages, price, event["owner_id"],
+                f"https://{base_domain}", event["id"],
                 success_url=f"{event_url(event)}/?ordered=1",
                 cancel_url=f"{event_url(event)}/",
             )

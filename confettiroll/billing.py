@@ -58,7 +58,7 @@ PACKAGES = {
         "tagline": "The full legacy package",
         "features": [
             "Everything in Celebration",
-            "A printed keepsake book included",
+            "50% off your first printed book",
             "Your own custom domain",
             "24-month gallery life",
             "Priority support",
@@ -91,15 +91,37 @@ PACKAGES = {
             "Students order printed books directly — no money through the school",
         ],
     },
-    "printed_book": {
-        "name": "Printed Keepsake Book",
-        "price_cents": 5900,
-        "credits": 0,
-        "kind": "book",
-        "tagline": "8×8\" hardcover of the whole album, shipped",
-        "features": [],
+}
+
+# Printed keepsake books: priced by cover type and page count (8×8",
+# shipping included). Heirloom buyers get 50% off their first book.
+BOOK_PRICING = {
+    "softcover": {
+        "name": "Softcover",
+        "blurb": "Flexible matte cover, premium satin pages",
+        "tiers": [(40, 3900), (80, 4900), (150, 5900)],
+    },
+    "hardcover": {
+        "name": "Hardcover",
+        "blurb": "Rigid wrap cover, thick archival pages - the heirloom",
+        "tiers": [(40, 5900), (80, 7900), (150, 9900)],
     },
 }
+
+
+def book_price_cents(cover: str, pages: int) -> int:
+    tiers = BOOK_PRICING[cover]["tiers"]
+    for limit, cents in tiers:
+        if pages <= limit:
+            return cents
+    return tiers[-1][1]
+
+
+def book_tier_label(cover: str, pages: int) -> str:
+    for limit, _ in BOOK_PRICING[cover]["tiers"]:
+        if pages <= limit:
+            return f"up to {limit} pages"
+    return f"up to {BOOK_PRICING[cover]['tiers'][-1][0]} pages"
 
 # White-label venue license, tiered by hosted event volume (monthly billing).
 VENUE_TIERS = {
@@ -158,11 +180,6 @@ def create_checkout(package_key: str, user_id: int, base_url: str,
     """
     package = PACKAGES[package_key]
     stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
-    extra = {}
-    if package["kind"] == "book":
-        extra["shipping_address_collection"] = {
-            "allowed_countries": ["US", "CA", "GB", "IE", "AU", "NZ"],
-        }
     session = stripe.checkout.Session.create(
         mode="payment",
         line_items=[{
@@ -172,7 +189,6 @@ def create_checkout(package_key: str, user_id: int, base_url: str,
                 "unit_amount": package["price_cents"],
             },
             "quantity": 1,
-            "adjustable_quantity": {"enabled": True, "minimum": 1, "maximum": 20},
         }],
         success_url=success_url or f"{base_url}/dashboard?paid=1",
         cancel_url=cancel_url or f"{base_url}/dashboard",
@@ -181,7 +197,40 @@ def create_checkout(package_key: str, user_id: int, base_url: str,
             "package": package_key,
             "event_id": event_id,
         },
-        **extra,
+    )
+    return session.url
+
+
+def create_book_checkout(cover: str, pages: int, price_cents: int, user_id: int,
+                         base_url: str, event_id: str,
+                         success_url: str | None = None,
+                         cancel_url: str | None = None) -> str:
+    """Checkout for a printed book: buyer picks 1-20 copies, all shipped to
+    the one address this order collects (another address = another order)."""
+    stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
+    name = (f"Printed Keepsake Book — {BOOK_PRICING[cover]['name']}, "
+            f"{book_tier_label(cover, pages)}")
+    session = stripe.checkout.Session.create(
+        mode="payment",
+        line_items=[{
+            "price_data": {
+                "currency": "usd",
+                "product_data": {"name": f"ConfettiRoll — {name}"},
+                "unit_amount": price_cents,
+            },
+            "quantity": 1,
+            "adjustable_quantity": {"enabled": True, "minimum": 1, "maximum": 20},
+        }],
+        shipping_address_collection={
+            "allowed_countries": ["US", "CA", "GB", "IE", "AU", "NZ"],
+        },
+        success_url=success_url or f"{base_url}/dashboard?paid=1",
+        cancel_url=cancel_url or f"{base_url}/dashboard",
+        metadata={
+            "user_id": str(user_id),
+            "package": f"book_{cover}",
+            "event_id": event_id,
+        },
     )
     return session.url
 

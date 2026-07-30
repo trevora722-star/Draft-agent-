@@ -882,26 +882,72 @@ def test_guest_book_order(client, monkeypatch):
     client.cookies.clear()
     client.post(f"{EVENT}/login", data={"password": "cake123"}, follow_redirects=False)
 
-    # beta mode without Stripe
-    res = client.post(f"{EVENT}/api/book-order").json()
+    # the quote prices both covers by page count
+    client.post(f"{EVENT}/api/upload",
+                files=[("files", ("p.jpg", _fake_jpeg(), "image/jpeg"))])
+    quote = client.get(f"{EVENT}/api/book-quote").json()
+    assert quote["pages"] == 1 and quote["discount"] is False
+    assert quote["covers"]["softcover"]["price_cents"] == 3900
+    assert quote["covers"]["hardcover"]["price_cents"] == 5900
+
+    # beta mode without Stripe (cover still required)
+    assert client.post(f"{EVENT}/api/book-order").status_code == 422
+    res = client.post(f"{EVENT}/api/book-order", data={"cover": "hardcover"}).json()
     assert res.get("beta") is True
 
-    # with Stripe configured, guests get a checkout URL
+    # with Stripe configured, guests get a checkout URL for their cover
     monkeypatch.setattr(app_module.billing, "stripe_enabled", lambda: True)
     seen = {}
-    def fake_checkout(package, user_id, base, event_id="", success_url=None, cancel_url=None):
-        seen.update(package=package, success_url=success_url)
+    def fake_checkout(cover, pages, price, user_id, base, event_id,
+                      success_url=None, cancel_url=None):
+        seen.update(cover=cover, pages=pages, price=price, success_url=success_url)
         return "https://checkout.stripe.com/pay/cs_test_book"
-    monkeypatch.setattr(app_module.billing, "create_checkout", fake_checkout)
-    res = client.post(f"{EVENT}/api/book-order").json()
+    monkeypatch.setattr(app_module.billing, "create_book_checkout", fake_checkout)
+    res = client.post(f"{EVENT}/api/book-order", data={"cover": "hardcover"}).json()
     assert res["url"].startswith("https://checkout.stripe.com/")
-    # each order is a single copy that returns to the gallery to order again
-    assert seen["package"] == "printed_book"
+    assert seen["cover"] == "hardcover" and seen["price"] == 5900
     assert seen["success_url"].endswith("/?ordered=1")
-
-    # not signed in -> 401
+    # nonsense covers are rejected; signed-out visitors are rejected
+    assert client.post(f"{EVENT}/api/book-order",
+                       data={"cover": "leather"}).status_code == 400
     client.cookies.clear()
-    assert client.post(f"{EVENT}/api/book-order").status_code == 401
+    assert client.post(f"{EVENT}/api/book-order",
+                       data={"cover": "hardcover"}).status_code == 401
+
+
+def test_heirloom_first_book_discount(client, monkeypatch):
+    import re as _re
+    import app as app_module
+
+    _signup(client)
+    _create_event(client)
+    client.post(f"{EVENT}/api/upload",
+                files=[("files", ("p.jpg", _fake_jpeg(), "image/jpeg"))])
+    dashboard = client.get(f"{BASE}/dashboard").text
+    event_id = _re.search(r"/api/events/([0-9a-f]{32})/lock", dashboard).group(1)
+
+    monkeypatch.setattr(app_module.billing, "stripe_enabled", lambda: True)
+
+    def deliver(session_id, package):
+        fake = {"type": "checkout.session.completed",
+                "data": {"object": {"id": session_id, "amount_total": 9900,
+                                    "metadata": {"user_id": "1", "package": package,
+                                                 "event_id": event_id}}}}
+        monkeypatch.setattr(app_module.billing, "parse_webhook", lambda p, s: fake)
+        assert client.post(f"{BASE}/stripe/webhook", json={},
+                           headers={"stripe-signature": "s"}).status_code == 200
+
+    # buying Heirloom unlocks the event AND earns 50% off the first book
+    deliver("cs_heirloom_1", "heirloom")
+    quote = client.get(f"{EVENT}/api/book-quote").json()
+    assert quote["discount"] is True
+    assert quote["covers"]["hardcover"]["final_cents"] == 5900 // 2
+
+    # once a book is bought for the event, the discount is used up
+    deliver("cs_book_1", "book_hardcover")
+    quote = client.get(f"{EVENT}/api/book-quote").json()
+    assert quote["discount"] is False
+    assert quote["covers"]["hardcover"]["final_cents"] == 5900
 
 
 def test_promo_code_redemption(client):

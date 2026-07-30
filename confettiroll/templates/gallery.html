@@ -288,6 +288,16 @@
   {{BRAND_BADGE}}
   <p style="text-align:center; font-size:12px; color:var(--soft); padding-bottom:24px">Powered by ConfettiRoll</p>
 
+  <div id="order-modal" style="position:fixed; inset:0; z-index:20; background:rgba(25,22,19,.6); display:none; align-items:center; justify-content:center">
+    <div style="background:var(--card); border-radius:12px; padding:24px; width:min(92vw,420px)">
+      <h3 style="font-size:18px; font-weight:normal; margin-bottom:4px">Order the printed book</h3>
+      <p id="order-pages" style="color:var(--soft); font-size:13.5px; margin-bottom:14px"></p>
+      <div id="order-covers"></div>
+      <p id="order-note" style="color:var(--soft); font-size:13px; margin-top:10px"></p>
+      <p style="text-align:right; margin-top:12px"><button class="btn ghost" id="order-cancel" type="button">Cancel</button></p>
+    </div>
+  </div>
+
   <div id="tag-modal">
     <div id="tag-card">
       <h3>Who is in this photo?</h3>
@@ -576,14 +586,53 @@
       "📦 Books ordered — thank you! Shipping to another address too? Just tap Order again for a separate delivery."), 400);
   }
 
-  document.getElementById("order-book").addEventListener("click", async () => {
+  const orderModal = document.getElementById("order-modal");
+  document.getElementById("order-cancel").addEventListener("click", () => orderModal.style.display = "none");
+
+  async function placeBookOrder(cover) {
+    orderModal.style.display = "none";
     setStatus("Starting your book order… (choose how many copies at checkout — they ship together to one address)", "busy");
     try {
-      const res = await fetch("/api/book-order", { method: "POST" });
+      const form = new FormData();
+      form.append("cover", cover);
+      const res = await fetch("/api/book-order", { method: "POST", body: form });
       if (res.status === 401) { location.href = "/login"; return; }
       const data = await res.json();
       if (data.url) { location.href = data.url; return; }
       setStatus(data.message || data.error || "Ordering isn't available right now.", data.message ? "" : "error");
+    } catch {
+      setStatus("Ordering isn't available right now.", "error");
+    }
+  }
+
+  document.getElementById("order-book").addEventListener("click", async () => {
+    setStatus("Checking prices…", "busy");
+    try {
+      const res = await fetch("/api/book-quote");
+      if (res.status === 401) { location.href = "/login"; return; }
+      const q = await res.json();
+      setStatus("");
+      document.getElementById("order-pages").textContent =
+        `${q.pages} photo page${q.pages === 1 ? "" : "s"} · 8×8" · shipping included`;
+      const box = document.getElementById("order-covers");
+      box.innerHTML = "";
+      Object.entries(q.covers).forEach(([key, c]) => {
+        const full = (c.price_cents / 100).toFixed(0);
+        const final = (c.final_cents / 100).toFixed(0);
+        const priceHtml = q.discount
+          ? `<s style="color:var(--soft)">$${full}</s> <strong>$${final}</strong>`
+          : `<strong>$${final}</strong>`;
+        const b = document.createElement("button");
+        b.type = "button";
+        b.style.cssText = "display:block; width:100%; text-align:left; margin-bottom:8px; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:#fdfcfa; cursor:pointer; font-family:inherit; font-size:15px";
+        b.innerHTML = `<strong>${c.name}</strong> — ${priceHtml}<br><span style="color:var(--soft); font-size:13px">${c.blurb} · ${c.tier}</span>`;
+        b.addEventListener("click", () => placeBookOrder(key));
+        box.appendChild(b);
+      });
+      document.getElementById("order-note").textContent = q.discount
+        ? "🎁 Heirloom perk applied: 50% off your first book for this event."
+        : "Choose how many copies at checkout — they all ship to one address. A different address is simply another order.";
+      orderModal.style.display = "flex";
     } catch {
       setStatus("Ordering isn't available right now.", "error");
     }
