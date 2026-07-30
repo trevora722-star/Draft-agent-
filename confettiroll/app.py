@@ -420,7 +420,7 @@ def create_app() -> FastAPI:
         name: (BASE_DIR / "templates" / f"{name}.html").read_text()
         for name in ("landing", "signup", "login", "dashboard", "guest_login",
                      "gallery", "partners", "venue", "stream", "kiosk", "outreach",
-                     "celebrations")
+                     "celebrations", "flipbook")
     }
 
     app = FastAPI(title="ConfettiRoll", docs_url=None, redoc_url=None)
@@ -642,17 +642,17 @@ def create_app() -> FastAPI:
         if current_user(request) is not None:
             return RedirectResponse("/dashboard", status_code=303)
         sample_labels = {
-            "vineyard-wedding-sample-book.pdf": "📖 A vineyard wedding",
-            "fiftieth-birthday-sample-book.pdf": "📖 A 50th by the pool",
-            "grad-gala-prom-sample-book.pdf": "📖 A high school prom",
+            "vineyard-wedding": "📖 A vineyard wedding",
+            "fiftieth-birthday": "📖 A 50th by the pool",
+            "grad-gala-prom": "📖 A high school prom",
         }
         sample_links = "".join(
-            f'<a href="/static/samples/{name}" target="_blank" style="display:inline-block;'
+            f'<a href="/samples/{slug}" style="display:inline-block;'
             ' margin:6px 8px; padding:10px 20px; border:1px solid var(--line); border-radius:999px;'
             ' color:var(--violet); text-decoration:none; font-size:14px;'
             f' font-family:\'Helvetica Neue\', Arial, sans-serif">{label}</a>'
-            for name, label in sample_labels.items()
-            if (BASE_DIR / "static" / "samples" / name).exists()
+            for slug, label in sample_labels.items()
+            if (BASE_DIR / "static" / "samples" / f"{slug}.json").exists()
         )
         samples_html = (
             '<p style="text-align:center; margin-top:18px; color:var(--soft); font-size:14.5px">'
@@ -1686,6 +1686,25 @@ def create_app() -> FastAPI:
         if resolve_event(request) is not None:
             return RedirectResponse("/", status_code=303)
         return page("partners", base=esc(base_domain))
+
+    @app.get("/samples/{slug}", response_class=HTMLResponse)
+    def sample_flipbook(request: Request, slug: str):
+        """Flip through a sample keepsake book like a real book."""
+        if resolve_event(request) is not None:
+            return RedirectResponse("/", status_code=303)
+        if not re.fullmatch(r"[a-z0-9-]{1,60}", slug):
+            return JSONResponse({"error": "not found"}, status_code=404)
+        manifest_path = BASE_DIR / "static" / "samples" / f"{slug}.json"
+        if not manifest_path.exists():
+            return JSONResponse({"error": "not found"}, status_code=404)
+        data = json.loads(manifest_path.read_text())
+        return page(
+            "flipbook",
+            title=esc(data["title"]),
+            accent=esc(data.get("accent", "#7d8c6f")),
+            pdf=esc(data.get("pdf", "")),
+            payload=json.dumps(data),
+        )
 
     @app.get("/celebrations", response_class=HTMLResponse)
     def celebrations(request: Request):

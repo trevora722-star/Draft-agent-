@@ -1005,3 +1005,14 @@ def test_book_picks_after_close(client, tmp_path):
                 follow_redirects=False)
     res = client.post(f"{BASE}/api/events/{event_id}/book")
     assert res.status_code == 200 and res.json()["pages"] == 2
+
+
+def test_sample_flipbook_route(client):
+    # real manifests generated into static/samples/ power the viewer
+    res = client.get(f"{BASE}/samples/vineyard-wedding")
+    assert res.status_code == 200
+    assert "Turn the page" in res.text
+    assert "Anna &amp; James" in res.text or "Anna & James" in res.text
+    # unknown or invalid slugs 404
+    assert client.get(f"{BASE}/samples/not-a-book").status_code == 404
+    assert client.get(f"{BASE}/samples/..%2Fsecrets").status_code in (404, 400)

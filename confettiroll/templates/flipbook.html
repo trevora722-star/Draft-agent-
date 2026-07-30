@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} — sample keepsake book</title>
+<style>
+  :root { --accent: {{ACCENT}}; --ink: #2c2733; --soft: #7d7488; --paper: #171419; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: radial-gradient(circle at 50% 20%, #262130 0%, var(--paper) 70%);
+    color: #eee7f0; font-family: Georgia, "Times New Roman", serif;
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+  }
+  header { text-align: center; padding: 26px 16px 8px; }
+  header .logo { font: bold 15px "Helvetica Neue", Arial, sans-serif; letter-spacing: .5px; }
+  header .logo a { color: #eee7f0; text-decoration: none; }
+  header .logo span { color: #e85d8a; }
+  h1 { font-size: 24px; font-weight: normal; font-style: italic; margin-top: 8px; }
+  .hint { color: #9b8fa8; font-size: 13px; font-family: "Helvetica Neue", Arial, sans-serif; margin-top: 4px; }
+  #book-wrap {
+    perspective: 2200px; margin: 18px 0 8px;
+    width: min(92vw, 560px); aspect-ratio: 1 / 1; position: relative;
+  }
+  .page {
+    position: absolute; inset: 0; border-radius: 6px; overflow: hidden;
+    background: #fdfbf7; box-shadow: 0 18px 60px rgba(0,0,0,.55);
+    backface-visibility: hidden; transform-origin: left center;
+    transition: transform .55s cubic-bezier(.4,.1,.2,1);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .page.flip { transform: rotateY(-102deg); opacity: .98; }
+  .page img { width: 88%; max-height: 74%; object-fit: contain; border-radius: 2px; }
+  .page .cap {
+    color: #6d6157; font-style: italic; font-size: 14px; margin-top: 14px;
+    text-align: center; padding: 0 20px;
+  }
+  .page.cover { background: var(--accent); color: #fff; text-align: center; padding: 30px; }
+  .cover .orn { letter-spacing: 8px; font-size: 16px; }
+  .cover h2 { font-size: 34px; font-style: italic; font-weight: normal; margin: 18px 0 8px; }
+  .cover .date { font: 13px "Helvetica Neue", Arial, sans-serif; }
+  .cover .foot { position: absolute; bottom: 26px; left: 0; right: 0; font: 11px "Helvetica Neue", Arial, sans-serif; letter-spacing: 3px; }
+  .page.story { background: #fdfbf7; color: #3a332d; padding: 42px; text-align: center; }
+  .story h3 { font-style: italic; font-weight: normal; font-size: 22px; margin-bottom: 18px; }
+  .story p { font-size: 14.5px; line-height: 1.75; color: #5a5148; }
+  .zone { position: absolute; top: 0; bottom: 0; width: 50%; cursor: pointer; z-index: 5; }
+  #prev-zone { left: 0; } #next-zone { right: 0; }
+  .bar {
+    display: flex; gap: 14px; align-items: center; padding: 10px 0 34px;
+    font-family: "Helvetica Neue", Arial, sans-serif; font-size: 13.5px;
+  }
+  .bar button, .bar a {
+    background: rgba(255,255,255,.10); border: none; color: #eee7f0;
+    border-radius: 999px; padding: 9px 18px; cursor: pointer; text-decoration: none;
+    font-size: 13.5px;
+  }
+  .bar button:hover, .bar a:hover { background: rgba(255,255,255,.22); }
+  #counter { color: #9b8fa8; min-width: 70px; text-align: center; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo"><a href="/">Confetti<span>●</span>Roll</a></div>
+    <h1>{{TITLE}}</h1>
+    <p class="hint">Click the right side (or →) to turn the page · a sample Heirloom keepsake book</p>
+  </header>
+
+  <div id="book-wrap">
+    <div class="zone" id="prev-zone" title="Previous page"></div>
+    <div class="zone" id="next-zone" title="Next page"></div>
+  </div>
+
+  <div class="bar">
+    <button id="prev-btn" type="button">‹ Back</button>
+    <span id="counter"></span>
+    <button id="next-btn" type="button">Turn the page ›</button>
+    <a href="{{PDF}}" download>⬇ PDF</a>
+  </div>
+
+<script>
+  const BOOK = {{PAYLOAD}};
+  const wrap = document.getElementById("book-wrap");
+  const counter = document.getElementById("counter");
+
+  // Build the page stack: cover, story, photo pages, back cover.
+  const pages = [];
+  function el(cls, html) {
+    const d = document.createElement("div");
+    d.className = "page " + cls;
+    d.innerHTML = html;
+    return d;
+  }
+  pages.push(el("cover",
+    `<div class="orn">✦ ✦ ✦</div><h2>${BOOK.title}</h2><div class="date">${BOOK.date || ""}</div>` +
+    `<div class="foot">A&nbsp;K E E P S A K E&nbsp;&nbsp;A L B U M${BOOK.venue ? "<br><br><em style='letter-spacing:1px; text-transform:none'>Hosted at " + BOOK.venue + "</em>" : ""}</div>`));
+  if (BOOK.recap) pages.push(el("story", `<h3>The Story of the Day</h3><p>${BOOK.recap}</p>`));
+  BOOK.pages.forEach(p => pages.push(el("photo", `<img loading="lazy" src="${p.img}" alt=""><div class="cap">${p.caption}</div>`)));
+  pages.push(el("cover", `<div class="orn">✦</div><h2 style="font-size:22px">With love and thanks</h2>` +
+    `<div class="date">Made on ConfettiRoll — your event could be next.</div>` +
+    `<div class="foot"><a href="/signup" style="color:#fff">CREATE YOUR ALBUM FREE</a></div>`));
+
+  // Stack in reverse so page 0 is on top.
+  for (let i = pages.length - 1; i >= 0; i--) {
+    pages[i].style.zIndex = pages.length - i;
+    wrap.appendChild(pages[i]);
+  }
+
+  let current = 0;
+  function update() {
+    counter.textContent = `${current + 1} / ${pages.length}`;
+  }
+  function next() {
+    if (current >= pages.length - 1) return;
+    const pg = pages[current];
+    pg.classList.add("flip");
+    setTimeout(() => { pg.style.visibility = "hidden"; }, 540);
+    current++;
+    update();
+  }
+  function prev() {
+    if (current <= 0) return;
+    current--;
+    const pg = pages[current];
+    pg.style.visibility = "visible";
+    pg.classList.remove("flip");
+    update();
+  }
+  document.getElementById("next-zone").addEventListener("click", next);
+  document.getElementById("prev-zone").addEventListener("click", prev);
+  document.getElementById("next-btn").addEventListener("click", next);
+  document.getElementById("prev-btn").addEventListener("click", prev);
+  document.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight" || e.key === " ") next();
+    if (e.key === "ArrowLeft") prev();
+  });
+  let touchX = null;
+  document.addEventListener("touchstart", e => { touchX = e.touches[0].clientX; });
+  document.addEventListener("touchend", e => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (dx < -40) next();
+    if (dx > 40) prev();
+    touchX = null;
+  });
+  update();
+</script>
+</body>
+</html>

@@ -99,6 +99,10 @@ EVENTS = {
             ("The toasts", "A best man giving a toast with a raised champagne glass at a long harvest table inside a white tent, guests of varied ages and ethnicities laughing, warm candlelight."),
             ("The bouquet flies", "A bride tossing her bouquet over her shoulder to a laughing crowd of guests with arms raised, inside a warmly lit white tent at night."),
             ("Dancing under the lights", "A packed dance floor at a vineyard wedding at night, guests of all ages and a few different ethnicities dancing joyfully under string lights, motion and laughter."),
+            ("The rings", "Macro detail photograph of two wedding rings resting on a weathered vineyard oak barrel, soft golden light, grapevines blurred behind.", 5),
+            ("The kiss", "The bride and groom's first kiss at the floral arch as the ceremony ends, guests standing and cheering, petals in the air, vineyard golden hour.", 15),
+            ("Cocktail hour on the lawn", "Guests mingling with drinks on a lawn beside the vineyard during cocktail hour, lawn games in the background, relaxed laughter, late-afternoon sun.", 62),
+            ("The sparkler send-off", "The bride and groom running hand in hand through a tunnel of guests holding sparklers at night, joyful motion, sparks lighting their faces.", 200),
         ],
     },
     "birthday": {
@@ -147,6 +151,9 @@ EVENTS = {
             ("Four generations", "A relaxed multi-generation family group photo beside the backyard pool, everyone in swimwear, from grandparents to toddlers, everyone laughing between poses."),
             ("The gift that got a scream", "A woman laughing with her hand over her mouth as she opens a gift, friends around her reacting with delight, backyard party table with cake and balloons."),
             ("Lawn games at dusk", "Guests playing cornhole on a large lawn at dusk, string lights coming on over the patio, pool glowing behind them, relaxed summer evening."),
+            ("The buffet", "A generous backyard buffet table with burgers, salads, and a fruit platter under a patio umbrella, guests in swimwear serving themselves plates, summer light.", 45),
+            ("The birthday speech", "Maria's husband giving a short heartfelt speech to the party with Maria laughing beside him, guests in swimwear gathered on the patio listening warmly.", 85),
+            ("Sunset by the pool", "The whole family relaxed around the glowing pool at sunset, feet in the water, string lights on, the gold '50' balloons reflected in the water.", 105),
         ],
     },
     "prom": {
@@ -186,10 +193,14 @@ EVENTS = {
             ("Backdrop portraits", "Two prom couples posing at a glittering photo backdrop with purple and silver balloons, one couple striking a dramatic pose, the other laughing."),
             ("The dance floor", "A packed prom dance floor under colored lights, diverse high school seniors dancing with arms up, gowns and suits in motion, confetti in the air."),
             ("Crowning the king and queen", "A prom king and queen being crowned on stage, sashes and crowns, cheering diverse crowd of students in formal wear below the stage lights."),
-            ("The table that wouldn't stop laughing", "A round banquet table of diverse students in formal wear laughing hard together over sparkling juice, ballroom lights bokeh behind them."),
+            ("The table that wouldn't stop laughing", "A round banquet table of students in formal wear laughing hard together, bottles of water on the table - no other drinks - ballroom lights bokeh behind them."),
             ("The slow dance", "Couples slow dancing under a mirror ball, soft purple light, a diverse group of high school seniors, tender and formal."),
             ("Photo booth chaos", "A group of students in formal wear crammed into a photo booth frame with feather boas and oversized glasses, mid-laugh, prom decorations around."),
             ("The jump", "A group jump shot of diverse students in gowns and tuxedos outside the venue at dusk, everyone mid-air, city lights behind, pure joy."),
+            ("The buffet line", "Students in formal wear moving along a catered buffet line with plates, chafing dishes of pasta and chicken, bottles of water at the end of the table - no other drinks.", 32),
+            ("Dinner with friends", "Round banquet tables of students in gowns and tuxedos eating dinner together and talking, bottles of water at every place setting - no other drinks - warm ballroom light.", 34),
+            ("The speeches", "A student council president in formal wear giving a speech at a podium on stage, the ballroom of seated students listening and smiling, purple uplighting.", 36),
+            ("The staff who made it happen", "A warm group photo of twelve adult school staff chaperones - teachers, counselors, and the principal, men and women of different ages and ethnicities, one staff member seated in a wheelchair at the front - dressed formally in front of the balloon arch, proud and smiling.", 90),
         ],
     },
 }
@@ -246,8 +257,8 @@ def build_event(key: str, api_key: str) -> None:
     cast = spec.get("cast", "")
     anchor_caption = spec.get("anchor")
     if anchor_caption:
-        idx = next(i for i, (c, _) in enumerate(spec["shots"], 1) if c == anchor_caption)
-        caption, scene = spec["shots"][idx - 1]
+        idx = next(i for i, s in enumerate(spec["shots"], 1) if s[0] == anchor_caption)
+        caption, scene = spec["shots"][idx - 1][0], spec["shots"][idx - 1][1]
         dest = photos_dir / f"{spec['slug']}-{idx:02d}.jpg"
         if not dest.exists():
             print(f"  [anchor] {caption}…")
@@ -258,7 +269,9 @@ def build_event(key: str, api_key: str) -> None:
         reference = dest.read_bytes()
 
     photos = []
-    for idx, (caption, scene) in enumerate(spec["shots"], 1):
+    for idx, shot in enumerate(spec["shots"], 1):
+        caption, scene = shot[0], shot[1]
+        seq = shot[2] if len(shot) > 2 else idx * 10
         photo_id = f"{spec['slug']}-{idx:02d}"
         dest = photos_dir / f"{photo_id}.jpg"
         if not dest.exists():
@@ -282,7 +295,7 @@ def build_event(key: str, api_key: str) -> None:
             "type": "photo",
             "caption": caption,
             "uploader": "",
-            "uploaded_at": idx,  # keeps the story order
+            "uploaded_at": seq,  # keeps the story order
             "quality": 8,
         })
 
@@ -296,6 +309,29 @@ def build_event(key: str, api_key: str) -> None:
         credit="A sample Heirloom keepsake book — made with AI-generated demonstration photos",
     )
     print(f"  -> {pdf.name}: {pages} photo pages")
+
+    # Web flipbook: page manifest + browser-sized images.
+    web_dir = OUT / "img" / spec["slug"]
+    web_dir.mkdir(parents=True, exist_ok=True)
+    manifest_pages = []
+    for p in sorted(photos, key=lambda x: x["uploaded_at"]):
+        web_img = web_dir / f"{p['id']}.jpg"
+        if not web_img.exists():
+            img = Image.open(photos_dir / f"{p['id']}.jpg")
+            img.thumbnail((1100, 1100))
+            img.convert("RGB").save(web_img, "JPEG", quality=82)
+        manifest_pages.append({
+            "img": f"/static/samples/img/{spec['slug']}/{p['id']}.jpg",
+            "caption": p["caption"],
+        })
+    manifest = {
+        "slug": spec["slug"], "title": spec["title"], "date": spec["date"],
+        "accent": spec["accent"], "venue": spec["venue"], "recap": spec["recap"],
+        "pdf": f"/static/samples/{spec['slug']}-sample-book.pdf",
+        "pages": manifest_pages,
+    }
+    (OUT / f"{spec['slug']}.json").write_text(json.dumps(manifest))
+    print(f"  -> {spec['slug']}.json + {len(manifest_pages)} web pages")
 
 
 def main() -> None:
