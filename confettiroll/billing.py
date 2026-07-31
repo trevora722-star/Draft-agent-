@@ -28,12 +28,12 @@ PACKAGES = {
         "price_cents": 0,
         "credits": 1,
         "kind": "event",
-        "tagline": "Free for 1 week - unlock once to keep it forever",
+        "tagline": "First week free - no credit card to start",
         "features": [
             "1 event gallery",
             "Up to 100 photos",
             "QR code + password access",
-            "Free 1-week gallery - unlock to keep",
+            "First week free - then unlock with any package (or a credit) to keep it forever",
         ],
     },
     "celebration": {

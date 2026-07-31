@@ -57,6 +57,9 @@
   <form class="card" method="post" action="/signup">
     <h1>Create your account</h1>
     <p class="sub">Set up shared albums for your weddings, parties, and events.</p>
+    <p class="sub" style="margin-top:-12px">Create your free account → set up
+      your first event in under a minute. No credit card required.</p>
+    {{GOOGLE_BTN}}
     <label for="name">Your name</label>
     <input id="name" name="name" autocomplete="name">
     <label for="email">Email</label>
@@ -65,7 +68,6 @@
     <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required>
     <input type="hidden" name="ref" value="{{REF}}">
     <button type="submit">Sign up</button>
-    {{GOOGLE_BTN}}
     {{ERROR}}
     <p class="alt">Already have an account? <a href="/login">Sign in</a></p>
   </form>

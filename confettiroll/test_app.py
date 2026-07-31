@@ -396,7 +396,20 @@ def test_packages_and_landing(client):
 
     assert data["packages"]["gala"]["price"] == "$499"
 
+    # placeholder-marked social proof, clarified free week, and the footer
     landing = client.get(f"{BASE}/").text
+    for expected in ("PLACEHOLDER TESTIMONIALS", "after the confetti settles",
+                     "No credit card required to start",
+                     "How does the free week work?",
+                     "Privacy Policy", "Terms of Service",
+                     "hello@confettiroll.com", "© 2026 ConfettiRoll"):
+        assert expected in landing
+
+    # legal pages exist and carry the photo-ownership promise
+    assert "never ours" in client.get(f"{BASE}/privacy").text
+    assert "free week" in client.get(f"{BASE}/terms").text
+    assert "hello@confettiroll.com" in client.get(f"{BASE}/partners").text
+
     for expected in ("Celebration", "Heirloom", "$49", "$99", "$245",
                      "$199", "Most popular", "Founding beta",
                      "Gala Evening package", "$499", "Executive Edition",

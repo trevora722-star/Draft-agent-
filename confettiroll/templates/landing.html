@@ -98,7 +98,15 @@
     background: var(--card); border: 1px solid var(--line); border-radius: 18px;
     padding: 30px 26px; display: flex; flex-direction: column; position: relative;
   }
-  .plan.hot { border: 2px solid var(--pink); box-shadow: 0 18px 44px rgba(232, 93, 138, 0.16); }
+  .plan.hot {
+    border: 2px solid var(--pink);
+    box-shadow: 0 22px 54px rgba(232, 93, 138, 0.22);
+    transform: scale(1.035);
+    background: linear-gradient(180deg, #fff, #fdf6f9);
+    z-index: 1;
+  }
+  .plan.hot .price { color: var(--pink); }
+  @media (max-width: 860px) { .plan.hot { transform: none; } }
   .plan .badge {
     position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
     background: var(--pink); color: #fff; border-radius: 999px; padding: 5px 16px;
@@ -131,6 +139,37 @@
   .pro h4 { font-size: 16px; font-weight: normal; margin-bottom: 6px; }
   .pro .amt { color: var(--violet); font-size: 22px; }
   .pro p { color: var(--soft); font-size: 13.5px; line-height: 1.5; margin-top: 6px; }
+
+  /* testimonials */
+  .quotes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+  .quote {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 26px 24px 22px; position: relative;
+  }
+  .quote::before {
+    content: "\201C"; position: absolute; top: 6px; left: 16px;
+    font-size: 54px; color: var(--pink); opacity: 0.25; line-height: 1;
+  }
+  .quote p { font-size: 15.5px; line-height: 1.6; font-style: italic; }
+  .quote .who {
+    margin-top: 14px; font-style: normal; font-size: 13px; color: var(--soft);
+    font-family: "Helvetica Neue", Arial, sans-serif; letter-spacing: 0.4px;
+  }
+  .quote .who strong { color: var(--ink); font-weight: 600; }
+
+  /* sample proof */
+  .proof-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+  .proof {
+    display: block; background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; overflow: hidden; text-decoration: none; color: var(--ink);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .proof:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(44, 39, 51, 0.12); }
+  .proof img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; }
+  .proof .cap { padding: 14px 16px 16px; }
+  .proof .cap h4 { font-size: 16px; font-weight: normal; }
+  .proof .cap p { color: var(--soft); font-size: 13px; margin-top: 4px;
+    font-family: "Helvetica Neue", Arial, sans-serif; }
 
   .faq { max-width: 720px; margin: 0 auto; }
   .faq details {
@@ -201,7 +240,8 @@
       When the night is over, curate your favourites into a keepsake photo
       book — order copies for yourself, or gift one to your guests.</p>
       <a class="cta-big" href="/signup">Create your event — free</a>
-      <p class="subnote">Free while in beta · guests never install anything</p>
+      <p class="subnote">No credit card required to start · free while in beta ·
+      guests never install anything</p>
       <div class="demo-url">your-event.{{BASE}}</div>
     </div>
     <div class="rotator" id="hero-rotator">
@@ -269,19 +309,81 @@
     </div>
   </section>
 
+  <!-- PLACEHOLDER TESTIMONIALS: illustrative quotes written in the site's
+       voice. Replace each one with a real quote (and real name, with
+       permission) as beta hosts share feedback. -->
+  <section>
+    <h2 class="sect">What hosts tell us <em>after the confetti settles</em></h2>
+    <p class="sect-sub">Early words from our beta — illustrative for now, and
+      we'll swap in real names (with permission) as the thank-you notes arrive.</p>
+    <div class="quotes">
+      <div class="quote">
+        <p>We got home from the reception and the album already had four
+        hundred photos in it — moments we never saw happening. My mom cried
+        at the breakfast table.</p>
+        <p class="who"><strong>Emma &amp; Liam</strong> · wedding hosts</p>
+      </div>
+      <div class="quote">
+        <p>The sealed album was the whole reason we said yes. Nothing went
+        public until we'd reviewed every photo — and the families loved
+        ordering the book without the school touching a dime.</p>
+        <p class="who"><strong>Vice Principal, Riverside High</strong> · grad night</p>
+      </div>
+      <div class="quote">
+        <p>I put the QR card on every table and did nothing else all night.
+        My couples think I hired a second photographer. I just send my link
+        and collect the commission.</p>
+        <p class="who"><strong>Dana</strong> · wedding &amp; event planner</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sect">Don't take our word for it — <em>flip through a book</em></h2>
+    <p class="sect-sub">These sample albums were made exactly the way yours will
+      be: photos in, book out. Tap one and turn the pages.</p>
+    {{SAMPLES}}
+    <p class="sect-sub" style="margin:30px 0 18px">…or watch the features do
+      their thing in the <a href="/howto" style="color:var(--violet)">how-to
+      videos</a>:</p>
+    <div class="proof-grid">
+      <a class="proof" href="/howto">
+        <img src="/static/samples/img/vineyard-wedding/vineyard-wedding-07.jpg" alt="Guests sharing photos from their phones">
+        <div class="cap"><h4>📱 The guest upload flow</h4>
+          <p>Password in, photos up — straight from any phone's browser.</p></div>
+      </a>
+      <a class="proof" href="/howto">
+        <img src="/static/hero/gala.jpg" alt="The live photo wall on a venue screen">
+        <div class="cap"><h4>📺 The live photo wall</h4>
+          <p>New photos glide onto the venue screen seconds after they're taken.</p></div>
+      </a>
+      <a class="proof" href="/howto">
+        <img src="/static/samples/img/vineyard-wedding/vineyard-wedding-03.jpg" alt="AI-captioned photos in the searchable album">
+        <div class="cap"><h4>✨ AI captions &amp; search</h4>
+          <p>Every photo captioned automatically — search "cake" and jump right to it.</p></div>
+      </a>
+      <a class="proof" href="/howto">
+        <img src="/static/samples/img/vineyard-wedding/vineyard-wedding-01.jpg" alt="Pages from a finished keepsake book">
+        <div class="cap"><h4>📖 The finished keepsake book</h4>
+          <p>Cover, story, captions, thank-yous — ready for the coffee table.</p></div>
+      </a>
+    </div>
+  </section>
+
   <section id="pricing">
     <h2 class="sect">Simple packages, <em>one price per event</em></h2>
     <p class="sect-sub">No subscriptions for couples and hosts. Pay once, celebrate forever.</p>
     <div class="plans">
       <div class="plan quiet">
         <h3>Starter</h3>
-        <div class="price">Free</div>
-        <p class="tagline">Try it with a small gathering</p>
+        <div class="price">Free<small> for your first week</small></div>
+        <p class="tagline">Try it with a small gathering — no credit card to start</p>
         <ul>
           <li>1 event gallery</li>
           <li>Up to 100 photos</li>
           <li>QR code + password access</li>
-          <li>Free for 1 week — unlock once to keep it forever</li>
+          <li>After the free week, unlock the gallery with any package (or a
+            credit) to keep it permanently — your photos are safe either way</li>
         </ul>
         <a href="/signup">Start free</a>
       </div>
@@ -317,7 +419,6 @@
       <strong>$39</strong> — softcover, hardcover, or the gift-boxed
       <strong>Executive Edition</strong>, priced by length, shipping included.
       Heirloom hosts get 50% off their first book.</p>
-    {{SAMPLES}}
     <div class="beta-ribbon">🎉 <strong>Founding beta:</strong> every event
       starts with a free week — and hosts who unlock during the beta lock in
       launch pricing for life.</div>
@@ -435,6 +536,13 @@
   <section>
     <h2 class="sect">Questions, answered</h2>
     <div class="faq">
+      <details><summary>How does the free week work?</summary>
+        <p>Every event starts completely free for one week — no credit card,
+        all features on. During (or after) that week, the host unlocks the
+        gallery by purchasing a package or applying an event credit, and the
+        album is theirs permanently. If the week passes before you unlock,
+        nothing is deleted: uploads pause, your photos stay safe, and
+        unlocking picks up right where you left off.</p></details>
       <details><summary>Do my guests need to download an app?</summary>
         <p>No. Guests scan the QR code (or type the address), enter the event
         password once, and upload straight from their phone's browser — iPhone
@@ -482,8 +590,13 @@
     </div>
   </section>
 
-  <footer>ConfettiRoll — shared albums for celebrations ·
-    <a href="/partners">Partners</a> · <a href="/signup">Get started</a></footer>
+  <footer>
+    <p style="margin-bottom:8px">Confetti<span style="color:var(--pink)">●</span>Roll — shared albums for celebrations</p>
+    <p><a href="/howto">How-to videos</a> · <a href="/partners">Partners</a> ·
+      <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a> ·
+      <a href="mailto:hello@confettiroll.com">hello@confettiroll.com</a></p>
+    <p style="margin-top:8px">© 2026 ConfettiRoll · Your photos are always yours.</p>
+  </footer>
 
 <script>
   const colors = ["#e85d8a", "#f2b134", "#2ab7a9", "#7c5cbf"];

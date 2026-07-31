@@ -446,7 +446,7 @@ def create_app() -> FastAPI:
         name: (BASE_DIR / "templates" / f"{name}.html").read_text()
         for name in ("landing", "signup", "login", "dashboard", "guest_login",
                      "gallery", "partners", "stream", "outreach",
-                     "celebrations", "flipbook")
+                     "celebrations", "flipbook", "privacy", "terms")
     }
 
     app = FastAPI(title="ConfettiRoll", docs_url=None, redoc_url=None)
@@ -675,24 +675,24 @@ def create_app() -> FastAPI:
             return tenant_gallery(request, event)
         if current_user(request) is not None and not request.query_params.get("preview"):
             return RedirectResponse("/dashboard", status_code=303)
-        sample_labels = {
-            "vineyard-wedding": "📖 A vineyard wedding",
-            "fiftieth-birthday": "📖 A 50th by the pool",
-            "grad-gala-prom": "📖 A high school prom",
+        sample_books = {
+            "vineyard-wedding": ("A vineyard wedding",
+                                 "Golden hour, first dances, and the cake — 22 pages"),
+            "fiftieth-birthday": ("A 50th by the pool",
+                                  "Cannonballs, candles, and the whole family — 20 pages"),
+            "grad-gala-prom": ("A high school prom",
+                               "The staff-run album a school's book is made from"),
         }
-        sample_links = "".join(
-            f'<a href="/samples/{slug}" style="display:inline-block;'
-            ' margin:6px 8px; padding:10px 20px; border:1px solid var(--line); border-radius:999px;'
-            ' color:var(--violet); text-decoration:none; font-size:14px;'
-            f' font-family:\'Helvetica Neue\', Arial, sans-serif">{label}</a>'
-            for slug, label in sample_labels.items()
+        sample_cards = "".join(
+            f'<a class="proof" href="/samples/{slug}">'
+            f'<img src="/static/samples/img/{slug}/{slug}-01.jpg" alt="{label} sample book cover">'
+            f'<div class="cap"><h4>📖 {label}</h4><p>{blurb} · flip through it →</p></div></a>'
+            for slug, (label, blurb) in sample_books.items()
             if (BASE_DIR / "static" / "samples" / f"{slug}.json").exists()
         )
         samples_html = (
-            '<p style="text-align:center; margin-top:18px; color:var(--soft); font-size:14.5px">'
-            "Flip through a sample book:</p>"
-            f'<p style="text-align:center">{sample_links}</p>'
-        ) if sample_links else ""
+            f'<div class="proof-grid">{sample_cards}</div>'
+        ) if sample_cards else ""
         return page(
             "landing", base=base_domain,
             samples=samples_html,
@@ -708,7 +708,7 @@ def create_app() -> FastAPI:
     def signup_form(request: Request, ref: str = ""):
         if resolve_event(request) is not None:
             return RedirectResponse("/", status_code=303)
-        return page("signup", error="", ref=esc(ref.strip()[:16]), google_btn=google_button(ref.strip()[:16]))
+        return page("signup", error="", ref=esc(ref.strip()[:16]), google_btn=google_signup_block(ref.strip()[:16]))
 
     @app.post("/signup")
     def signup(request: Request, name: str = Form(""), email: str = Form(...),
@@ -717,9 +717,9 @@ def create_app() -> FastAPI:
         name = re.sub(r"\s+", " ", name).strip()[:80]
         ref = ref.strip()[:16]
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
-            return page("signup", error=err_html("That doesn't look like an email address."), ref=esc(ref), google_btn=google_button(ref))
+            return page("signup", error=err_html("That doesn't look like an email address."), ref=esc(ref), google_btn=google_signup_block(ref))
         if len(password) < 8:
-            return page("signup", error=err_html("Password must be at least 8 characters."), ref=esc(ref), google_btn=google_button(ref))
+            return page("signup", error=err_html("Password must be at least 8 characters."), ref=esc(ref), google_btn=google_signup_block(ref))
         with db() as conn:
             referrer = conn.execute(
                 "SELECT id FROM users WHERE referral_code = ?", (ref,)
@@ -733,7 +733,7 @@ def create_app() -> FastAPI:
                 )
                 user_id = cur.lastrowid
             except sqlite3.IntegrityError:
-                return page("signup", error=err_html("An account with that email already exists."), ref=esc(ref), google_btn=google_button(ref))
+                return page("signup", error=err_html("An account with that email already exists."), ref=esc(ref), google_btn=google_signup_block(ref))
         response = RedirectResponse("/dashboard", status_code=303)
         response.set_cookie(ORG_COOKIE, make_org_token(user_id), **org_cookie_kwargs(request))
         return response
@@ -774,6 +774,21 @@ def create_app() -> FastAPI:
         if not parts[1].isdigit() or int(parts[1]) <= time.time():
             return None
         return "" if parts[2] == "-" else parts[2]
+
+    def google_signup_block(ref: str = "") -> str:
+        """Google-first signup: the button plus an 'or with email' divider,
+        or nothing at all when Google sign-in isn't configured."""
+        btn = google_button(ref)
+        if not btn:
+            return ""
+        return btn + (
+            '<div style="display:flex; align-items:center; gap:12px; margin-top:18px;'
+            " color:var(--soft); font-size:11.5px; letter-spacing:1.5px;"
+            ' text-transform:uppercase; font-family:sans-serif">'
+            '<span style="flex:1; height:1px; background:var(--line)"></span>'
+            "or with email"
+            '<span style="flex:1; height:1px; background:var(--line)"></span></div>'
+        )
 
     @app.get("/auth/google")
     def google_start(request: Request, ref: str = ""):
@@ -1544,6 +1559,14 @@ def create_app() -> FastAPI:
         if resolve_event(request) is not None:
             return RedirectResponse("/", status_code=303)
         return page("partners", base=esc(base_domain))
+
+    @app.get("/privacy", response_class=HTMLResponse)
+    def privacy(request: Request):
+        return page("privacy")
+
+    @app.get("/terms", response_class=HTMLResponse)
+    def terms(request: Request):
+        return page("terms")
 
     @app.get("/samples/{slug}", response_class=HTMLResponse)
     def sample_flipbook(request: Request, slug: str):
