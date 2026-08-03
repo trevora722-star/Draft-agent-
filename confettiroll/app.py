@@ -529,7 +529,8 @@ def create_app() -> FastAPI:
                     return None
                 return conn.execute("SELECT * FROM events WHERE slug = ?", (slug,)).fetchone()
             return conn.execute(
-                "SELECT * FROM events WHERE custom_domain = ?", (host,)
+                "SELECT * FROM events WHERE custom_domain IN (?, ?)",
+                (host, host.removeprefix("www.")),
             ).fetchone()
 
     def slug_in_use(conn: sqlite3.Connection, slug: str) -> bool:
