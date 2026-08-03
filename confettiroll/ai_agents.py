@@ -1,4 +1,4 @@
-"""ConfettiRoll AI agents — album curator and recap writer.
+"""ConfettiAlbum AI agents — album curator and recap writer.
 
 Backed by the Anthropic API (Claude Opus 5). Everything here is best-effort
 and optional: if the SDK or ANTHROPIC_API_KEY is missing, or a single call
@@ -125,10 +125,10 @@ def caption_photo(thumb_path: Path) -> dict | None:
         return None
 
 
-BOOTH_SYSTEM = """You are the ConfettiRoll booth assistant at a wedding & events trade show, \
+BOOTH_SYSTEM = """You are the ConfettiAlbum booth assistant at a wedding & events trade show, \
 chatting with visitors on a tablet at the booth.
 
-What ConfettiRoll is: a private photo- and video-sharing platform for events. \
+What ConfettiAlbum is: a private photo- and video-sharing platform for events. \
 Guests scan a QR code, enter the event password, and every photo they take lands \
 in one beautiful shared gallery — no app to install. Includes a live big-screen \
 slideshow where new photos appear seconds after upload (it's running on the TV \
@@ -262,7 +262,7 @@ PITCH_SCHEMA = {
         },
         "body": {
             "type": "string",
-            "description": "The outreach email body: plain text, 120-170 words, personal, specific to their business type, one clear call to action. Sign off as 'The ConfettiRoll team'. No markdown, no placeholders like [Name].",
+            "description": "The outreach email body: plain text, 120-170 words, personal, specific to their business type, one clear call to action. Sign off as 'The ConfettiAlbum team'. No markdown, no placeholders like [Name].",
         },
     },
     "required": ["subject", "body"],
@@ -303,13 +303,13 @@ def write_pitch(prospect: dict, partner_rate: str, signup_url: str) -> dict | No
                 "role": "user",
                 "content": (
                     "Write a cold outreach email recruiting an event professional "
-                    "as a ConfettiRoll partner.\n\n"
+                    "as a ConfettiAlbum partner.\n\n"
                     f"Prospect: {prospect.get('name', '')} at "
                     f"{prospect.get('business', '')} ({kind}"
                     + (f", {prospect['city']}" if prospect.get("city") else "") + ")\n"
                     + (f"Notes: {prospect['notes']}\n" if prospect.get("notes") else "")
                     + f"\nAngle for this prospect type: {angle}\n\n"
-                    "The offer: ConfettiRoll is a private guest photo-sharing "
+                    "The offer: ConfettiAlbum is a private guest photo-sharing "
                     "platform for weddings and events (QR code in, one shared "
                     "album, live big-screen slideshow, AI-organized photos, a "
                     f"keepsake book). Partners earn {partner_rate} of what their "

@@ -60,7 +60,7 @@
 </head>
 <body>
   <header>
-    <div class="logo"><a href="/">Confetti<span>●</span>Roll</a></div>
+    <div class="logo"><a href="/">Confetti<span>●</span>Album</a></div>
     <h1>{{TITLE}}</h1>
     <p class="hint">Click the right side (or →) to turn the page · a sample Heirloom keepsake book</p>
   </header>
@@ -96,7 +96,7 @@
   if (BOOK.recap) pages.push(el("story", `<h3>The Story of the Day</h3><p>${BOOK.recap}</p>`));
   BOOK.pages.forEach(p => pages.push(el("photo", `<img loading="lazy" src="${p.img}" alt=""><div class="cap">${p.caption}</div>`)));
   pages.push(el("cover", `<div class="orn">✦</div><h2 style="font-size:22px">With love and thanks</h2>` +
-    `<div class="date">Made on ConfettiRoll — your event could be next.</div>` +
+    `<div class="date">Made on ConfettiAlbum — your event could be next.</div>` +
     `<div class="foot"><a href="/signup" style="color:#fff">CREATE YOUR ALBUM FREE</a></div>`));
 
   // Stack in reverse so page 0 is on top.

@@ -1,4 +1,4 @@
-"""Tests for the ConfettiRoll multi-tenant platform.
+"""Tests for the ConfettiAlbum multi-tenant platform.
 
 Run from this directory:  python -m pytest test_app.py
 """
@@ -8,14 +8,14 @@ import io
 import pytest
 from PIL import Image
 
-BASE = "http://confettiroll.test"
-EVENT = "http://anna-and-james.confettiroll.test"
+BASE = "http://confettialbum.test"
+EVENT = "http://anna-and-james.confettialbum.test"
 
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("CR_DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("CR_BASE_DOMAIN", "confettiroll.test")
+    monkeypatch.setenv("CR_BASE_DOMAIN", "confettialbum.test")
     monkeypatch.setenv("CR_KIOSK_KEY", "expo-key-1")
     import app as app_module
     from fastapi.testclient import TestClient
@@ -73,7 +73,7 @@ def test_signup_login_and_dashboard(client):
 def test_event_creation_and_validation(client):
     _signup(client)
     assert _create_event(client).status_code == 303
-    assert "anna-and-james.confettiroll.test" in client.get(f"{BASE}/dashboard").text
+    assert "anna-and-james.confettialbum.test" in client.get(f"{BASE}/dashboard").text
 
     # duplicate slug, reserved slug, bad slug
     assert "already+taken" in _create_event(client).headers["location"]
@@ -86,10 +86,10 @@ def test_guest_flow_and_owner_admin(client, tmp_path):
     _create_event(client)
 
     # unknown subdomain 404s the API
-    assert client.get("http://nope.confettiroll.test/api/photos").status_code == 404
+    assert client.get("http://nope.confettialbum.test/api/photos").status_code == 404
 
     # owner is admin on the event host without a guest login (org cookie
-    # is scoped to .confettiroll.test so it rides along to subdomains)
+    # is scoped to .confettialbum.test so it rides along to subdomains)
     listing = client.get(f"{EVENT}/api/photos")
     assert listing.status_code == 200
     assert listing.json()["is_admin"] is True
@@ -147,7 +147,7 @@ def test_guest_session_is_scoped_to_its_event(client):
     client.post(f"{EVENT}/login", data={"password": "cake123", "email": "guest@example.com"}, follow_redirects=False)
     assert client.get(f"{EVENT}/api/photos").status_code == 200
     # the same cookie must not unlock a different event
-    assert client.get("http://smith-reunion.confettiroll.test/api/photos").status_code == 401
+    assert client.get("http://smith-reunion.confettialbum.test/api/photos").status_code == 401
 
 
 def test_custom_domain_routing(client):
@@ -284,14 +284,14 @@ def test_live_stream(client):
 
     # anonymous viewers are sent to the event login
     client.cookies.clear()
-    res = client.get("http://stream-party.confettiroll.test/stream", follow_redirects=False)
+    res = client.get("http://stream-party.confettialbum.test/stream", follow_redirects=False)
     assert res.status_code == 303 and res.headers["location"] == "/login"
 
     # a logged-in guest (or the TV) gets the slideshow - no QR overlay
-    client.post("http://stream-party.confettiroll.test/login",
+    client.post("http://stream-party.confettialbum.test/login",
                 data={"password": "disco9", "email": "tv@example.com"},
                 follow_redirects=False)
-    page = client.get("http://stream-party.confettiroll.test/stream")
+    page = client.get("http://stream-party.confettialbum.test/stream")
     assert page.status_code == 200
     assert "SCAN TO ADD YOUR PHOTOS" not in page.text
     assert "stream-qr" not in page.text
@@ -402,13 +402,13 @@ def test_packages_and_landing(client):
                      "No credit card required to start",
                      "How does the free week work?",
                      "Privacy Policy", "Terms of Service",
-                     "hello@confettiroll.com", "© 2026 ConfettiRoll"):
+                     "hello@confettialbum.com", "© 2026 ConfettiAlbum"):
         assert expected in landing
 
     # legal pages exist and carry the photo-ownership promise
     assert "never ours" in client.get(f"{BASE}/privacy").text
     assert "free week" in client.get(f"{BASE}/terms").text
-    assert "hello@confettiroll.com" in client.get(f"{BASE}/partners").text
+    assert "hello@confettialbum.com" in client.get(f"{BASE}/partners").text
 
     for expected in ("Celebration", "Heirloom", "$49", "$99", "$245",
                      "$199", "Most popular", "Founding beta",
@@ -474,7 +474,7 @@ def test_qr_code_owner_only(client):
     assert client.get(f"{BASE}/api/events/{event_id}/qr.png").status_code == 401
 
 
-PROM = "http://grad-gala.confettiroll.test"
+PROM = "http://grad-gala.confettialbum.test"
 
 
 def test_prom_tagged_event_flow(client):
@@ -642,7 +642,7 @@ def test_delete_event_forever(client, tmp_path):
     res = client.post(f"{BASE}/api/events/{event_id}/delete", follow_redirects=False)
     assert res.headers["location"] == "/dashboard"
     assert not event_dir.exists()
-    assert "anna-and-james.confettiroll.test" not in client.get(f"{BASE}/dashboard").text
+    assert "anna-and-james.confettialbum.test" not in client.get(f"{BASE}/dashboard").text
     client.cookies.clear()
     assert client.get(f"{EVENT}/api/photos").status_code == 404
 
@@ -1056,7 +1056,7 @@ def test_host_set_guest_upload_limit(client):
     assert len(res["saved"]) == 1
 
 
-GALA = "http://autumn-benefit.confettiroll.test"
+GALA = "http://autumn-benefit.confettialbum.test"
 
 
 def test_gala_table_host_flow(client):
@@ -1175,7 +1175,7 @@ def test_gala_host_invites(client, monkeypatch):
     assert "table card" in body and "keepsake book" in body
 
     # the emailed magic link signs the host straight in
-    winter = "http://winter-gala.confettiroll.test"
+    winter = "http://winter-gala.confettialbum.test"
     client.cookies.clear()
     res = client.get(f"{winter}/host/{code}", follow_redirects=False)
     assert res.status_code == 303 and res.headers["location"] == "/"

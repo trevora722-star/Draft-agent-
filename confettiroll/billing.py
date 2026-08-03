@@ -129,7 +129,7 @@ BOOK_PRICING = {
 
 # Committee and sponsor orders of 10+ Executive Edition books are quoted
 # individually (engraving, slipcases, bulk rates) — routed to this address.
-CONCIERGE_EMAIL = os.environ.get("CR_CONCIERGE_EMAIL", "hello@confettiroll.com")
+CONCIERGE_EMAIL = os.environ.get("CR_CONCIERGE_EMAIL", "hello@confettialbum.com")
 
 
 def book_price_cents(cover: str, pages: int) -> int:
@@ -185,7 +185,7 @@ def create_checkout(package_key: str, user_id: int, base_url: str,
         line_items=[{
             "price_data": {
                 "currency": "usd",
-                "product_data": {"name": f"ConfettiRoll — {package['name']}"},
+                "product_data": {"name": f"ConfettiAlbum — {package['name']}"},
                 "unit_amount": package["price_cents"],
             },
             "quantity": 1,
@@ -215,7 +215,7 @@ def create_book_checkout(cover: str, pages: int, price_cents: int, user_id: int,
         line_items=[{
             "price_data": {
                 "currency": "usd",
-                "product_data": {"name": f"ConfettiRoll — {name}"},
+                "product_data": {"name": f"ConfettiAlbum — {name}"},
                 "unit_amount": price_cents,
             },
             "quantity": 1,

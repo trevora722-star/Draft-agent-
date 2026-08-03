@@ -7,7 +7,7 @@ and recipient list instead of sending. Configure ONE of:
   RESEND_API_KEY          (simplest — https://resend.com, generous free tier)
   SMTP_HOST + MAIL_FROM   (any SMTP relay; optional SMTP_PORT/SMTP_USER/SMTP_PASS)
 
-MAIL_FROM sets the sender for both, e.g. "ConfettiRoll <hello@confettiroll.com>".
+MAIL_FROM sets the sender for both, e.g. "ConfettiAlbum <hello@confettialbum.com>".
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ def enabled() -> bool:
 
 
 def _sender() -> str:
-    return os.environ.get("MAIL_FROM", "ConfettiRoll <hello@confettiroll.com>")
+    return os.environ.get("MAIL_FROM", "ConfettiAlbum <hello@confettialbum.com>")
 
 
 def send(to: str, subject: str, text: str) -> bool:

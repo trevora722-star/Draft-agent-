@@ -1,7 +1,7 @@
-"""ConfettiRoll — multi-tenant photo & video sharing for events.
+"""ConfettiAlbum — multi-tenant photo & video sharing for events.
 
-Organizers sign up at the main site (confettiroll.com), create events, and
-get a shareable subdomain like sarah-and-tom.confettiroll.com (or their own
+Organizers sign up at the main site (confettialbum.com), create events, and
+get a shareable subdomain like sarah-and-tom.confettialbum.com (or their own
 custom domain). Guests open the event site, enter the event password, and
 can view and upload photos and videos. The organizer's own login doubles as
 the event admin: they see delete buttons in their events' galleries.
@@ -432,7 +432,7 @@ async def _save_video(upload_file, original_name, uploader, ext, dirs) -> dict:
 
 
 def create_app() -> FastAPI:
-    base_domain = os.environ.get("CR_BASE_DOMAIN", "confettiroll.com").lower()
+    base_domain = os.environ.get("CR_BASE_DOMAIN", "confettialbum.com").lower()
     # Estimated commission per referred event (50% of a ~$49 first package),
     # tracked as pending and payable once billing launches.
     referral_fee = float(os.environ.get("CR_REFERRAL_FEE", "25"))
@@ -449,7 +449,7 @@ def create_app() -> FastAPI:
                      "celebrations", "flipbook", "privacy", "terms")
     }
 
-    app = FastAPI(title="ConfettiRoll", docs_url=None, redoc_url=None)
+    app = FastAPI(title="ConfettiAlbum", docs_url=None, redoc_url=None)
     app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
     login_attempts: dict[str, list[float]] = {}
 
@@ -944,7 +944,7 @@ def create_app() -> FastAPI:
                     f"your guests shared are safe - unlock the album to keep it "
                     f"forever and keep the uploads coming:\n\n"
                     f"https://{base_domain}/dashboard\n\n"
-                    f"- ConfettiRoll"
+                    f"- ConfettiAlbum"
                 )
                 if mailer.send(user["email"],
                                f"Your free week for {ev['title']} is ending", body):
@@ -1892,7 +1892,7 @@ def create_app() -> FastAPI:
             f"\U0001f6d2 Order printed book button. Pick as many copies as you "
             f"like at checkout - they all ship together to one address. "
             f"Sending books somewhere else too? Just place another order.\n\n"
-            f"With love,\n{host_name or 'Your host'} - via ConfettiRoll"
+            f"With love,\n{host_name or 'Your host'} - via ConfettiAlbum"
         )
         return subject, body
 
@@ -2199,7 +2199,7 @@ def create_app() -> FastAPI:
             f"     favourite photos, then \"My keepsake book\" to download it.\n\n"
             f"Your guests can watch the album live at {url.replace('https://', '')} "
             f"with the password: {event['guest_password']}\n\n"
-            f"See you there!\n- via ConfettiRoll"
+            f"See you there!\n- via ConfettiAlbum"
         )
         return subject, body
 
