@@ -65,7 +65,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 ORG_COOKIE = "cr_org"
 GUEST_COOKIE = "cr_guest"
-SESSION_TTL_SECONDS = 60 * 60 * 24 * 30
+SESSION_TTL_SECONDS = 60 * 60 * 24 * 365  # stay signed in until you sign out
 MAX_IMAGE_BYTES = 30 * 1024 * 1024
 MAX_VIDEO_BYTES = 200 * 1024 * 1024
 THUMB_MAX_DIM = 480
