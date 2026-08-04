@@ -663,6 +663,21 @@ def create_app() -> FastAPI:
     # main site (no tenant)
     # =======================================================================
 
+    def album_notice_page(heading: str, body: str, status_code: int = 404) -> HTMLResponse:
+        return HTMLResponse(
+            '<div style="min-height:100vh; display:flex; flex-direction:column;'
+            ' align-items:center; justify-content:center; gap:14px;'
+            " font-family:Georgia,serif; background:#faf7f2; color:#3d3733;"
+            ' text-align:center; padding:24px">'
+            '<div style="font-size:22px; color:#7d8c6f; letter-spacing:8px">✦ ✦ ✦</div>'
+            f'<h1 style="font-weight:normal; font-style:italic; font-size:30px">{heading}</h1>'
+            f'<p style="color:#8a7f76; max-width:440px; line-height:1.6">{body}</p>'
+            '<a href="/" style="display:inline-block; margin-top:6px; padding:11px 26px;'
+            " border-radius:999px; background:#7d8c6f; color:#fff; text-decoration:none;"
+            " font:13px 'Helvetica Neue',Arial,sans-serif; letter-spacing:1.5px;"
+            ' text-transform:uppercase">Back to the album</a>'
+            "</div>", status_code=status_code)
+
     def unknown_album_page() -> HTMLResponse:
         return HTMLResponse(
             '<div style="min-height:100vh; display:flex; flex-direction:column;'
@@ -1833,12 +1848,11 @@ def create_app() -> FastAPI:
             return JSONResponse({"error": "not logged in"}, status_code=401)
         path = data_dir / "events" / event["id"] / "book.pdf"
         if not path.exists():
-            return HTMLResponse(
-                '<p style="font-family:Georgia,serif; padding:60px 24px;'
-                ' text-align:center; color:#2c2733">The keepsake book hasn\'t'
-                " been composed yet - the host creates it from their dashboard"
-                ' once the album is complete. <a href="/" style="color:#e85d8a">'
-                "Back to the album</a></p>", status_code=404)
+            return album_notice_page(
+                "The book isn\'t ready yet",
+                "The host composes the keepsake book once the album is "
+                "complete - the moment it exists, this page becomes the "
+                "download. Check back after the big reveal.")
         safe = re.sub(r"[^\w\- ]", "_", event["title"]) or "keepsake"
         return FileResponse(
             path, media_type="application/pdf",

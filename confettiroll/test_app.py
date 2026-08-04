@@ -157,7 +157,7 @@ def test_unknown_subdomain_and_display_variant(client):
     assert res.headers["content-type"] == "image/jpeg"
     # and the book fallback page is human-friendly
     res = client.get(f"{EVENT}/book.pdf")
-    assert res.status_code == 404 and "hasn" in res.text
+    assert res.status_code == 404 and "ready yet" in res.text
 
 
 def test_guest_session_is_scoped_to_its_event(client):
