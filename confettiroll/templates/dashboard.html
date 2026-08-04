@@ -135,11 +135,6 @@
             <input id="guest_password" name="guest_password" required minlength="4">
             <div class="hint" id="pw-hint">Share this with your guests.</div>
           </div>
-          <div>
-            <label for="custom_domain">Custom domain <span style="text-transform:none">(optional)</span></label>
-            <input id="custom_domain" name="custom_domain" placeholder="photos.yourdomain.com">
-            <div class="hint">Point a CNAME at us — see the help note below.</div>
-          </div>
         </div>
         <button class="create" type="submit">Create event</button>
         {{ERROR}}
@@ -203,15 +198,6 @@
       </form>
     </div>
 
-    <div class="panel" style="margin-top:30px">
-      <h2>Using a custom domain</h2>
-      <p style="color:var(--soft); font-size:14.5px; line-height:1.6">
-        Enter your domain above (e.g. <code>photos.yourdomain.com</code>), then at
-        your domain registrar add a CNAME record pointing that name at
-        <code>{{BASE_DOMAIN}}</code>. Once DNS updates, your event answers on
-        your domain with HTTPS.
-      </p>
-    </div>
   </main>
 <script>
   const title = document.getElementById("title");

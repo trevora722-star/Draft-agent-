@@ -37,7 +37,6 @@ def _create_event(client, slug="anna-and-james", **overrides):
         "slug": slug,
         "guest_password": "cake123",
         "event_date": "",
-        "custom_domain": "",
     }
     data.update(overrides)
     return client.post(f"{BASE}/api/events", data=data, follow_redirects=False)
@@ -148,20 +147,6 @@ def test_guest_session_is_scoped_to_its_event(client):
     assert client.get(f"{EVENT}/api/photos").status_code == 200
     # the same cookie must not unlock a different event
     assert client.get("http://smith-reunion.confettialbum.test/api/photos").status_code == 401
-
-
-def test_custom_domain_routing(client):
-    _signup(client)
-    _create_event(client, slug="gala", guest_password="fete789",
-                  custom_domain="photos.smithwedding.test")
-    client.cookies.clear()
-    res = client.post(
-        "http://photos.smithwedding.test/login",
-        data={"password": "fete789", "email": "guest@example.com"},
-        follow_redirects=False,
-    )
-    assert res.status_code == 303
-    assert client.get("http://photos.smithwedding.test/api/photos").status_code == 200
 
 
 def test_referral_attribution(client):

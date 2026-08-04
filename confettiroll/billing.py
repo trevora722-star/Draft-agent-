@@ -59,7 +59,6 @@ PACKAGES = {
         "features": [
             "Everything in Celebration",
             "50% off your first printed book",
-            "Your own custom domain",
             "24-month gallery life",
             "Priority support",
         ],

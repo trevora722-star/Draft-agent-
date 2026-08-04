@@ -2,14 +2,13 @@
 
 Organizers sign up at the main site (confettialbum.com), create events, and
 get a shareable subdomain like sarah-and-tom.confettialbum.com (or their own
-custom domain). Guests open the event site, enter the event password, and
+Guests open the event site, enter the event password, and
 can view and upload photos and videos. The organizer's own login doubles as
 the event admin: they see delete buttons in their events' galleries.
 
 Tenant routing is by Host header:
   - base domain (and localhost)      -> marketing site + organizer dashboard
   - <slug>.<base domain>             -> that event's gallery
-  - any other host                   -> looked up as a custom domain
 
 Run locally:
     pip install -r requirements.txt
@@ -528,10 +527,7 @@ def create_app() -> FastAPI:
                 if slug == "www" or "." in slug:
                     return None
                 return conn.execute("SELECT * FROM events WHERE slug = ?", (slug,)).fetchone()
-            return conn.execute(
-                "SELECT * FROM events WHERE custom_domain IN (?, ?)",
-                (host, host.removeprefix("www.")),
-            ).fetchone()
+            return None
 
     def slug_in_use(conn: sqlite3.Connection, slug: str) -> bool:
         return (
@@ -645,8 +641,6 @@ def create_app() -> FastAPI:
         login_attempts.setdefault(key, []).append(time.time())
 
     def event_url(event: sqlite3.Row) -> str:
-        if event["custom_domain"]:
-            return f"https://{event['custom_domain']}"
         return f"https://{event['slug']}.{base_domain}"
 
     def page(template: str, **subs: str) -> HTMLResponse:
@@ -1102,7 +1096,7 @@ def create_app() -> FastAPI:
     @app.post("/api/events")
     def create_event(request: Request, title: str = Form(...), slug: str = Form(...),
                      guest_password: str = Form(...), event_date: str = Form(""),
-                     custom_domain: str = Form(""), venue_id: str = Form(""),
+                     venue_id: str = Form(""),
                      event_type: str = Form("party"), num_hosts: str = Form("")):
         if event_type not in ("party", "prom", "gala"):
             event_type = "party"
@@ -1119,7 +1113,6 @@ def create_app() -> FastAPI:
                 venue_id = ""
         title = re.sub(r"\s+", " ", title).strip()[:80]
         slug = slug.strip().lower()
-        custom_domain = custom_domain.strip().lower().removeprefix("https://").removeprefix("http://").strip("/")
         if not title:
             return RedirectResponse("/dashboard?error=Please+give+the+event+a+title.", status_code=303)
         if not SLUG_RE.fullmatch(slug) or slug in RESERVED_SLUGS:
@@ -1132,8 +1125,6 @@ def create_app() -> FastAPI:
                 "/dashboard?error=Guest+password+must+be+at+least+4+characters.",
                 status_code=303,
             )
-        if custom_domain and not re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", custom_domain):
-            return RedirectResponse("/dashboard?error=That+custom+domain+doesn't+look+valid.", status_code=303)
         event_id = uuid.uuid4().hex
         try:
             with db() as conn:
@@ -1143,7 +1134,7 @@ def create_app() -> FastAPI:
                     "INSERT INTO events (id, owner_id, slug, title, event_date, guest_password, custom_domain, created_at, venue_id, event_type, staff_code)"
                     " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     (event_id, user["id"], slug, title, event_date.strip()[:40],
-                     guest_password, custom_domain or None, int(time.time()),
+                     guest_password, None, int(time.time()),
                      venue_id or None, event_type,
                      new_member_code() if event_type == "prom" else ""),
                 )
