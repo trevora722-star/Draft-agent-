@@ -439,7 +439,7 @@
         pick.addEventListener("click", e => { e.stopPropagation(); togglePick(p, pick); });
         tile.appendChild(pick);
       }
-      if (!isProm && !(isGala && memberName) && isLocked) {
+      if (!isProm && !(isGala && memberName) && (isLocked || isAdmin)) {
         const bp = document.createElement("button");
         const mine = myBookPicks.has(p.id);
         const n = bookPicks[p.id] || 0;
@@ -598,7 +598,10 @@
         "The host has closed the album — tap ☆ on your favourites to vote them into the keepsake book. ✨";
     } else if (locked && isAdmin) {
       document.querySelector(".sub").textContent =
-        "Album closed — guests are picking their favourites (☆ counts show the votes). The book builds from the starred set.";
+        "Album closed — guests can star suggestions (the counts), but any photo YOU star takes priority: once you've starred anything, the book is exactly your picks.";
+    } else if (isAdmin) {
+      document.querySelector(".sub").textContent =
+        "Host view — tap ☆ to hand-pick the keepsake book any time. Your stars decide the book; with none, it uses everyone's votes or all photos.";
     }
     if (promViewer && data.book) {
       document.querySelector(".sub").textContent =

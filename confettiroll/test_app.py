@@ -897,6 +897,14 @@ def test_book_picks_after_close(client, tmp_path):
     res = client.post(f"{BASE}/api/events/{event_id}/book")
     assert res.status_code == 200 and res.json()["pages"] == 2
 
+    # ...until the host stars anything: the host's picks take priority
+    assert client.post(f"{EVENT}/api/photos/{ids[2]}/book-pick",
+                       data={"voter": "host-browser-1"}).json()["picked"] is True
+    listing = client.get(f"{EVENT}/api/photos?voter=host-other-device").json()
+    assert listing["my_book_picks"] == [ids[2]]  # host picks follow the account
+    res = client.post(f"{BASE}/api/events/{event_id}/book")
+    assert res.status_code == 200 and res.json()["pages"] == 1
+
 
 def test_sample_flipbook_route(client):
     # real manifests generated into static/samples/ power the viewer

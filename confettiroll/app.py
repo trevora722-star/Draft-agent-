@@ -1754,10 +1754,17 @@ def create_app() -> FastAPI:
                 photos.append(json.loads(meta_file.read_text()))
             except (OSError, json.JSONDecodeError):
                 continue
-        # If guests starred photos for the book (after the album closed),
-        # the book is built from exactly that set.
+        # The host's own stars have final say: if the host starred photos,
+        # the book is exactly that set. Otherwise guest stars decide, and
+        # with no stars at all the book uses every photo.
         with db() as conn:
-            picked_ids = {
+            host_picks = {
+                row["photo_id"] for row in conn.execute(
+                    "SELECT photo_id FROM book_picks WHERE event_id = ? AND voter = '__host__'",
+                    (event["id"],),
+                )
+            }
+            picked_ids = host_picks or {
                 row["photo_id"] for row in conn.execute(
                     "SELECT DISTINCT photo_id FROM book_picks WHERE event_id = ?",
                     (event["id"],),
@@ -1941,7 +1948,9 @@ def create_app() -> FastAPI:
     @app.post("/api/photos/{photo_id}/book-pick")
     def book_pick(request: Request, photo_id: str, voter: str = Form(...)):
         """After the host closes the album, anyone in it can star photos to
-        vote them into the keepsake book (per-browser voter id)."""
+        vote them into the keepsake book (per-browser voter id). The host's
+        own stars are recorded under one shared id — when the host has
+        starred anything, their selection alone decides the book."""
         event = resolve_event(request)
         if event is None:
             return JSONResponse({"error": "not found"}, status_code=404)
@@ -1954,7 +1963,7 @@ def create_app() -> FastAPI:
             return JSONResponse(
                 {"error": "the host hasn't closed the album yet"}, status_code=400
             )
-        voter = voter.strip()[:40]
+        voter = "__host__" if role == "admin" else voter.strip()[:40]
         if len(voter) < 6:
             return JSONResponse({"error": "bad voter id"}, status_code=400)
         dirs = event_dirs(data_dir, event["id"])
@@ -2532,9 +2541,10 @@ def create_app() -> FastAPI:
             ).fetchall()
         counts: dict[str, int] = {}
         mine = []
+        my_voter = "__host__" if role == "admin" else voter
         for row in pick_rows:
             counts[row["photo_id"]] = counts.get(row["photo_id"], 0) + 1
-            if voter and row["voter"] == voter:
+            if my_voter and row["voter"] == my_voter:
                 mine.append(row["photo_id"])
         out["book_picks"] = counts
         out["my_book_picks"] = mine
