@@ -897,6 +897,13 @@ def test_book_picks_after_close(client, tmp_path):
     res = client.post(f"{BASE}/api/events/{event_id}/book")
     assert res.status_code == 200 and res.json()["pages"] == 2
 
+    # the host can download the guest list of everyone who signed in
+    import csv as _csv
+    rows = list(_csv.reader(io.StringIO(
+        client.get(f"{BASE}/api/events/{event_id}/guest-list.csv").text)))
+    assert rows[0] == ["name", "email", "signed in", "book email sent"]
+    assert any(r[1] == "guest@example.com" for r in rows[1:])
+
     # ...until the host stars anything: the host's picks take priority
     assert client.post(f"{EVENT}/api/photos/{ids[2]}/book-pick",
                        data={"voter": "host-browser-1"}).json()["picked"] is True

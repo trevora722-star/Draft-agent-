@@ -1065,6 +1065,7 @@ def create_app() -> FastAPI:
                   <button class="mini" type="submit">{'🔓 Reopen uploads' if ev['uploads_locked'] else '🔒 Close album'}</button>
                 </form>
                 <button class="mini announce-btn" data-event="{ev['id']}" type="button">📣 Email the book ({sub_counts.get(ev['id'], 0)} signed up)</button>
+                <a class="mini" href="/api/events/{ev['id']}/guest-list.csv">👥 Guest list</a>
                 <form method="post" action="/api/events/{ev['id']}/delete" style="display:inline"
                       onsubmit="return confirm('Permanently delete this event and every photo, video, and book in it? This cannot be undone - nothing is retained on our servers.')">
                   <button class="mini" type="submit" style="cursor:pointer; background:none; color:#94433a; border-color:#e8cfcb">Delete forever</button>
@@ -2301,6 +2302,34 @@ def create_app() -> FastAPI:
                 (member_id, event_id),
             )
         return RedirectResponse("/dashboard", status_code=303)
+
+    @app.get("/api/events/{event_id}/guest-list.csv")
+    def guest_list_csv(request: Request, event_id: str):
+        """Everyone who signed in to the album with an email — the list the
+        book announcement goes to (host only)."""
+        event = owned_event(request, event_id)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        with db() as conn:
+            rows = conn.execute(
+                "SELECT name, email, created_at, notified_at FROM subscribers"
+                " WHERE event_id = ? ORDER BY created_at",
+                (event_id,),
+            ).fetchall()
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["name", "email", "signed in", "book email sent"])
+        for row in rows:
+            writer.writerow([
+                row["name"], row["email"],
+                time.strftime("%Y-%m-%d %H:%M", time.gmtime(row["created_at"])),
+                time.strftime("%Y-%m-%d %H:%M", time.gmtime(row["notified_at"]))
+                if row["notified_at"] else "",
+            ])
+        return Response(
+            buf.getvalue(), media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{event["slug"]}-guest-list.csv"'},
+        )
 
     @app.get("/api/events/{event_id}/members.csv")
     def members_csv(request: Request, event_id: str):
