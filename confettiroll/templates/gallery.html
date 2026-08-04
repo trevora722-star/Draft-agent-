@@ -695,11 +695,18 @@
     clearTimeout(searchTimer);
     searchTimer = setTimeout(load, 300);
   });
-  document.getElementById("highlights-btn").addEventListener("click", () => {
+  document.getElementById("highlights-btn").addEventListener("click", async () => {
     showHighlights = !showHighlights;
     const b = document.getElementById("highlights-btn");
     b.classList.toggle("ghost", !showHighlights);
-    load();
+    await load();
+    if (showHighlights) {
+      setStatus(photos.length
+        ? `✨ Showing the ${photos.length} best-scored photo${photos.length === 1 ? "" : "s"}.`
+        : "No highlights yet — the AI picks favourites as photos are captioned. Tap again for all photos.");
+    } else {
+      setStatus("");
+    }
   });
 
   document.getElementById("upload-btn").addEventListener("click", () => fileInput.click());
@@ -743,7 +750,7 @@
       lbVideo.hidden = true;
       lbVideo.removeAttribute("src");
       lbImg.hidden = false;
-      lbImg.src = "/photos/" + p.id + (p.edited_at ? "?v=" + p.edited_at : "");
+      lbImg.src = "/display/" + p.id + (p.edited_at ? "?v=" + p.edited_at : "");
     }
     lbCaption.textContent = captionFor(p);
     lbDownload.href = "/photos/" + p.id + "?download=1";
@@ -765,7 +772,7 @@
     if (!res.ok) { setStatus("Couldn't edit that photo.", "error"); return; }
     const meta = await res.json();
     photos[lbIndex] = meta;
-    lbImg.src = "/photos/" + meta.id + "?v=" + meta.edited_at;
+    lbImg.src = "/display/" + meta.id + "?v=" + meta.edited_at;
     setStatus("Saved.");
     render();
   }

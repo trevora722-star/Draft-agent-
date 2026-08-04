@@ -139,7 +139,7 @@
     const nextSlide = slides[1 - active];
     nextSlide.innerHTML = "";
     const img = document.createElement("img");
-    img.src = "/photos/" + p.id;
+    img.src = "/display/" + p.id;
     img.onload = () => {
       slides[active].classList.remove("visible");
       nextSlide.classList.add("visible");

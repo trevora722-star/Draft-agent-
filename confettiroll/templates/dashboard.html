@@ -210,7 +210,7 @@
     echo.textContent = slug.value || "your-event";
   });
   slug.addEventListener("input", () => { slugTouched = true; echo.textContent = slug.value || "your-event"; });
-  document.getElementById("event_type").addEventListener("change", e => {
+  document.getElementById("event_type")?.addEventListener("change", e => {
     const kind = e.target.value;
     document.getElementById("hosts-row").hidden = kind !== "gala";
     document.getElementById("type-hint").textContent =

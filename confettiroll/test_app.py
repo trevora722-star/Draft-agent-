@@ -137,6 +137,29 @@ def test_guest_flow_and_owner_admin(client, tmp_path):
     assert event_id is not None
 
 
+def test_unknown_subdomain_and_display_variant(client):
+    _signup(client)
+    _create_event(client)
+
+    # a typo'd or deleted event address gets a friendly 404, not the dashboard
+    res = client.get("http://no-such-event.confettialbum.test/")
+    assert res.status_code == 404
+    assert "This album doesn" in res.text
+
+    # the lightbox uses a screen-size variant; originals stay for download
+    client.cookies.clear()
+    client.post(f"{EVENT}/login", data={"password": "cake123", "email": "guest@example.com"}, follow_redirects=False)
+    up = client.post(f"{EVENT}/api/upload",
+                     files=[("files", ("big.jpg", _fake_jpeg(), "image/jpeg"))])
+    pid = up.json()["saved"][0]["id"]
+    res = client.get(f"{EVENT}/display/{pid}")
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "image/jpeg"
+    # and the book fallback page is human-friendly
+    res = client.get(f"{EVENT}/book.pdf")
+    assert res.status_code == 404 and "hasn" in res.text
+
+
 def test_guest_session_is_scoped_to_its_event(client):
     _signup(client)
     _create_event(client, slug="anna-and-james")

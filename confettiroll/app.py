@@ -339,7 +339,7 @@ def darken(hex_color: str, factor: float = 0.82) -> str:
 
 def event_dirs(data_dir: Path, event_id: str) -> dict[str, Path]:
     root = data_dir / "events" / event_id
-    dirs = {name: root / name for name in ("photos", "thumbs", "meta", "trash")}
+    dirs = {name: root / name for name in ("photos", "thumbs", "display", "meta", "trash")}
     for d in dirs.values():
         d.mkdir(parents=True, exist_ok=True)
     return dirs
@@ -663,11 +663,36 @@ def create_app() -> FastAPI:
     # main site (no tenant)
     # =======================================================================
 
+    def unknown_album_page() -> HTMLResponse:
+        return HTMLResponse(
+            '<div style="min-height:100vh; display:flex; flex-direction:column;'
+            ' align-items:center; justify-content:center; gap:14px;'
+            " font-family:Georgia,serif; background:#fdfbf7; color:#2c2733;"
+            ' text-align:center; padding:24px">'
+            '<div style="font-size:40px">✦ ✦ ✦</div>'
+            '<h1 style="font-weight:normal; font-size:28px">This album doesn\'t exist</h1>'
+            '<p style="color:#7d7488; max-width:420px">Check the address on your'
+            " invitation or QR card - or the event may have ended and been"
+            " deleted by its host.</p>"
+            '<a href="https://' + base_domain + '" style="color:#e85d8a">ConfettiAlbum home</a>'
+            "</div>", status_code=404)
+
+    def requested_event_slug(request: Request) -> str | None:
+        host = (request.url.hostname or "").lower()
+        for suffix in ("." + base_domain, ".localhost"):
+            if host.endswith(suffix):
+                slug = host[: -len(suffix)]
+                if slug != "www" and "." not in slug:
+                    return slug
+        return None
+
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request):
         event = resolve_event(request)
         if event is not None:
             return tenant_gallery(request, event)
+        if requested_event_slug(request) is not None:
+            return unknown_album_page()
         if current_user(request) is not None and not request.query_params.get("preview"):
             return RedirectResponse("/dashboard", status_code=303)
         sample_books = {
@@ -1786,11 +1811,16 @@ def create_app() -> FastAPI:
                 venue_name, accent = venue["name"], venue["accent"] or accent
 
         dest = data_dir / "events" / event["id"] / "book.pdf"
-        pages = book_maker.generate_book(
-            dest, event["title"], event["event_date"], photos, dirs["photos"],
-            recap=recap, venue_name=venue_name, accent=accent,
-            credit=f"Made with love on {base_domain}",
-        )
+        try:
+            pages = book_maker.generate_book(
+                dest, event["title"], event["event_date"], photos, dirs["photos"],
+                recap=recap, venue_name=venue_name, accent=accent,
+                credit=f"Made with love on {base_domain}",
+            )
+        except MemoryError:
+            return JSONResponse(
+                {"error": "the album is too large to compose right now - "
+                          "try again in a minute"}, status_code=503)
         return {"pages": pages, "url": f"{event_url(event)}/book.pdf"}
 
     @app.get("/book.pdf")
@@ -1803,7 +1833,12 @@ def create_app() -> FastAPI:
             return JSONResponse({"error": "not logged in"}, status_code=401)
         path = data_dir / "events" / event["id"] / "book.pdf"
         if not path.exists():
-            return JSONResponse({"error": "no book yet"}, status_code=404)
+            return HTMLResponse(
+                '<p style="font-family:Georgia,serif; padding:60px 24px;'
+                ' text-align:center; color:#2c2733">The keepsake book hasn\'t'
+                " been composed yet - the host creates it from their dashboard"
+                ' once the album is complete. <a href="/" style="color:#e85d8a">'
+                "Back to the album</a></p>", status_code=404)
         safe = re.sub(r"[^\w\- ]", "_", event["title"]) or "keepsake"
         return FileResponse(
             path, media_type="application/pdf",
@@ -2432,11 +2467,16 @@ def create_app() -> FastAPI:
         books_dir = data_dir / "events" / event["id"] / "books"
         books_dir.mkdir(parents=True, exist_ok=True)
         dest = books_dir / f"member-{member['id']}.pdf"
-        pages = book_maker.generate_book(
-            dest, f"{member['name']} · {event['title']}", event["event_date"],
-            photos, dirs["photos"],
-            credit=f"Made with love on {base_domain}",
-        )
+        try:
+            pages = book_maker.generate_book(
+                dest, f"{member['name']} · {event['title']}", event["event_date"],
+                photos, dirs["photos"],
+                credit=f"Made with love on {base_domain}",
+            )
+        except MemoryError:
+            return JSONResponse(
+                {"error": "the album is too large to compose right now - "
+                          "try again in a minute"}, status_code=503)
         return {"pages": pages, "url": "/my-book.pdf"}
 
     @app.get("/my-book.pdf")
@@ -2776,6 +2816,35 @@ def create_app() -> FastAPI:
             headers["Content-Disposition"] = f'attachment; filename="{safe}"'
         media_type = VIDEO_MEDIA_TYPES.get(path.suffix.lower())
         return FileResponse(path, headers=headers, media_type=media_type)
+
+    @app.get("/display/{photo_id}")
+    def display_photo(request: Request, photo_id: str):
+        """Screen-size variant (~1600px) for the lightbox and live wall -
+        full-resolution originals stay on /photos/{id} for downloads."""
+        event = resolve_event(request)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        role = gallery_role(request, event)
+        if role is None:
+            return JSONResponse({"error": "not logged in"}, status_code=401)
+        dirs = event_dirs(data_dir, event["id"])
+        if is_tagged_event(event) and role == "guest" \
+                and not (data_dir / "events" / event["id"] / "book.pdf").exists():
+            return JSONResponse({"error": "not found"}, status_code=404)
+        cached = dirs["display"] / f"{photo_id}.jpg"
+        source = _find_media_file(dirs["photos"], photo_id)
+        if source is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        if not cached.exists() or cached.stat().st_mtime < source.stat().st_mtime:
+            try:
+                with Image.open(source) as img:
+                    img.draft("RGB", (1600, 1600))
+                    img = ImageOps.exif_transpose(img)
+                    img.thumbnail((1600, 1600))
+                    img.convert("RGB").save(cached, "JPEG", quality=84)
+            except Exception:
+                return FileResponse(source)
+        return FileResponse(cached, media_type="image/jpeg")
 
     @app.get("/thumbs/{photo_id}")
     def thumb(request: Request, photo_id: str):

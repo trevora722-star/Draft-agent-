@@ -10,16 +10,41 @@ any print shop / photo-book service.
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.pdfgen import canvas
 
 PAGE = 576  # 8in x 8in in points
 MARGIN = 54
 MAX_PHOTOS = 150
+
+
+# Photos from modern phones decode to ~70 MB of raw RGB each; embedding them
+# untouched holds every page's raster until save and can OOM a small server.
+# Decode downscaled (JPEG draft mode), fix EXIF rotation, and hand reportlab
+# a small JPEG buffer instead - it embeds JPEG bytes directly.
+BOOK_EDGE = 1800  # ~225 dpi on an 8x8" page
+
+
+def _photo_reader(path: Path, max_edge: int = BOOK_EDGE):
+    try:
+        with Image.open(path) as img:
+            img.draft("RGB", (max_edge, max_edge))
+            img = ImageOps.exif_transpose(img)
+            img.thumbnail((max_edge, max_edge))
+            rgb = img.convert("RGB")
+        buf = io.BytesIO()
+        rgb.save(buf, "JPEG", quality=85)
+        size = rgb.size
+        rgb.close()
+        buf.seek(0)
+        return ImageReader(buf), size
+    except Exception:
+        return None
 
 
 def _hex_rgb(color: str) -> tuple[float, float, float]:
@@ -106,11 +131,10 @@ def generate_book(dest: Path, title: str, event_date: str, photos: list[dict],
         matches = list(photos_dir.glob(f"{meta['id']}.*"))
         if not matches:
             continue
-        try:
-            with Image.open(matches[0]) as img:
-                width, height = img.size
-        except Exception:
+        loaded = _photo_reader(matches[0])
+        if loaded is None:
             continue
+        reader, (width, height) = loaded
         c.setFillColorRGB(1, 1, 1)
         c.rect(0, 0, PAGE, PAGE, fill=1, stroke=0)
         box = PAGE - 2 * MARGIN
@@ -120,10 +144,12 @@ def generate_book(dest: Path, title: str, event_date: str, photos: list[dict],
         x = (PAGE - w) / 2
         y = MARGIN + caption_room + (box - caption_room - h) / 2
         try:
-            c.drawImage(ImageReader(str(matches[0])), x, y, w, h,
+            c.drawImage(reader, x, y, w, h,
                         preserveAspectRatio=True, anchor="c")
         except Exception:
             continue
+        finally:
+            del reader, loaded
         bits = []
         if meta.get("caption"):
             bits.append(meta["caption"])
