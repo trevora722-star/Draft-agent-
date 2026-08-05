@@ -466,8 +466,22 @@ def create_app() -> FastAPI:
         payload = f"o.{user_id}.{int(time.time()) + SESSION_TTL_SECONDS}"
         return f"{payload}.{sign(payload)}"
 
-    def make_guest_token(event_id: str) -> str:
-        payload = f"g.{event_id}.{int(time.time()) + SESSION_TTL_SECONDS}"
+    def guest_token_event(request: Request) -> str | None:
+        """Event id from a guest token (which also carries the subscriber id)."""
+        payload = parse_token(request.cookies.get(GUEST_COOKIE), "g")
+        if payload is None:
+            return None
+        return payload.partition(":")[0]
+
+    def guest_subscriber_id(request: Request) -> int | None:
+        payload = parse_token(request.cookies.get(GUEST_COOKIE), "g")
+        if payload is None or ":" not in payload:
+            return None
+        sub = payload.partition(":")[2]
+        return int(sub) if sub.isdigit() and sub != "0" else None
+
+    def make_guest_token(event_id: str, subscriber_id: int | None = None) -> str:
+        payload = f"g.{event_id}:{subscriber_id or 0}.{int(time.time()) + SESSION_TTL_SECONDS}"
         return f"{payload}.{sign(payload)}"
 
     def make_member_token(event_id: str, member_id: int) -> str:
@@ -616,18 +630,16 @@ def create_app() -> FastAPI:
             # see the album once the keepsake book is ready.
             if parse_token(request.cookies.get(GUEST_COOKIE), "s") == event["id"]:
                 return "staff"
-            if parse_token(request.cookies.get(GUEST_COOKIE), "g") == event["id"]:
+            if guest_token_event(request) == event["id"]:
                 return "guest"
             return None
         if is_gala(event):
             if current_member(request, event) is not None:
                 return "member"  # a table host
-            event_id = parse_token(request.cookies.get(GUEST_COOKIE), "g")
-            if event_id == event["id"]:
+            if guest_token_event(request) == event["id"]:
                 return "guest"  # view-only attendee
             return None
-        event_id = parse_token(request.cookies.get(GUEST_COOKIE), "g")
-        if event_id == event["id"]:
+        if guest_token_event(request) == event["id"]:
             return "guest"
         return None
 
@@ -1099,7 +1111,7 @@ def create_app() -> FastAPI:
                   <button class="mini" type="submit">{'🔓 Reopen uploads' if ev['uploads_locked'] else '🔒 Close album'}</button>
                 </form>
                 <button class="mini announce-btn" data-event="{ev['id']}" type="button">📣 Email the book ({sub_counts.get(ev['id'], 0)} signed up)</button>
-                <a class="mini" href="/api/events/{ev['id']}/guest-list.csv">👥 Guest list</a>
+                <button class="mini guests-btn" data-event="{ev['id']}" type="button">👥 Guests</button>
                 <form method="post" action="/api/events/{ev['id']}/delete" style="display:inline"
                       onsubmit="return confirm('Permanently delete this event and every photo, video, and book in it? This cannot be undone - nothing is retained on our servers.')">
                   <button class="mini" type="submit" style="cursor:pointer; background:none; color:#94433a; border-color:#e8cfcb">Delete forever</button>
@@ -1676,12 +1688,13 @@ def create_app() -> FastAPI:
             return RedirectResponse("/login", status_code=303)
         return page("gallery", title=esc(event["title"]), **event_brand(event))
 
-    def remember_subscriber(event_id: str, email: str, name: str = "") -> None:
+    def remember_subscriber(event_id: str, email: str, name: str = "") -> int | None:
         """A guest left their email at sign-in — remember them for the
-        book-ready announcement. Best-effort, never blocks login."""
+        book-ready announcement. Returns the subscriber row id.
+        Best-effort, never blocks login."""
         email = email.strip().lower()
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
-            return
+            return None
         try:
             with db() as conn:
                 conn.execute(
@@ -1689,8 +1702,13 @@ def create_app() -> FastAPI:
                     " VALUES (?,?,?,?)",
                     (event_id, email, name.strip()[:60], int(time.time())),
                 )
+                row = conn.execute(
+                    "SELECT id FROM subscribers WHERE event_id = ? AND email = ?",
+                    (event_id, email),
+                ).fetchone()
+                return row["id"] if row else None
         except sqlite3.Error:
-            pass
+            return None
 
     @app.get("/host/{code}")
     def host_link(request: Request, code: str):
@@ -1758,10 +1776,10 @@ def create_app() -> FastAPI:
             # keepsake book is ready to order.
             return guest_login_page(
                 event, "Please add your email - it's how you'll hear when the keepsake book is ready.")
-        remember_subscriber(event["id"], email)
+        sub_id = remember_subscriber(event["id"], email)
         response = RedirectResponse("/", status_code=303)
         response.set_cookie(
-            GUEST_COOKIE, make_guest_token(event["id"]),
+            GUEST_COOKIE, make_guest_token(event["id"], sub_id),
             max_age=SESSION_TTL_SECONDS, httponly=True, samesite="lax",
         )
         return response
@@ -2343,6 +2361,41 @@ def create_app() -> FastAPI:
             )
         return RedirectResponse("/dashboard", status_code=303)
 
+    @app.get("/api/events/{event_id}/guests")
+    def event_guests(request: Request, event_id: str):
+        """Who signed in with an email, with each guest's photo count -
+        plus contributors who uploaded under a name (host only)."""
+        event = owned_event(request, event_id)
+        if event is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        with db() as conn:
+            subs = conn.execute(
+                "SELECT id, name, email, created_at, notified_at FROM subscribers"
+                " WHERE event_id = ? ORDER BY created_at",
+                (event_id,),
+            ).fetchall()
+        dirs = event_dirs(data_dir, event_id)
+        by_sub: dict[int, int] = {}
+        by_name: dict[str, int] = {}
+        for meta_file in dirs["meta"].glob("*.json"):
+            meta = _read_meta(dirs, meta_file.stem)
+            if meta is None:
+                continue
+            if meta.get("sub"):
+                by_sub[meta["sub"]] = by_sub.get(meta["sub"], 0) + 1
+            elif meta.get("uploader"):
+                key = meta["uploader"].strip()
+                by_name[key] = by_name.get(key, 0) + 1
+        guests = [{
+            "name": s["name"], "email": s["email"],
+            "signed_in": s["created_at"], "notified": bool(s["notified_at"]),
+            "photos": by_sub.get(s["id"], 0),
+        } for s in subs]
+        others = [{"name": n, "photos": c}
+                  for n, c in sorted(by_name.items(), key=lambda kv: -kv[1])]
+        return {"guests": guests, "others": others,
+                "total_photos": sum(by_sub.values()) + sum(by_name.values())}
+
     @app.get("/api/events/{event_id}/guest-list.csv")
     def guest_list_csv(request: Request, event_id: str):
         """Everyone who signed in to the album with an email — the list the
@@ -2732,6 +2785,11 @@ def create_app() -> FastAPI:
                     if ai_agents.ai_enabled():
                         background.add_task(_caption_task, event["id"], meta["id"])
                 changed = False
+                sub_id = guest_subscriber_id(request) if role == "guest" else None
+                if sub_id:
+                    # credit the upload to the signed-in guest's email
+                    meta["sub"] = sub_id
+                    changed = True
                 if device and role not in ("admin", "staff"):
                     meta["device"] = device
                     changed = True

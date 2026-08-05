@@ -130,6 +130,13 @@ def test_guest_flow_and_owner_admin(client, tmp_path):
         follow_redirects=False,
     )
     assert client.delete(f"{EVENT}/api/photos/{photo_id}").status_code == 200
+
+    # the host sees who signed up and how many photos each guest shared
+    import re as _re
+    event_id2 = _re.search(r"/api/events/([0-9a-f]{32})/", client.get(f"{BASE}/dashboard").text).group(1)
+    guests = client.get(f"{BASE}/api/events/{event_id2}/guests").json()
+    bob = next(g for g in guests["guests"] if g["email"] == "guest@example.com")
+    assert bob["photos"] == 1  # photo + video uploaded, photo deleted above
     event_id = None
     for d in (tmp_path / "events").iterdir():
         if (d / "trash" / "photos").exists():
@@ -911,6 +918,10 @@ def test_book_picks_after_close(client, tmp_path):
         client.get(f"{BASE}/api/events/{event_id}/guest-list.csv").text)))
     assert rows[0] == ["name", "email", "signed in", "book email sent"]
     assert any(r[1] == "guest@example.com" for r in rows[1:])
+
+    # ...and see who signed up with per-guest photo counts
+    data = client.get(f"{BASE}/api/events/{event_id}/guests").json()
+    assert any(g["email"] == "guest@example.com" for g in data["guests"])
 
     # ...until the host stars anything: the host's picks take priority
     assert client.post(f"{EVENT}/api/photos/{ids[2]}/book-pick",

@@ -287,6 +287,47 @@
     } catch { status.textContent = "Couldn't check the code right now."; }
   });
 
+  document.querySelectorAll(".guests-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const box = document.getElementById("recap-" + btn.dataset.event);
+      box.hidden = false;
+      box.style.cssText = "margin-top:12px; padding:14px; background:#faf7f2; border-radius:10px; font-size:14px; line-height:1.6";
+      box.textContent = "Fetching the guest list…";
+      try {
+        const res = await fetch(`/api/events/${btn.dataset.event}/guests`);
+        const data = await res.json();
+        if (!res.ok) { box.textContent = data.error || "Couldn't fetch the guest list."; return; }
+        if (!data.guests.length && !data.others.length) {
+          box.textContent = "No one has signed in yet — share the album address and password to get the photos rolling.";
+          return;
+        }
+        const fmt = ts => new Date(ts * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+        let html = `<strong>${data.guests.length} signed up · ${data.total_photos} photos shared</strong>`;
+        if (data.guests.length) {
+          html += '<table style="width:100%; margin-top:10px; border-collapse:collapse; font-size:13.5px">' +
+            '<tr style="color:var(--soft); text-align:left"><th style="font-weight:normal; padding:3px 6px">Guest</th>' +
+            '<th style="font-weight:normal; padding:3px 6px">Photos</th>' +
+            '<th style="font-weight:normal; padding:3px 6px">Signed in</th>' +
+            '<th style="font-weight:normal; padding:3px 6px">Book email</th></tr>' +
+            data.guests.map(g =>
+              `<tr><td style="padding:3px 6px">${g.name ? g.name + " · " : ""}${g.email}</td>` +
+              `<td style="padding:3px 6px">${g.photos || "—"}</td>` +
+              `<td style="padding:3px 6px">${fmt(g.signed_in)}</td>` +
+              `<td style="padding:3px 6px">${g.notified ? "✓ sent" : "—"}</td></tr>`).join("") +
+            "</table>";
+        }
+        if (data.others.length) {
+          html += '<p style="margin-top:10px; color:var(--soft)">Also shared photos (by name only): ' +
+            data.others.map(o => `${o.name} (${o.photos})`).join(" · ") + "</p>";
+        }
+        html += `<p style="margin-top:10px"><a class="mini" href="/api/events/${btn.dataset.event}/guest-list.csv">Download CSV</a></p>`;
+        box.innerHTML = html;
+      } catch {
+        box.textContent = "Couldn't fetch the guest list right now.";
+      }
+    });
+  });
+
   document.querySelectorAll(".announce-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const box = document.getElementById("recap-" + btn.dataset.event);
