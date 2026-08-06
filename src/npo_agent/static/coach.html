@@ -173,11 +173,13 @@ async function startCoach(){
   $("composer").classList.remove("hide");
   $("who").textContent = "· " + (MEMBER.name||"");
   try {
-    const p = await api(`/v1/members/${MEMBER.id}/program`);
-    $("program").classList.remove("mut");
-    $("program").textContent = p.body;
-    $("programMeta").textContent = "Saved " + p.created_at;
-  } catch(e){ /* no program yet — leave placeholder */ }
+    const r = await api(`/v1/members/${MEMBER.id}/program`);
+    if (r.program) {
+      $("program").classList.remove("mut");
+      $("program").textContent = r.program.body;
+      $("programMeta").textContent = "Saved " + r.program.created_at;
+    }
+  } catch(e){ /* leave placeholder */ }
 }
 
 $("buildBtn").onclick = async () => {

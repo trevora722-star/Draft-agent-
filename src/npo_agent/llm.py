@@ -37,6 +37,15 @@ class LLMResponse:
     stop_reason: str | None
 
 
+class LLMError(RuntimeError):
+    """The model call could not be completed (misconfig, auth, provider error).
+
+    Raised instead of letting a raw provider exception bubble up as a bare 500.
+    The API layer translates this into a friendly 503 so a missing key or an
+    Anthropic outage degrades gracefully instead of leaking a stack trace.
+    """
+
+
 def _join_text_blocks(blocks: Iterable) -> str:
     parts: list[str] = []
     for block in blocks:
@@ -69,6 +78,12 @@ def complete(
     system, so adding tools later won't invalidate this cache.
     """
     settings = get_settings()
+    if not settings.anthropic_api_key:
+        # Fail fast and clearly rather than letting the SDK raise an opaque
+        # "Could not resolve authentication method" TypeError deep in a request.
+        raise LLMError(
+            "The coaching service isn't configured yet (missing ANTHROPIC_API_KEY)."
+        )
     client = get_client()
     model = model or settings.model_default
 
@@ -108,11 +123,16 @@ def complete(
     # Stream when we'd otherwise risk an HTTP timeout — SDK guidance is
     # to stream for max_tokens above ~16K. Use get_final_message() so the
     # rest of the code path is identical to the non-streaming case.
-    if max_tokens > 16_000:
-        with client.messages.stream(**kwargs) as stream:
-            message = stream.get_final_message()
-    else:
-        message = client.messages.create(**kwargs)
+    try:
+        if max_tokens > 16_000:
+            with client.messages.stream(**kwargs) as stream:
+                message = stream.get_final_message()
+        else:
+            message = client.messages.create(**kwargs)
+    except anthropic.AnthropicError as exc:
+        # Rate limit, provider outage, timeout, bad key — surface as a clean
+        # LLMError so the API returns a friendly 503 instead of a 500 trace.
+        raise LLMError("The coaching service is temporarily unavailable.") from exc
 
     return LLMResponse(
         text=_join_text_blocks(message.content),

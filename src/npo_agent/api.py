@@ -23,6 +23,7 @@ from . import fitness
 from .agents import Accountability, Coach, GrantWriter, PolicyNavigator
 from .config import get_settings
 from .db import init_db
+from .llm import LLMError
 from .personas import DEFAULT_PERSONA, PERSONAS
 from .tenancy import Tenant, authenticate, create_tenant
 from .vault import Vault
@@ -37,6 +38,15 @@ app = FastAPI(
     ),
     version="0.1.0",
 )
+
+
+@app.exception_handler(LLMError)
+def _llm_error_handler(request, exc: LLMError):
+    # Any agent endpoint whose model call fails (missing key, provider outage,
+    # rate limit) returns a friendly 503 instead of a bare 500 stack trace.
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"detail": str(exc)})
 
 
 if get_settings().demo_mode:
@@ -538,9 +548,11 @@ def get_member_program(
 ) -> dict:
     _member_or_404(tenant, member_id)
     program = fitness.latest_program(tenant, member_id)
+    # "No program yet" is a normal state for a new member, not an error — return
+    # 200 with a null program so the member app doesn't log a 404 on every open.
     if program is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No program yet")
-    return {"id": program.id, "body": program.body, "created_at": program.created_at}
+        return {"program": None}
+    return {"program": {"id": program.id, "body": program.body, "created_at": program.created_at}}
 
 
 # ---- coach agent ----------------------------------------------------------

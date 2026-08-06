@@ -94,3 +94,46 @@ def test_ui_routes_serve_html(isolated_db):
         r = client.get(path)
         assert r.status_code == 200
         assert "text/html" in r.headers["content-type"]
+
+
+def test_program_endpoint_returns_null_not_404_when_none(isolated_db):
+    """Regression (browser bug hunt): a member with no program is a normal
+    state — 200 {program: null}, not a 404 that spams the console."""
+    client = TestClient(api_module.app)
+    key = _tenant_key(client)
+    h = {"X-API-Key": key}
+    member = client.post("/v1/members", json={"name": "Alex"}, headers=h).json()
+
+    r = client.get(f"/v1/members/{member['id']}/program", headers=h)
+    assert r.status_code == 200
+    assert r.json()["program"] is None
+
+    # Once a program exists it comes back nested under "program".
+    from npo_agent import fitness
+    from npo_agent.tenancy import authenticate
+
+    fitness.save_program(authenticate(key), member["id"], "# Plan\nDay 1: squats")
+    r2 = client.get(f"/v1/members/{member['id']}/program", headers=h)
+    assert r2.status_code == 200
+    assert "Day 1" in r2.json()["program"]["body"]
+
+
+def test_agent_endpoint_returns_503_when_llm_unconfigured(isolated_db, monkeypatch):
+    """Regression (browser bug hunt): a missing/broken model config must
+    degrade to a friendly 503, never a bare 500 stack trace."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    from npo_agent import config
+
+    config.get_settings.cache_clear()
+
+    client = TestClient(api_module.app, raise_server_exceptions=False)
+    key = _tenant_key(client)
+    h = {"X-API-Key": key}
+    loc = client.post("/v1/locations", json={"name": "Rutland"}, headers=h).json()
+    member = client.post(
+        "/v1/members", json={"name": "Alex", "home_location_id": loc["id"]}, headers=h
+    ).json()
+
+    r = client.post("/v1/agents/coach/program", json={"member_id": member["id"]}, headers=h)
+    assert r.status_code == 503
+    assert "coaching service" in r.json()["detail"].lower()
