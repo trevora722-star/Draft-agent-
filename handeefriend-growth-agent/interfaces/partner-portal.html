@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>HandeeFriend — Partner Portal</title>
+<style>
+  * { box-sizing:border-box; }
+  body { font-family:system-ui,-apple-system,sans-serif; margin:0; background:#fafafa; color:#111; }
+  header { background:#fff; border-bottom:1px solid #eee; padding:18px 24px; display:flex; justify-content:space-between; align-items:center; }
+  header h1 { margin:0; font-size:20px; }
+  header .accent { color:#f97316; }
+  main { max-width:760px; margin:32px auto; padding:0 16px; }
+  .panel { background:#fff; border:1px solid #eee; border-radius:10px; padding:24px; margin-bottom:24px; }
+  .panel h2 { margin:0 0 12px; font-size:18px; }
+  label { display:block; font-size:13px; color:#666; margin-bottom:4px; }
+  input, button { font:inherit; }
+  input { width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; }
+  button.primary { background:#f97316; color:#fff; border:none; padding:10px 16px; border-radius:6px; font-weight:600; cursor:pointer; }
+  button.primary:hover { background:#ea580c; }
+  button.copy { background:#111; color:#fff; border:none; padding:6px 10px; border-radius:4px; font-size:12px; cursor:pointer; margin-left:8px; }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+  .stat { background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:12px; }
+  .stat .label { font-size:12px; color:#9a3412; text-transform:uppercase; }
+  .stat .value { font-size:28px; font-weight:600; }
+  .link-box { background:#f7f7f7; padding:12px; border-radius:6px; font-family:monospace; font-size:14px; word-break:break-all; display:flex; align-items:center; }
+  .hidden { display:none; }
+  .err { color:#c00; font-size:13px; margin-top:8px; }
+  footer { text-align:center; color:#999; font-size:12px; padding:24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛠 <span class="accent">HandeeFriend</span> Partner Portal</h1>
+  <span style="font-size:13px;color:#999" id="logout-btn"></span>
+</header>
+<main>
+
+<div id="login" class="panel">
+  <h2>Sign in</h2>
+  <p style="color:#666">Enter the partner ID we sent you (looks like <code>HF-XXXXXX</code>).</p>
+  <label>Partner ID</label>
+  <input id="partner-id" placeholder="HF-XXXXXX" autofocus />
+  <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+    <button class="primary" id="login-btn">Sign in</button>
+    <span class="err" id="login-err"></span>
+  </div>
+  <details style="margin-top:24px">
+    <summary style="color:#999;font-size:12px;cursor:pointer">NocoDB connection</summary>
+    <div style="margin-top:8px;font-size:13px;color:#666">
+      <label>NocoDB URL</label>
+      <input id="cfg-base" placeholder="https://nocodb.example.com" />
+      <label style="margin-top:6px">Public read token (xc-token)</label>
+      <input id="cfg-token" type="password" />
+      <label style="margin-top:6px">Base ID</label>
+      <input id="cfg-baseid" />
+      <button class="primary" style="margin-top:8px" id="save-cfg-btn">Save connection</button>
+    </div>
+  </details>
+</div>
+
+<div id="dashboard" class="hidden">
+  <div class="panel">
+    <h2>Welcome back, <span id="partner-name">Partner</span></h2>
+    <p style="color:#666">Your partner type: <strong id="partner-type">—</strong> &middot; <strong id="partner-city">—</strong></p>
+  </div>
+
+  <div class="panel">
+    <h2>This month at a glance</h2>
+    <div class="grid">
+      <div class="stat"><div class="label">Referrals</div><div class="value" id="m-ref">—</div></div>
+      <div class="stat"><div class="label">Conversions</div><div class="value" id="m-conv">—</div></div>
+      <div class="stat"><div class="label">Commission earned (CAD)</div><div class="value" id="m-com">—</div></div>
+      <div class="stat"><div class="label">Total all-time</div><div class="value" id="m-total">—</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Your referral link</h2>
+    <p style="color:#666">Share this with clients. We'll credit you whenever someone uses it to sign up and convert.</p>
+    <div class="link-box">
+      <span id="ref-link">—</span>
+      <button class="copy" id="copy-btn">Copy</button>
+    </div>
+  </div>
+</div>
+
+</main>
+<footer>HandeeFriend &middot; West Kelowna, BC</footer>
+
+<script>
+function loadCfg() {
+  try { return JSON.parse(localStorage.getItem('hf-partner-cfg') || '{}'); } catch { return {}; }
+}
+function saveCfg(c) { localStorage.setItem('hf-partner-cfg', JSON.stringify(c)); }
+
+function applyCfg() {
+  const c = loadCfg();
+  document.getElementById('cfg-base').value = c.base || '';
+  document.getElementById('cfg-token').value = c.token || '';
+  document.getElementById('cfg-baseid').value = c.baseId || '';
+}
+applyCfg();
+
+document.getElementById('save-cfg-btn').addEventListener('click', () => {
+  saveCfg({
+    base: document.getElementById('cfg-base').value.trim(),
+    token: document.getElementById('cfg-token').value.trim(),
+    baseId: document.getElementById('cfg-baseid').value.trim(),
+  });
+  alert('Connection saved.');
+});
+
+async function nc(table, params = '') {
+  const c = loadCfg();
+  if (!c.base || !c.token || !c.baseId) throw new Error('NocoDB not configured');
+  const res = await fetch(`${c.base}/api/v2/db/data/noco/${c.baseId}/${table}${params ? '?' + params : ''}`, {
+    headers: { 'xc-token': c.token },
+  });
+  if (!res.ok) throw new Error(`Lookup failed (${res.status})`);
+  return res.json();
+}
+
+async function login() {
+  const id = document.getElementById('partner-id').value.trim();
+  document.getElementById('login-err').textContent = '';
+  if (!id) return;
+  try {
+    const where = encodeURIComponent(`(referral_link,like,%${id}%)`);
+    const data = await nc('partner_registry', `where=${where}&limit=1`);
+    const partner = (data.list || data.records || [])[0];
+    if (!partner) {
+      document.getElementById('login-err').textContent = 'No partner found with that ID.';
+      return;
+    }
+    showDashboard(partner);
+    sessionStorage.setItem('hf-partner', JSON.stringify(partner));
+  } catch (e) {
+    document.getElementById('login-err').textContent = e.message;
+  }
+}
+
+async function fetchPartnerStats(partnerId) {
+  const since = new Date(Date.now() - 30*86400000).toISOString();
+  const where = encodeURIComponent(`(referrer_user_id,eq,${partnerId})~and(event_date,ge,${since})`);
+  const data = await nc('referral_events', `where=${where}&limit=200`);
+  const events = data.list || data.records || [];
+  const referrals = events.length;
+  const conversions = events.filter(e => e.event_type === 'paid_convert').length;
+  const commission = +(conversions * 19.99 * 0.10).toFixed(2);
+  return { referrals, conversions, commission };
+}
+
+async function showDashboard(partner) {
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('dashboard').classList.remove('hidden');
+  document.getElementById('partner-name').textContent = partner.name || 'Partner';
+  document.getElementById('partner-type').textContent = partner.type || '—';
+  document.getElementById('partner-city').textContent = partner.city || '—';
+  document.getElementById('ref-link').textContent = partner.referral_link || '—';
+  document.getElementById('m-total').textContent = `$${partner.total_commission_cad || 0}`;
+  document.getElementById('logout-btn').innerHTML = '<a href="#" id="logout">sign out</a>';
+  document.getElementById('logout').addEventListener('click', (e) => {
+    e.preventDefault();
+    sessionStorage.removeItem('hf-partner');
+    location.reload();
+  });
+
+  try {
+    const stats = await fetchPartnerStats(partner.id);
+    document.getElementById('m-ref').textContent = stats.referrals;
+    document.getElementById('m-conv').textContent = stats.conversions;
+    document.getElementById('m-com').textContent = `$${stats.commission}`;
+  } catch (e) {
+    console.warn(e);
+  }
+}
+
+document.getElementById('login-btn').addEventListener('click', login);
+document.getElementById('partner-id').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') login();
+});
+document.getElementById('copy-btn').addEventListener('click', () => {
+  const link = document.getElementById('ref-link').textContent;
+  navigator.clipboard.writeText(link);
+  document.getElementById('copy-btn').textContent = 'Copied';
+  setTimeout(() => document.getElementById('copy-btn').textContent = 'Copy', 1500);
+});
+
+// Restore session
+const stored = sessionStorage.getItem('hf-partner');
+if (stored) {
+  try { showDashboard(JSON.parse(stored)); } catch {}
+}
+</script>
+</body>
+</html>

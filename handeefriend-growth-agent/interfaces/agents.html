@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>HandeeFriend — Agent Control Center</title>
+<style>
+  :root {
+    --bg:#0b0b0d; --panel:#15151a; --panel2:#1c1c22; --border:#262630;
+    --text:#e8e8ea; --muted:#888; --dim:#666;
+    --accent:#f97316; --green:#22c55e; --red:#ef4444; --warn:#f59e0b;
+    --link:#60a5fa;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    background:var(--bg); color:var(--text);
+    display:grid; grid-template-rows:auto 1fr;
+  }
+  header {
+    padding:12px 20px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+  }
+  header h1 { margin:0; font-size:16px; color:var(--accent); }
+  header .links a { color:var(--muted); margin-left:14px; font-size:13px; text-decoration:none; }
+  header .links a:hover { color:var(--text); }
+  .layout { display:grid; grid-template-columns:300px 1fr; height:100%; min-height:0; }
+  aside {
+    background:var(--panel); border-right:1px solid var(--border);
+    overflow-y:auto; padding:8px 0;
+  }
+  .dept { padding:8px 16px; font-size:11px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:0.1em; }
+  .agent-row {
+    display:grid; grid-template-columns:32px 1fr 14px;
+    align-items:center; padding:8px 16px; cursor:pointer; gap:6px;
+    border-left:3px solid transparent;
+  }
+  .agent-row:hover { background:var(--panel2); }
+  .agent-row.active { background:var(--panel2); border-left-color:var(--accent); }
+  .agent-row .code { color:var(--dim); font-family:monospace; font-size:12px; }
+  .agent-row .name { font-size:13px; }
+  .status-dot { width:10px; height:10px; border-radius:50%; background:#333; }
+  .status-dot.ok { background:var(--green); }
+  .status-dot.warn { background:var(--warn); }
+  .status-dot.fail { background:var(--red); }
+  .status-dot.running { background:var(--accent); animation:pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity:0.4; } }
+
+  main { overflow-y:auto; padding:20px 28px; min-width:0; }
+  .empty-state { color:var(--muted); padding:60px; text-align:center; font-size:14px; }
+
+  .detail-header { display:flex; align-items:start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:8px; }
+  .detail-header h2 { margin:0; font-size:24px; }
+  .detail-header .agent-meta { color:var(--muted); font-size:13px; margin-top:4px; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; margin-right:6px; }
+  .pill.dept { color:#000; }
+  .pill.cadence { background:#222; color:var(--muted); }
+
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .panel h3 { margin:0 0 8px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; }
+  .panel p { margin:0; line-height:1.6; }
+
+  .actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  button {
+    background:var(--accent); color:#000; border:none; border-radius:6px;
+    padding:8px 14px; font-weight:600; font-size:13px; cursor:pointer; font-family:inherit;
+  }
+  button:hover { background:#fb923c; }
+  button.secondary { background:var(--panel2); color:var(--text); border:1px solid var(--border); }
+  button.secondary:hover { background:#26262e; }
+  button:disabled { opacity:0.5; cursor:not-allowed; }
+  label.toggle { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); cursor:pointer; }
+  label.toggle input { accent-color:var(--accent); }
+  input.opt {
+    background:#000; color:var(--text); border:1px solid var(--border);
+    border-radius:4px; padding:6px 8px; font-size:12px; font-family:monospace;
+  }
+
+  .stream { background:#000; color:#cfd; border-radius:6px; padding:12px;
+    font-family: ui-monospace, monospace; font-size:12px; line-height:1.55;
+    max-height:380px; overflow-y:auto; white-space:pre-wrap; }
+  .stream .info { color:#cfd; }
+  .stream .warn { color:var(--warn); }
+  .stream .error { color:var(--red); }
+  .stream .meta { color:var(--dim); }
+  .stream .done-ok { color:var(--green); font-weight:600; }
+  .stream .done-fail { color:var(--red); font-weight:600; }
+
+  table.logs { width:100%; border-collapse:collapse; font-size:12px; }
+  table.logs th, table.logs td { padding:6px 8px; text-align:left; border-bottom:1px solid var(--border); }
+  table.logs th { color:var(--muted); font-weight:500; text-transform:uppercase; font-size:10px; letter-spacing:0.05em; }
+  .badge { display:inline-block; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; }
+  .badge.success { background:#0a2; color:#cfc; }
+  .badge.partial { background:#a60; color:#fed; }
+  .badge.failed { background:#a00; color:#fcc; }
+
+  ul.files { list-style:none; padding:0; margin:0; }
+  ul.files li { padding:6px 0; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  ul.files a { color:var(--link); text-decoration:none; font-family:monospace; font-size:12px; }
+  ul.files a:hover { text-decoration:underline; }
+  ul.files .file-meta { color:var(--dim); font-size:11px; }
+
+  details { background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:8px 12px; }
+  details summary { cursor:pointer; font-size:13px; color:var(--muted); }
+  details pre { white-space:pre-wrap; word-break:break-word; font-size:11px; color:var(--text); margin:8px 0 0; }
+
+  /* config bar */
+  .config-bar {
+    background:var(--panel); border-bottom:1px solid var(--border);
+    padding:8px 20px; display:grid; grid-template-columns:repeat(4,1fr) auto;
+    gap:8px; align-items:center; font-size:12px;
+  }
+  .config-bar input { background:#000; color:var(--text); border:1px solid var(--border);
+    border-radius:4px; padding:6px; font-family:monospace; font-size:12px; }
+  .config-bar label { color:var(--muted); display:block; margin-bottom:2px; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; }
+  .config-bar button { padding:6px 10px; }
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); display:none; align-items:center; justify-content:center; z-index:10; }
+  .modal-overlay.show { display:flex; }
+  .modal { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:24px;
+    max-width:600px; width:90%; max-height:85vh; overflow:auto; }
+  .modal h2 { margin-top:0; }
+
+  @media (max-width:760px) {
+    .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    aside { max-height:200px; }
+    .config-bar { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛠 Agent Control Center</h1>
+  <span class="links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="review-queue.html">Review Queue</a>
+    <a href="partner-portal.html">Partner Portal</a>
+    <a href="#" id="cfg-btn">⚙ Connection</a>
+  </span>
+</header>
+
+<div class="modal-overlay" id="cfg-modal">
+  <div class="modal">
+    <h2>Connection settings</h2>
+    <p style="color:var(--muted);font-size:13px">Saved in your browser's localStorage.</p>
+    <div style="margin-bottom:8px"><label>Runner URL</label>
+      <input class="opt" style="width:100%" id="cfg-runner" placeholder="http://localhost:3001" /></div>
+    <div style="margin-bottom:8px"><label>Runner secret (RUNNER_SECRET)</label>
+      <input class="opt" style="width:100%" id="cfg-secret" type="password" /></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0" />
+    <div style="margin-bottom:8px"><label>NocoDB URL (optional — only for direct table reads)</label>
+      <input class="opt" style="width:100%" id="cfg-base" /></div>
+    <div style="margin-bottom:8px"><label>NocoDB token</label>
+      <input class="opt" style="width:100%" id="cfg-token" type="password" /></div>
+    <div style="margin-bottom:8px"><label>NocoDB Base ID</label>
+      <input class="opt" style="width:100%" id="cfg-baseid" /></div>
+    <div class="actions" style="margin-top:16px">
+      <button id="cfg-save">Save</button>
+      <button class="secondary" id="cfg-close">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <aside id="sidebar"><div class="empty-state" style="padding:40px">Loading agents…</div></aside>
+  <main id="detail"><div class="empty-state">← Select an agent</div></main>
+</div>
+
+<script>
+const cfg = {
+  load() { try { return JSON.parse(localStorage.getItem('hf-agents-cfg') || '{}'); } catch { return {}; } },
+  save(v) { localStorage.setItem('hf-agents-cfg', JSON.stringify(v)); }
+};
+
+function applyCfg() {
+  const c = cfg.load();
+  document.getElementById('cfg-runner').value = c.runner || 'http://localhost:3001';
+  document.getElementById('cfg-secret').value = c.secret || '';
+  document.getElementById('cfg-base').value = c.base || '';
+  document.getElementById('cfg-token').value = c.token || '';
+  document.getElementById('cfg-baseid').value = c.baseId || '';
+}
+function readCfg() {
+  return {
+    runner: document.getElementById('cfg-runner').value.trim().replace(/\/$/, ''),
+    secret: document.getElementById('cfg-secret').value.trim(),
+    base: document.getElementById('cfg-base').value.trim(),
+    token: document.getElementById('cfg-token').value.trim(),
+    baseId: document.getElementById('cfg-baseid').value.trim(),
+  };
+}
+
+const cfgModal = document.getElementById('cfg-modal');
+document.getElementById('cfg-btn').addEventListener('click', (e) => { e.preventDefault(); applyCfg(); cfgModal.classList.add('show'); });
+document.getElementById('cfg-close').addEventListener('click', () => cfgModal.classList.remove('show'));
+document.getElementById('cfg-save').addEventListener('click', () => {
+  cfg.save(readCfg());
+  cfgModal.classList.remove('show');
+  init();
+});
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function api(path, { auth = true, raw = false } = {}) {
+  const c = cfg.load();
+  const url = (c.runner || '') + path;
+  const headers = {};
+  if (auth && c.secret) headers.Authorization = `Bearer ${c.secret}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  return raw ? res.text() : res.json();
+}
+
+let REGISTRY = { agents: [], depts: {} };
+let LOG_INDEX = {};
+let RUNNING = new Set();
+let CURRENT_CODE = null;
+
+function statusFor(code) {
+  if (RUNNING.has(code)) return 'running';
+  const logs = LOG_INDEX[code];
+  if (!logs || !logs.length) return 'idle';
+  const latest = logs[0];
+  if (latest.status === 'failed') return 'fail';
+  if (latest.status === 'partial') return 'warn';
+  return 'ok';
+}
+
+function renderSidebar() {
+  const aside = document.getElementById('sidebar');
+  if (!REGISTRY.agents.length) { aside.innerHTML = '<div class="empty-state" style="padding:40px">No agents registered.</div>'; return; }
+  const groups = {};
+  for (const a of REGISTRY.agents) {
+    (groups[a.dept] ||= []).push(a);
+  }
+  const order = ['content','outreach','seo','crm','analytics','retention','command'];
+  let html = '';
+  for (const dept of order) {
+    if (!groups[dept]) continue;
+    const meta = REGISTRY.depts[dept] || { label: dept, color:'#666' };
+    html += `<div class="dept" style="color:${meta.color}">${escapeHtml(meta.label)}</div>`;
+    for (const a of groups[dept]) {
+      const status = statusFor(a.code);
+      const active = a.code === CURRENT_CODE ? ' active' : '';
+      html += `<div class="agent-row${active}" data-code="${a.code}">
+        <span class="code">${a.code}</span>
+        <span class="name">${escapeHtml(a.name)}</span>
+        <span class="status-dot ${status}" title="${status}"></span>
+      </div>`;
+    }
+  }
+  aside.innerHTML = html;
+  aside.querySelectorAll('.agent-row').forEach((row) => {
+    row.addEventListener('click', () => selectAgent(row.dataset.code));
+  });
+}
+
+async function selectAgent(code) {
+  CURRENT_CODE = code;
+  renderSidebar();
+  const main = document.getElementById('detail');
+  const a = REGISTRY.agents.find((x) => x.code === code);
+  if (!a) { main.innerHTML = '<div class="empty-state">Agent not found.</div>'; return; }
+
+  const c = cfg.load();
+  const deptColor = REGISTRY.depts[a.dept]?.color || '#666';
+
+  main.innerHTML = `
+    <div class="detail-header">
+      <div>
+        <h2>${escapeHtml(a.name)} <span style="color:var(--muted);font-weight:400">#${a.code}</span></h2>
+        <div class="agent-meta">
+          <span class="pill dept" style="background:${deptColor}">${escapeHtml(REGISTRY.depts[a.dept]?.label || a.dept)}</span>
+          <span class="pill cadence">${escapeHtml(a.cadence || '')}</span>
+          <span style="color:var(--muted)">${escapeHtml(a.file)}</span>
+        </div>
+      </div>
+      <div class="actions">
+        <label class="toggle"><input type="checkbox" id="dry-run" /> dry-run</label>
+        ${(a.options || []).map((o) => `<input class="opt" id="opt-${o.name}" placeholder="${escapeHtml(o.name)}${o.required ? ' *' : ''}" value="${escapeHtml(o.default || '')}" />`).join('')}
+        <button id="run-btn">▶ Run live</button>
+        <button class="secondary" id="run-bg">Run in background</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>What it does</h3>
+      <p>${escapeHtml(a.description || '')}</p>
+      ${a.safety ? `<p style="margin-top:8px;color:var(--warn)"><strong>Safety:</strong> ${escapeHtml(a.safety)}</p>` : ''}
+      ${a.deps ? `<p style="margin-top:8px;color:var(--muted)"><strong>Deps:</strong> ${a.deps.map(escapeHtml).join(', ')}</p>` : ''}
+    </div>
+
+    <div class="panel">
+      <h3>Live output</h3>
+      <div class="stream" id="stream"><span class="meta">Idle. Click ▶ Run live to start.</span></div>
+    </div>
+
+    <div class="panel">
+      <h3>Recent runs</h3>
+      <div id="logs-table"><span class="meta" style="color:var(--muted)">Loading…</span></div>
+    </div>
+
+    <div class="panel">
+      <h3>Recent output files</h3>
+      <ul class="files" id="files-list"><li><span style="color:var(--muted)">Loading…</span></li></ul>
+    </div>
+  `;
+
+  document.getElementById('run-btn').addEventListener('click', () => runStreaming(a));
+  document.getElementById('run-bg').addEventListener('click', () => runBackground(a));
+
+  // Lazy-load logs + files
+  loadDetails(a).catch((e) => console.warn(e));
+}
+
+async function loadDetails(a) {
+  try {
+    const data = await api(`/agents/${a.code}`);
+    LOG_INDEX[a.code] = data.logs || [];
+    renderLogs(data.logs || []);
+    renderFiles(data.files || []);
+    renderSidebar();
+  } catch (e) {
+    document.getElementById('logs-table').innerHTML = `<span class="meta" style="color:var(--red)">${escapeHtml(e.message)} — check your runner URL + secret.</span>`;
+  }
+}
+
+function renderLogs(logs) {
+  const el = document.getElementById('logs-table');
+  if (!el) return;
+  if (!logs.length) { el.innerHTML = '<span style="color:var(--muted)">No runs yet.</span>'; return; }
+  el.innerHTML = `
+    <table class="logs">
+      <tr><th>Run date</th><th>Status</th><th>Processed</th><th>Created</th><th>Emails</th><th>Duration</th><th>Errors</th></tr>
+      ${logs.map((l) => `<tr>
+        <td>${escapeHtml(new Date(l.run_date).toLocaleString())}${l.dry_run ? ' <span style="color:var(--warn);font-size:10px">DRY</span>' : ''}</td>
+        <td><span class="badge ${escapeHtml(l.status)}">${escapeHtml(l.status)}</span></td>
+        <td>${l.records_processed || 0}</td>
+        <td>${l.records_created || 0}</td>
+        <td>${l.emails_sent || 0}</td>
+        <td>${l.duration_ms ? Math.round(l.duration_ms / 100) / 10 + 's' : '—'}</td>
+        <td>${l.errors && l.errors !== '[]' ? `<details><summary style="color:var(--red)">View</summary><pre>${escapeHtml(l.errors)}</pre></details>` : '—'}</td>
+      </tr>`).join('')}
+    </table>`;
+}
+
+function renderFiles(files) {
+  const el = document.getElementById('files-list');
+  if (!el) return;
+  const c = cfg.load();
+  if (!files.length) { el.innerHTML = '<li><span style="color:var(--muted)">No output files yet.</span></li>'; return; }
+  el.innerHTML = files.map((f) => {
+    const url = `${c.runner}/output/${f.path}?token=${encodeURIComponent(c.secret)}`;
+    return `<li>
+      <a href="${url}" target="_blank" rel="noopener">${escapeHtml(f.name)}</a>
+      <span class="file-meta">${(f.size/1024).toFixed(1)} KB · ${escapeHtml(new Date(f.mtime).toLocaleString())}</span>
+    </li>`;
+  }).join('');
+}
+
+function buildRunQuery(a) {
+  const dryRun = document.getElementById('dry-run')?.checked;
+  const params = new URLSearchParams();
+  const c = cfg.load();
+  if (c.secret) params.set('token', c.secret);
+  if (dryRun) params.set('dry_run', '1');
+  for (const o of (a.options || [])) {
+    const v = document.getElementById(`opt-${o.name}`)?.value?.trim();
+    if (v) params.set(o.name, v);
+  }
+  return params.toString();
+}
+
+function appendStream(level, msg) {
+  const el = document.getElementById('stream');
+  if (!el) return;
+  const ts = new Date().toLocaleTimeString();
+  const line = document.createElement('div');
+  line.className = level;
+  line.innerHTML = `<span class="meta">[${ts}]</span> ${escapeHtml(msg)}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function runStreaming(a) {
+  const stream = document.getElementById('stream');
+  stream.innerHTML = '';
+  RUNNING.add(a.code);
+  renderSidebar();
+
+  const c = cfg.load();
+  const qs = buildRunQuery(a);
+  const url = `${c.runner}/run-stream/${a.code}?${qs}`;
+  let es;
+  try {
+    es = new EventSource(url);
+  } catch (e) {
+    appendStream('error', `EventSource failed: ${e.message}`);
+    RUNNING.delete(a.code); renderSidebar();
+    return;
+  }
+
+  es.addEventListener('open', (ev) => {
+    try { const d = JSON.parse(ev.data); appendStream('info', `▶ Started ${d.name} (#${d.agent})${d.dryRun ? ' — DRY-RUN' : ''}`); } catch {}
+  });
+  es.addEventListener('log', (ev) => {
+    try {
+      const d = JSON.parse(ev.data);
+      appendStream(d.level || 'info', d.msg);
+    } catch {}
+  });
+  es.addEventListener('done', (ev) => {
+    try {
+      const d = JSON.parse(ev.data);
+      const cls = d.ok ? 'done-ok' : 'done-fail';
+      appendStream(cls, d.ok ? '✓ Completed' : `✗ Failed — ${d.error || 'unknown'}`);
+      if (d.result) {
+        const detail = document.createElement('details');
+        detail.innerHTML = `<summary>result payload</summary><pre>${escapeHtml(JSON.stringify(d.result, null, 2))}</pre>`;
+        document.getElementById('stream').appendChild(detail);
+      }
+    } catch {}
+    RUNNING.delete(a.code);
+    renderSidebar();
+    es.close();
+    // Refresh logs/files in the background
+    setTimeout(() => loadDetails(a), 1500);
+  });
+  es.onerror = () => {
+    appendStream('error', 'Connection closed.');
+    RUNNING.delete(a.code); renderSidebar();
+    es.close();
+  };
+}
+
+async function runBackground(a) {
+  const c = cfg.load();
+  const dryRun = document.getElementById('dry-run')?.checked;
+  const body = { dry_run: !!dryRun };
+  for (const o of (a.options || [])) {
+    const v = document.getElementById(`opt-${o.name}`)?.value?.trim();
+    if (v) body[o.name] = v;
+  }
+  try {
+    const res = await fetch(`${c.runner}/run/${a.code}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${c.secret}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`${res.status}`);
+    appendStream('info', `Queued in background. It will write a row to agent_logs when finished.`);
+  } catch (e) {
+    appendStream('error', `Trigger failed: ${e.message}`);
+  }
+}
+
+// Fallback registry — embedded so the page works WITHOUT a running backend.
+// Mirrors lib/agent-registry.js. Whenever the runner is reachable, we replace
+// this with the live response.
+const FALLBACK_REGISTRY = {
+  depts: {
+    content:   { label: 'Content',   color: '#f97316' },
+    outreach:  { label: 'Outreach',  color: '#3b82f6' },
+    seo:       { label: 'SEO',       color: '#10b981' },
+    crm:       { label: 'CRM',       color: '#8b5cf6' },
+    analytics: { label: 'Analytics', color: '#eab308' },
+    retention: { label: 'Retention', color: '#ec4899' },
+    command:   { label: 'Command',   color: '#dc2626' },
+  },
+  agents: [
+    { id: 1, code:'01', name:'TikTok Script', dept:'content', file:'content/01-tiktok-script.js', cadence:'Weekly (Mon)', description:'5 TikTok script variants per week. Pulls top performers + target pillar from content_calendar, generates hook/body/CTA/shot-notes.' },
+    { id: 2, code:'02', name:'Blog Content', dept:'content', file:'content/02-blog-content.js', cadence:'Per-brief (auto from Agent 14)', description:'Writes a 900-word SEO blog post from a content brief.' },
+    { id: 3, code:'03', name:'Email Sequence', dept:'content', file:'content/03-email-sequence.js', cadence:'On-demand', description:'8 named sequences: welcome, upgrade_nudge, realtor_onboard, inspector_onboard, reengagement, win_back, monthly_digest, referral_confirmation.', options:[{ name:'sequence', default:'welcome' }] },
+    { id: 4, code:'04', name:'YouTube Repurpose', dept:'content', file:'content/04-youtube-repurpose.js', cadence:'On approve (Make.com)', description:'Turns an approved TikTok script into YouTube Shorts metadata.', options:[{ name:'content_calendar_id', required:true }] },
+    { id: 5, code:'05', name:'Ad Copy', dept:'content', file:'content/05-ad-copy.js', cadence:'Monthly (M4+)', description:'Facebook/Instagram ad creative deck. 3 campaigns × 3 headlines × 3 primary text variants.' },
+    { id: 6, code:'06', name:'Case Study', dept:'content', file:'content/06-case-study.js', cadence:'Monthly (1st)', description:'Drafts case studies for power users. Queues for human approval — never auto-publishes.', safety:'Drafts only — review queue required.' },
+    { id: 7, code:'07', name:'Realtor Outreach', dept:'outreach', file:'outreach/07-realtor-outreach.js', cadence:'Weekly', description:'Pulls 50 BC realtors from Apollo, generates personalized 3-email sequence.', deps:['APOLLO_API_KEY'] },
+    { id: 8, code:'08', name:'Inspector Outreach', dept:'outreach', file:'outreach/08-inspector-outreach.js', cadence:'Bi-weekly', description:'25 BC inspectors per run. 2-email sequence centered on the Forensic Condition Report.' },
+    { id: 9, code:'09', name:'Trades Outreach', dept:'outreach', file:'outreach/09-trades-outreach.js', cadence:'Monthly', description:'40 BC contractors per run. Pre-qualified leads pitch.' },
+    { id:10, code:'10', name:'Community Monitor', dept:'outreach', file:'outreach/10-community-monitor.js', cadence:'Daily 08:00', description:'Searches Reddit for relevant posts. Drafts replies (max 10/day) for human approval.', safety:'Drafts only — review queue required.', deps:['REDDIT_*'] },
+    { id:11, code:'11', name:'Follow-Up', dept:'outreach', file:'outreach/11-followup.js', cadence:'Daily', description:'Walks outreach_pipeline through email1 → email2 → email3 → cold → 90-day re-touch.' },
+    { id:12, code:'12', name:'Keyword Research', dept:'seo', file:'seo/12-keyword-research.js', cadence:'Weekly Mon 06:00', description:'Generates 10 new keyword ideas + 3 quick-wins. Pulls GSC when configured.' },
+    { id:13, code:'13', name:'On-Page Audit', dept:'seo', file:'seo/13-onpage-audit.js', cadence:'Monthly (1st)', description:'Audits 6 key pages: title, meta, headings, internal links, image alts.' },
+    { id:14, code:'14', name:'Content Brief', dept:'seo', file:'seo/14-content-brief.js', cadence:'Weekly', description:'Generates blog content brief from top P1 keyword. Auto-triggers Agent 02.' },
+    { id:15, code:'15', name:'Backlink Prospect', dept:'seo', file:'seo/15-backlink-prospect.js', cadence:'Monthly', description:'20 BC/Canadian site prospects + 5 ready-to-send drafts.' },
+    { id:16, code:'16', name:'Lead Scoring', dept:'crm', file:'crm/16-lead-scoring.js', cadence:'Daily 07:00', description:'Scores all free users 0–100. Triggers Agent 17 on upgrade_ready.' },
+    { id:17, code:'17', name:'Upgrade Trigger', dept:'crm', file:'crm/17-upgrade-trigger.js', cadence:'Event (from Agent 16)', description:'Generates a Stripe promo (20% off, 72h) + personalized upgrade email.', options:[{ name:'user_id', required:true }] },
+    { id:18, code:'18', name:'Churn Detection', dept:'crm', file:'crm/18-churn-detection.js', cadence:'Daily 09:00', description:'Scans paid users for at-risk signals. Sends save-sequence emails.' },
+    { id:19, code:'19', name:'Re-engagement', dept:'crm', file:'crm/19-reengagement.js', cadence:'Weekly Sun', description:'signup_ghost, one_and_done, cancelled_60 segments.' },
+    { id:20, code:'20', name:'Weekly Metrics', dept:'analytics', file:'analytics/20-weekly-metrics.js', cadence:'Mon 06:00', description:'Aggregates users + outreach + Stripe. Claude analyzes for wins/concerns.' },
+    { id:21, code:'21', name:'Content Performance', dept:'analytics', file:'analytics/21-content-performance.js', cadence:'Wed weekly', description:'Ranks last 14d content by trial_starts_attributed.' },
+    { id:22, code:'22', name:'Funnel Analysis', dept:'analytics', file:'analytics/22-funnel-analysis.js', cadence:'Monthly (1st)', description:'Identifies the single biggest funnel drop-off + a testable fix.' },
+    { id:23, code:'23', name:'Referral Program', dept:'retention', file:'retention/23-referral-program.js', cadence:'Event + Monthly leaderboard', description:'Logs referral_events. Free month at 3 referrals.' },
+    { id:24, code:'24', name:'Partner Dashboard', dept:'retention', file:'retention/24-partner-dashboard.js', cadence:'Monthly (1st)', description:'Calculates monthly partner commissions, applies Stripe credit.' },
+    { id:25, code:'25', name:'Compliance', dept:'retention', file:'retention/25-compliance.js', cadence:'Monthly (1st)', description:'CASL / ASC / BC Consumer Protection Act compliance checks.' },
+    { id:26, code:'26', name:'Growth Commander', dept:'command', file:'command/26-growth-commander.js', cadence:'Sun 21:00', description:'Synthesizes all 25 agents into a weekly executive brief.' },
+  ],
+};
+
+let RUNNER_ONLINE = false;
+
+function showOfflineBanner(detail) {
+  const main = document.getElementById('detail');
+  if (CURRENT_CODE) return; // don't overwrite an open agent panel
+  main.innerHTML = `
+    <div class="panel" style="background:#2a1a0a;border-color:#5a3a0a">
+      <h3 style="color:#fbbf24">⚠ Runner offline</h3>
+      <p>This page can show what each agent does — click any agent on the left.
+      But triggering a run, watching its output stream, and reading logs/files
+      requires the Node.js runner to be reachable.</p>
+      <p style="margin-top:12px"><strong>Reason:</strong> ${escapeHtml(detail || 'no response from runner')}</p>
+      <div style="background:#000;padding:12px;border-radius:6px;margin-top:12px;font-family:ui-monospace,monospace;font-size:12px;color:#cfd">
+        <div>cd handeefriend-growth-agent</div>
+        <div>npm install</div>
+        <div>cp .env.example .env <span style="color:#888"># then fill in ANTHROPIC_API_KEY etc.</span></div>
+        <div>npm run runner <span style="color:#888"># boots on http://localhost:3001</span></div>
+      </div>
+      <p style="margin-top:12px">Then click <a href="#" id="cfg-link" style="color:var(--link)">⚙ Connection</a>, paste your <code>RUNNER_SECRET</code>, and reload. Or open <a href="http://localhost:3001/agents.html" style="color:var(--link)">http://localhost:3001/agents.html</a> directly — that URL is served by the runner itself.</p>
+    </div>
+    <div class="empty-state" style="padding:40px">← Click any agent to see what it does (no runner needed)</div>
+  `;
+  document.getElementById('cfg-link').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('cfg-btn').click(); });
+}
+
+async function init() {
+  // Try the runner; fall through to embedded fallback if unreachable.
+  try {
+    REGISTRY = await api('/agents', { auth: false });
+    RUNNER_ONLINE = true;
+  } catch (e) {
+    REGISTRY = FALLBACK_REGISTRY;
+    RUNNER_ONLINE = false;
+    showOfflineBanner(e.message);
+  }
+  // Hydrate latest log per agent (only if runner online + secret set)
+  if (RUNNER_ONLINE && cfg.load().secret) {
+    try {
+      const recent = await api('/logs/recent?limit=200');
+      const map = {};
+      for (const l of (recent.list || [])) {
+        const code = String(l.agent_id).padStart(2, '0');
+        (map[code] ||= []).push(l);
+      }
+      LOG_INDEX = map;
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+  renderSidebar();
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>HandeeFriend — Review Queue</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:#f7f7f7; color:#111; }
+  header { background:#111; color:#fff; padding:18px 24px; display:flex; justify-content:space-between; align-items:center; }
+  header h1 { margin:0; font-size:20px; color:#f97316; }
+  main { max-width:960px; margin:24px auto; padding:0 16px; }
+  .config { background:#fff; border:1px solid #eee; border-radius:8px; padding:16px; margin-bottom:24px; font-size:13px; }
+  .config label { display:block; color:#666; margin:6px 0 2px; }
+  .config input { width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; font-family:monospace; font-size:13px; }
+  .tabs { display:flex; gap:8px; margin-bottom:16px; }
+  .tab { padding:8px 14px; background:#fff; border:1px solid #ddd; border-radius:6px; cursor:pointer; font-size:13px; }
+  .tab.active { background:#111; color:#fff; border-color:#111; }
+  .tab .count { display:inline-block; background:#f97316; color:#fff; padding:2px 6px; border-radius:10px; font-size:11px; margin-left:6px; }
+  .item { background:#fff; border:1px solid #eee; border-radius:10px; padding:16px; margin-bottom:12px; }
+  .item h3 { margin:0 0 8px; font-size:16px; }
+  .item .meta { color:#888; font-size:12px; margin-bottom:12px; }
+  .item .reply { background:#f7f7f7; padding:12px; border-radius:6px; font-size:14px; line-height:1.5; white-space:pre-wrap; }
+  .item .actions { margin-top:12px; display:flex; gap:8px; }
+  button { font:inherit; cursor:pointer; border:none; padding:8px 14px; border-radius:6px; font-weight:600; font-size:13px; }
+  button.approve { background:#16a34a; color:#fff; }
+  button.reject { background:#dc2626; color:#fff; }
+  button.edit { background:#f97316; color:#fff; }
+  button.save { background:#111; color:#fff; }
+  textarea { width:100%; min-height:140px; padding:12px; font:inherit; border:1px solid #ddd; border-radius:6px; font-family:system-ui,sans-serif; }
+  .empty { text-align:center; color:#999; padding:32px; }
+  .saved-flag { color:#16a34a; font-size:12px; margin-left:6px; }
+  details { margin-top:8px; }
+  details summary { cursor:pointer; color:#666; font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📋 Review Queue</h1>
+  <span style="font-size:13px;color:#aaa" id="count">—</span>
+</header>
+<main>
+
+<div class="config">
+  <strong>Connection</strong>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+    <div><label>NocoDB URL</label><input id="cfg-base" /></div>
+    <div><label>API token</label><input id="cfg-token" type="password" /></div>
+    <div><label>Base ID</label><input id="cfg-baseid" /></div>
+  </div>
+  <button class="save" style="margin-top:8px" id="save-cfg">Save & refresh</button>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="community">Community replies <span class="count" id="count-community">0</span></div>
+  <div class="tab" data-tab="case_study">Case study drafts <span class="count" id="count-case">0</span></div>
+</div>
+
+<div id="community-list"></div>
+<div id="case-list" style="display:none"></div>
+
+</main>
+
+<script>
+function loadCfg() { try { return JSON.parse(localStorage.getItem('hf-review-cfg') || '{}'); } catch { return {}; } }
+function saveCfg(c) { localStorage.setItem('hf-review-cfg', JSON.stringify(c)); }
+function applyCfg() {
+  const c = loadCfg();
+  document.getElementById('cfg-base').value = c.base || '';
+  document.getElementById('cfg-token').value = c.token || '';
+  document.getElementById('cfg-baseid').value = c.baseId || '';
+}
+applyCfg();
+document.getElementById('save-cfg').addEventListener('click', () => {
+  saveCfg({
+    base: document.getElementById('cfg-base').value.trim(),
+    token: document.getElementById('cfg-token').value.trim(),
+    baseId: document.getElementById('cfg-baseid').value.trim(),
+  });
+  refreshAll();
+});
+
+async function nc(table, params, method = 'GET', body = null) {
+  const c = loadCfg();
+  if (!c.base || !c.token || !c.baseId) return null;
+  const url = `${c.base}/api/v2/db/data/noco/${c.baseId}/${table}${params ? '?' + params : ''}`;
+  const res = await fetch(url, {
+    method,
+    headers: { 'xc-token': c.token, 'Content-Type':'application/json' },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  if (!res.ok) { console.warn(table, res.status); return null; }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function loadCommunity() {
+  const where = encodeURIComponent('(status,eq,pending)');
+  const data = await nc('community_queue', `where=${where}&limit=100`);
+  const items = data?.list || data?.records || [];
+  document.getElementById('count-community').textContent = items.length;
+  const list = document.getElementById('community-list');
+  if (!items.length) {
+    list.innerHTML = '<div class="empty">No community replies pending. ✓</div>';
+    return;
+  }
+  list.innerHTML = items.map(i => `
+    <div class="item" data-id="${i.id}">
+      <h3><a href="${escapeHtml(i.post_url)}" target="_blank" rel="noopener">${escapeHtml(i.post_title)}</a></h3>
+      <div class="meta">r/${escapeHtml(i.platform)} &middot; queued ${new Date(i.created_date || Date.now()).toLocaleString()}</div>
+      <details><summary>Original post excerpt</summary>
+        <div class="reply" style="background:#fff7ed">${escapeHtml(i.post_excerpt || '')}</div>
+      </details>
+      <div style="margin-top:8px"><strong>Draft reply:</strong></div>
+      <textarea data-field="draft_reply">${escapeHtml(i.draft_reply || '')}</textarea>
+      <div class="actions">
+        <button class="approve" data-action="approve">Approve & mark posted</button>
+        <button class="edit" data-action="save">Save edit</button>
+        <button class="reject" data-action="reject">Reject</button>
+        <span class="saved-flag" data-flag></span>
+      </div>
+    </div>`).join('');
+
+  list.querySelectorAll('.item').forEach(el => {
+    const id = el.dataset.id;
+    el.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const action = btn.dataset.action;
+        const draft = el.querySelector('textarea').value;
+        let payload = { reviewed_by: 'manual' };
+        if (action === 'approve') payload.status = 'posted';
+        else if (action === 'reject') payload.status = 'rejected';
+        else payload.draft_reply = draft;
+        if (action !== 'save') payload.draft_reply = draft;
+        await nc(`community_queue/${id}`, '', 'PATCH', payload);
+        const flag = el.querySelector('[data-flag]');
+        flag.textContent = action === 'approve' ? '✓ approved' : action === 'reject' ? '✓ rejected' : '✓ saved';
+        if (action !== 'save') setTimeout(loadCommunity, 800);
+      });
+    });
+  });
+}
+
+async function loadCaseStudies() {
+  const where = encodeURIComponent('(script_status,eq,pending_permission)');
+  const data = await nc('content_calendar', `where=${where}&limit=50`);
+  const items = data?.list || data?.records || [];
+  document.getElementById('count-case').textContent = items.length;
+  const list = document.getElementById('case-list');
+  if (!items.length) {
+    list.innerHTML = '<div class="empty">No case study drafts pending. ✓</div>';
+    return;
+  }
+  list.innerHTML = items.map(i => {
+    let bj = {};
+    try { bj = JSON.parse(i.brief_json || '{}'); } catch {}
+    return `
+    <div class="item" data-id="${i.id}">
+      <h3>${escapeHtml(i.keyword || 'case-study')}</h3>
+      <div class="meta">User: ${escapeHtml(bj.user_email || '—')} &middot; Created ${escapeHtml(i.publish_date || '—')}</div>
+      <details><summary>View narrative HTML</summary>
+        <div class="reply" style="background:#fafafa">${i.script_content || ''}</div>
+      </details>
+      <details><summary>Slide summary</summary>
+        <ul>${(bj.slide_summary || []).map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul>
+      </details>
+      <div class="actions">
+        <button class="approve" data-action="approve">Approve — request permission</button>
+        <button class="reject" data-action="reject">Reject</button>
+        <span class="saved-flag" data-flag></span>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.item').forEach(el => {
+    const id = el.dataset.id;
+    el.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const action = btn.dataset.action;
+        const status = action === 'approve' ? 'approved' : 'rejected';
+        await nc(`content_calendar/${id}`, '', 'PATCH', { script_status: status, approved_by: 'manual' });
+        el.querySelector('[data-flag]').textContent = `✓ ${status}`;
+        setTimeout(loadCaseStudies, 800);
+      });
+    });
+  });
+}
+
+function refreshAll() { loadCommunity(); loadCaseStudies(); }
+
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    if (t.dataset.tab === 'community') {
+      document.getElementById('community-list').style.display = '';
+      document.getElementById('case-list').style.display = 'none';
+    } else {
+      document.getElementById('community-list').style.display = 'none';
+      document.getElementById('case-list').style.display = '';
+    }
+  });
+});
+
+refreshAll();
+setInterval(refreshAll, 30000);
+</script>
+</body>
+</html>
