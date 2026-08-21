@@ -104,3 +104,16 @@ jobs:
         with:
           name: PiledUp-Android-AAB
           path: piledup-ios/android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Publish APK at a stable public download link
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: PiledUp for Android (latest)
+          body: |
+            Direct install for Android phones: download PiledUp.apk below,
+            open it on the phone, allow the install prompt, and play.
+            The .aab file is for Google Play Console uploads.
+          files: |
+            piledup-ios/android/app/build/outputs/apk/release/app-release.apk
+            piledup-ios/android/app/build/outputs/bundle/release/app-release.aab
