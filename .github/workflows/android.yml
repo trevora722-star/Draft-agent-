@@ -1,4 +1,4 @@
-name: Build PiledUp Android (APK + AAB)
+name: Build PileUp Android (APK + AAB)
 
 # Pushed to the android-release branch (or run manually). Produces a signed
 # APK (direct install on any Android phone) and AAB (for Google Play
@@ -53,7 +53,7 @@ jobs:
             keytool -genkeypair -v -keystore piledup.keystore -alias piledup \
               -keyalg RSA -keysize 2048 -validity 9125 \
               -storepass "$KS_PW" -keypass "$KS_PW" \
-              -dname "CN=PiledUp, O=PiledUp, C=US"
+              -dname "CN=PileUp, O=PileUp, C=US"
             printf '{"password": "%s"}' "$KS_PW" > androidks.json
             tar cf aks.tar piledup.keystore androidks.json
             openssl enc -aes-256-cbc -pbkdf2 -in aks.tar -out android.enc -pass env:ASC_KEY_P8
@@ -78,7 +78,7 @@ jobs:
               "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}"
           fi
           git config user.email "ci@piledup.local"
-          git config user.name "PiledUp CI"
+          git config user.name "PileUp CI"
           git add android.enc
           git commit -qm "Update Android CI keystore (encrypted with ASC key)"
           git push -f origin ci-keystore
@@ -96,22 +96,22 @@ jobs:
       - name: Upload APK (direct install on any Android phone)
         uses: actions/upload-artifact@v4
         with:
-          name: PiledUp-Android-APK
+          name: PileUp-Android-APK
           path: piledup-ios/android/app/build/outputs/apk/release/app-release.apk
 
       - name: Upload AAB (for Google Play Console)
         uses: actions/upload-artifact@v4
         with:
-          name: PiledUp-Android-AAB
+          name: PileUp-Android-AAB
           path: piledup-ios/android/app/build/outputs/bundle/release/app-release.aab
 
       - name: Publish APK at a stable public download link
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-latest
-          name: PiledUp for Android (latest)
+          name: PileUp for Android (latest)
           body: |
-            Direct install for Android phones: download PiledUp.apk below,
+            Direct install for Android phones: download PileUp.apk below,
             open it on the phone, allow the install prompt, and play.
             The .aab file is for Google Play Console uploads.
           files: |

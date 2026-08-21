@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>PiledUp</title>
+<title>PileUp</title>
 <link rel="manifest" href="piledup.webmanifest">
 <link rel="apple-touch-icon" href="piledup-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="PiledUp">
+<meta name="apple-mobile-web-app-title" content="PileUp">
 <meta name="theme-color" content="#0d1117">
 <style>
   :root{
@@ -105,7 +105,7 @@
 </style>
 </head>
 <body>
-<h1>PILED<span class="up">UP</span><span id="proBadge" class="pro-badge" style="display:none">PRO</span></h1>
+<h1>PILE<span class="up">UP</span><span id="proBadge" class="pro-badge" style="display:none">PRO</span></h1>
 
 <div id="layout">
 
@@ -127,7 +127,7 @@
     <canvas id="board" width="300" height="540"></canvas>
     <div id="floaters"></div>
     <div id="overlay">
-      <h2>PILEDUP</h2>
+      <h2>PILEUP</h2>
       <p id="overlayMsg">Stack it. Clear it. Don't get piled up.</p>
       <button id="startBtn">▶ Play</button>
     </div>
@@ -167,7 +167,7 @@
   <div class="card">
     <span class="badge18">18+</span>
     <h2>Adults Only</h2>
-    <p>PiledUp PRO contains explicit language and adult humor intended for players 18 years of age or older.</p>
+    <p>PileUp PRO contains explicit language and adult humor intended for players 18 years of age or older.</p>
     <p><b>Are you 18 or older?</b></p>
     <button id="ageYes" style="background:linear-gradient(135deg,#ffcf40,#ff8a3d); color:#231a00; font-weight:800; border:none;">Yes, I'm 18+ — Unlock PRO</button>
     <button id="ageNo">No — keep it clean</button>
@@ -242,7 +242,7 @@ const LEVELS = [
   {n:9,  name:"9 · Earthquake",   speed:4.60, pro:true,  garbage:15},
   {n:10, name:"10 · Meltdown",    speed:5.40, pro:true,  garbage:12},
   {n:11, name:"11 · Apocalypse",  speed:6.30, pro:true,  garbage:9},
-  {n:12, name:"12 · PILEDUP HELL",speed:7.50, pro:true,  garbage:7},
+  {n:12, name:"12 · PILEUP HELL",speed:7.50, pro:true,  garbage:7},
 ];
 
 const SHAPES = [

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">PiledUp</string>
-    <string name="title_activity_main">PiledUp</string>
+    <string name="app_name">PileUp</string>
+    <string name="title_activity_main">PileUp</string>
     <string name="package_name">com.pileupgame.app</string>
     <string name="custom_url_scheme">com.pileupgame.app</string>
 </resources>
