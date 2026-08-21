@@ -1,0 +1,106 @@
+name: Build PiledUp Android (APK + AAB)
+
+# Pushed to the android-release branch (or run manually). Produces a signed
+# APK (direct install on any Android phone) and AAB (for Google Play
+# Console upload) as downloadable artifacts. The signing keystore is
+# generated once and persisted encrypted on the ci-keystore branch so Play
+# always sees the same signature.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - android-release
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: piledup-ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install web dependencies and sync Capacitor
+        run: |
+          npm ci
+          npx cap sync android
+
+      - name: Restore or create Android signing keystore
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          if git fetch origin ci-keystore --depth=1 2>/dev/null \
+             && git show FETCH_HEAD:android.enc > android.enc 2>/dev/null \
+             && openssl enc -d -aes-256-cbc -pbkdf2 -in android.enc -out aks.tar -pass env:ASC_KEY_P8 2>/dev/null \
+             && tar xf aks.tar; then
+            echo "Restored saved Android keystore."
+          else
+            echo "Generating new Android keystore."
+            KS_PW="$(uuidgen)"
+            keytool -genkeypair -v -keystore piledup.keystore -alias piledup \
+              -keyalg RSA -keysize 2048 -validity 9125 \
+              -storepass "$KS_PW" -keypass "$KS_PW" \
+              -dname "CN=PiledUp, O=PiledUp, C=US"
+            printf '{"password": "%s"}' "$KS_PW" > androidks.json
+            tar cf aks.tar piledup.keystore androidks.json
+            openssl enc -aes-256-cbc -pbkdf2 -in aks.tar -out android.enc -pass env:ASC_KEY_P8
+            echo "SAVE_ANDROID_KS=1" >> "$GITHUB_ENV"
+          fi
+          PW=$(python3 -c "import json;print(json.load(open('androidks.json'))['password'])")
+          echo "::add-mask::$PW"
+          echo "ANDROID_KEYSTORE_PASSWORD=$PW" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PATH=$PWD/piledup.keystore" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=piledup" >> "$GITHUB_ENV"
+
+      - name: Save keystore for future runs
+        if: env.SAVE_ANDROID_KS == '1'
+        run: |
+          D="$(mktemp -d)"
+          cp android.enc "$D"/ && cd "$D"
+          if git clone --depth=1 --branch ci-keystore \
+               "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" existing 2>/dev/null; then
+            cp android.enc existing/ && cd existing
+          else
+            git init -q -b ci-keystore && git remote add origin \
+              "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}"
+          fi
+          git config user.email "ci@piledup.local"
+          git config user.name "PiledUp CI"
+          git add android.enc
+          git commit -qm "Update Android CI keystore (encrypted with ASC key)"
+          git push -f origin ci-keystore
+
+      - name: Build signed APK and AAB
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: 1.1.${{ github.run_number }}
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease bundleRelease --no-daemon
+          ls -la app/build/outputs/apk/release/ app/build/outputs/bundle/release/
+
+      - name: Upload APK (direct install on any Android phone)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PiledUp-Android-APK
+          path: piledup-ios/android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Upload AAB (for Google Play Console)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PiledUp-Android-AAB
+          path: piledup-ios/android/app/build/outputs/bundle/release/app-release.aab
