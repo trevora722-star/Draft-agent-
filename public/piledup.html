@@ -42,6 +42,7 @@
   #board{border:1px solid var(--edge); background:#0a0e16;}
   .stat{display:flex; justify-content:space-between; font-size:.95rem; padding:3px 0;}
   .stat b{color:var(--accent); font-variant-numeric:tabular-nums;}
+  #lastWord{color:#7dffa8; font-weight:700; min-height:1.2em; font-size:.9rem;}
   button{
     font:inherit; color:var(--ink); background:#232b3d; border:1px solid var(--edge);
     border-radius:9px; padding:9px 12px; cursor:pointer; width:100%; margin-top:8px;
@@ -67,8 +68,8 @@
   #floaters{position:absolute; inset:0; pointer-events:none; overflow:hidden;}
   .floater{
     position:absolute; left:50%; transform:translateX(-50%); font-weight:900;
-    font-size:1.5rem; white-space:nowrap; text-shadow:0 2px 12px rgba(0,0,0,.8);
-    animation:rise 1.4s ease-out forwards;
+    font-size:1.4rem; white-space:nowrap; text-shadow:0 2px 12px rgba(0,0,0,.8);
+    animation:rise 1.5s ease-out forwards;
   }
   @keyframes rise{from{opacity:1; margin-top:0;} to{opacity:0; margin-top:-90px;}}
   #overlay{
@@ -105,30 +106,32 @@
 </style>
 </head>
 <body>
-<h1>PILE<span class="up">UP</span><span id="proBadge" class="pro-badge" style="display:none">PRO</span></h1>
+<h1>PILE<span class="up">UP</span><span id="proBadge" class="pro-badge" style="display:none">18+</span></h1>
 
 <div id="layout">
 
   <div class="panel" id="leftPanel">
     <h3>Stats</h3>
     <div class="stat"><span>Score</span><b id="score">0</b></div>
-    <div class="stat"><span>Lines</span><b id="lines">0</b></div>
+    <div class="stat"><span>Words</span><b id="words">0</b></div>
     <div class="stat"><span>Level</span><b id="levelName">1</b></div>
     <div class="stat"><span>Next 100pt tier</span><b id="tier">100</b></div>
+    <h3 style="margin-top:10px">Last word</h3>
+    <div id="lastWord">—</div>
     <h3 style="margin-top:14px">Magic</h3>
     <button id="magicBtn" disabled>✨ Magic Click ×<span id="charges">0</span></button>
-    <small class="hint">Every 100 pts earns a Magic Click — blast away the bottom two rows of your pile!</small>
-    <h3 style="margin-top:14px">Next</h3>
-    <canvas id="next" width="96" height="96"></canvas>
+    <small class="hint">Every 100 pts earns a Magic Click — blast away the bottom two rows of the pile!</small>
+    <h3 style="margin-top:14px">Next letters</h3>
+    <canvas id="next" width="150" height="54"></canvas>
     <button id="pauseBtn">⏸ Pause</button>
   </div>
 
   <div id="stage">
-    <canvas id="board" width="300" height="540"></canvas>
+    <canvas id="board" width="320" height="480"></canvas>
     <div id="floaters"></div>
     <div id="overlay">
       <h2>PILEUP</h2>
-      <p id="overlayMsg">Stack it. Clear it. Don't get piled up.</p>
+      <p id="overlayMsg">Drop letters. Spell words. Words vanish — gibberish piles up.</p>
       <button id="startBtn">▶ Play</button>
     </div>
   </div>
@@ -136,26 +139,26 @@
   <div class="panel" id="rightPanel">
     <h3>Mode</h3>
     <div class="stat"><span>Edition</span><b id="edition">Free</b></div>
-    <button id="proBtn">🔓 Unlock PRO</button>
+    <button id="proBtn">🔓 Unlock 18+ Edition</button>
 
     <h3 style="margin-top:14px">Colors</h3>
     <label>Color scheme
       <select id="scheme"></select>
     </label>
     <div id="customWrap" style="display:none">
-      <label>Pick your 7 block colors</label>
+      <label>Pick your 7 tile colors</label>
       <div class="swatches" id="swatches"></div>
     </div>
 
     <div id="proPanel">
-      <h3 style="margin-top:14px">PRO: Sound &amp; Speed</h3>
+      <h3 style="margin-top:14px">18+: Sound &amp; Speed</h3>
       <div id="proControls" class="locked">
         <label><input type="checkbox" id="soundOn" checked> Sound effects</label>
         <label>Game speed <b id="speedVal">1.0×</b>
           <input type="range" id="speed" min="50" max="200" value="100">
         </label>
       </div>
-      <div class="locknote" id="proNote">🔒 PRO only — unlock to enable</div>
+      <div class="locknote" id="proNote">🔒 18+ Edition only — unlock to enable</div>
 
       <h3 style="margin-top:14px">Levels</h3>
       <div id="levelList"></div>
@@ -167,28 +170,28 @@
   <div class="card">
     <span class="badge18">18+</span>
     <h2>Adults Only</h2>
-    <p>PileUp PRO contains explicit language and adult humor intended for players 18 years of age or older.</p>
+    <p>The PileUp 18+ Edition makes explicit adult words playable, high-scoring words. Intended for players 18 years of age or older.</p>
     <p><b>Are you 18 or older?</b></p>
-    <button id="ageYes" style="background:linear-gradient(135deg,#ffcf40,#ff8a3d); color:#231a00; font-weight:800; border:none;">Yes, I'm 18+ — Unlock PRO</button>
+    <button id="ageYes" style="background:linear-gradient(135deg,#ffcf40,#ff8a3d); color:#231a00; font-weight:800; border:none;">Yes, I'm 18+ — Unlock</button>
     <button id="ageNo">No — keep it clean</button>
   </div>
 </div>
 
 <div id="touchpad">
   <button id="tLeft">◀</button>
-  <button id="tRot">⟳</button>
+  <button id="tSwap">⇄</button>
   <button id="tDown">▼</button>
   <button id="tDrop">⤓</button>
   <button id="tRight">▶</button>
 </div>
-<small class="hint">← → move · ↑ rotate · ↓ soft drop · Space hard drop · P pause</small>
+<small class="hint">← → move · ↑ swap with next letter · ↓ soft drop · Space hard drop · P pause<br>
+Spell words of 3+ letters across or down — they clear and score. Longer words and chains score big.</small>
 
 <script>
 "use strict";
 /* ============================== CONFIG ============================== */
-const COLS = 10, ROWS = 18, CELL = 30;
+const COLS = 8, ROWS = 12, CELL = 40;
 
-/* Team-color palettes: 7 block colors each, drawn from the team's kit. */
 const TEAM_PALETTES = {
   "Classic (default)":            ["#4fc3f7","#ffd54f","#ba68c8","#81c784","#e57373","#64b5f6","#ffb74d"],
   "Kansas City Chiefs":           ["#E31837","#FFB81C","#B31329","#FFD25F","#8A0F23","#FFC94D","#E85A70"],
@@ -217,42 +220,38 @@ const TEAM_PALETTES = {
   "Houston Texans":               ["#03202F","#A71930","#0A4A6E","#C93A50","#021521","#7A1224","#5A87A0"],
 };
 
-const CLEAN_LINES  = ["NICE!","SWEET!","GREAT CLEAR!","ON FIRE!","COMBO!","STACKED!","SMOOTH!"];
-/* PRO edition celebration lines — explicit adult language, as requested. 18+ */
-const ADULT_LINES  = [
-  "FUCK YEAH!","FUCKING FILTHY!","HOLY SHIT!","BITCHIN'!","YOU ABSOLUTE BITCH!",
-  "SEXY AS FUCK!","ORGASMIC!","THAT'S THE GOOD SHIT!","HARD AS FUCK!","WET AND WILD!",
-  "YOU CUNNING CUNT!","DIRTY FUCKING LEGEND!","CLIMAX CLEAR!","BALLS DEEP!","DEEP STROKE!",
-  "STACK ME HARDER, DADDY!","FILTHY LITTLE COMBO!","ABSOFUCKINGLUTELY!",
-];
-const ADULT_OVER   = ["Well, fuck.","Piled up and fucked over.","Gravity's a real bitch.","That pile came faster than you did."];
-const MAGIC_LINES_FREE = ["✨ MAGIC! ✨"];
-const MAGIC_LINES_PRO  = ["✨ POOF, BITCHES! ✨","✨ FUCKING MAGIC! ✨","✨ SHAZAM, MOTHERFUCKER! ✨","✨ ABRACA-FUCKING-DABRA! ✨"];
+/* Common playable words, 3–6 letters. */
+const COMMON_WORDS = ("ACE ACT ADD AGE AGO AID AIM AIR ALE ALL AND ANT ANY APE APT ARC ARE ARK ARM ART ASH ASK ATE AWE AXE BAD BAG BAN BAR BAT BAY BED BEE BEG BET BIB BID BIG BIN BIT BOA BOB BOG BOO BOW BOX BOY BUD BUG BUN BUS BUT BUY BYE CAB CAN CAP CAR CAT COB COD COG CON COO COP COT COW COY CRY CUB CUE CUP CUT DAB DAD DAM DAY DEN DEW DID DIE DIG DIM DIN DIP DOE DOG DOT DRY DUB DUE DUG DUO DYE EAR EAT EBB EEL EGG EGO ELF ELK ELM END ERA EVE EWE EYE FAD FAN FAR FAT FAX FED FEE FEW FIB FIG FIN FIR FIT FIX FLU FLY FOE FOG FOR FOX FRY FUN FUR GAG GAP GAS GEL GEM GET GIG GIN GNU GOO GOT GUM GUN GUT GUY GYM HAD HAM HAS HAT HAY HEM HEN HER HEW HEX HEY HID HIM HIP HIS HIT HOE HOG HOP HOT HOW HUB HUE HUG HUM HUT ICE ICY ILL IMP INK INN ION IRE IRK ITS IVY JAB JAM JAR JAW JAY JET JIG JOB JOG JOT JOY JUG KEG KEY KID KIN KIT LAB LAD LAG LAP LAW LAX LAY LEG LET LID LIE LIP LIT LOB LOG LOT LOW MAD MAN MAP MAT MAW MAY MEN MET MIX MOB MOP MOW MUD MUG NAB NAG NAP NET NEW NIL NIP NOD NOR NOT NOW NUN NUT OAK OAR OAT ODD ODE OFF OFT OIL OLD ONE OPT ORB ORE OUR OUT OWE OWL OWN PAD PAL PAN PAR PAT PAW PAY PEA PEG PEN PET PEW PIE PIG PIN PIT PLY POD POP POT PRO PRY PUB PUG PUN PUP PUT RAG RAM RAN RAP RAT RAW RAY RED REF RIB RID RIG RIM RIP ROB ROD ROE ROT ROW RUB RUG RUM RUN RUT RYE SAD SAG SAP SAT SAW SAY SEA SEE SET SEW SHE SHY SIN SIP SIR SIT SIX SKI SKY SLY SOB SOD SON SOW SOY SPA SPY SUB SUE SUM SUN TAB TAD TAG TAN TAP TAR TAX TEA TEN THE TIE TIN TIP TOE TON TOO TOP TOT TOW TOY TRY TUB TUG TWO URN USE VAN VAT VET VIA VIE VOW WAD WAG WAR WAS WAX WAY WEB WED WET WHO WHY WIG WIN WIT WOK WON WOO WOW YAK YAM YAP YES YET YEW YOU ZAP ZIP ZOO " +
+"ABLE ACHE ACID AREA ARMY AUNT AWAY BABY BACK BAKE BALL BAND BANK BARE BARK BARN BASE BATH BEAD BEAM BEAN BEAR BEAT BELL BELT BEND BEST BIKE BILL BIRD BITE BLOW BLUE BOAT BODY BOIL BOLD BOLT BOMB BOND BONE BOOK BOOM BOOT BORE BORN BOSS BOTH BOWL BRAG BRAN BRAT BREW BUCK BULK BULL BUMP BURN BURY BUSH BUSY BUZZ CAFE CAGE CAKE CALF CALL CALM CAME CAMP CANE CARD CARE CART CASE CASH CAST CAVE CELL CHAT CHEW CHIN CHIP CHOP CITY CLAP CLAW CLAY CLIP CLUB CLUE COAL COAT CODE COIL COIN COLD COMB COME COOK COOL COPE COPY CORD CORE CORN COST COZY CRAB CREW CROP CROW CUBE CURB CURE CURL DARE DARK DART DASH DATA DATE DAWN DAYS DEAD DEAF DEAL DEAR DEBT DECK DEED DEEP DEER DENT DENY DESK DIAL DICE DIET DIRT DISH DIVE DOCK DOES DOLL DOME DONE DOOR DOSE DOWN DRAG DRAW DREW DRIP DROP DRUM DUCK DULL DUMB DUMP DUSK DUST DUTY EACH EARN EASE EAST EASY EDGE ELSE EVEN EVER EXAM EXIT FACE FACT FADE FAIL FAIR FAKE FALL FAME FARE FARM FAST FATE FEAR FEAT FEED FEEL FEET FELL FELT FERN FILE FILL FILM FIND FINE FIRE FIRM FISH FIST FITS FIVE FLAG FLAP FLAT FLAW FLEA FLED FLEE FLEW FLIP FLOW FOAM FOIL FOLD FOLK FOND FOOD FOOL FOOT FORD FORE FORK FORM FORT FOUR FREE FROG FROM FUEL FULL FUME FUND FUSE FUSS GAIN GAME GANG GATE GAVE GAZE GEAR GIFT GIRL GIVE GLAD GLOW GLUE GOAL GOAT GOES GOLD GOLF GONE GOOD GOWN GRAB GRAM GRAY GREW GRID GRIM GRIN GRIP GROW GULF GUSH HAIL HAIR HALF HALL HALT HAND HANG HARD HARM HATE HAUL HAVE HAWK HAZE HEAD HEAL HEAP HEAR HEAT HEEL HELD HELP HERB HERD HERE HERO HIDE HIGH HIKE HILL HINT HIRE HIVE HOLD HOLE HOME HOOD HOOF HOOK HOPE HORN HOSE HOST HOUR HOWL HUGE HULL HUNG HUNT HURT HUSH ICON IDEA IDLE INCH INTO IRON ITCH ITEM JAZZ JOIN JOKE JOLT JUMP JUNK JURY JUST KEEN KEEP KELP KEPT KICK KIND KING KISS KITE KNEE KNEW KNIT KNOB KNOT KNOW LACE LACK LADY LAID LAKE LAMB LAMP LAND LANE LAST LATE LAVA LAWN LAZY LEAD LEAF LEAK LEAN LEAP LEFT LEND LENS LESS LIFE LIFT LIKE LIMB LIME LINE LINK LION LIST LIVE LOAD LOAF LOAN LOCK LOFT LONE LONG LOOK LOOM LOOP LOSE LOSS LOST LOUD LOVE LUCK LUMP LUNG LURE MAID MAIL MAIN MAKE MALE MALL MANY MAPS MARE MARK MASK MAST MATE MATH MAZE MEAL MEAN MEAT MEET MELT MEMO MEND MENU MESH MESS MICE MILD MILE MILK MILL MIND MINE MINT MISS MIST MOAN MODE MOLD MOLE MOOD MOON MORE MOSS MOST MOTH MOVE MUCH MULE MUST MUTE MYTH NAIL NAME NAVY NEAR NEAT NECK NEED NEST NEWS NEXT NICE NINE NODE NONE NOON NOSE NOTE NOUN OBEY ODDS ONCE ONLY ONTO OPEN ORAL OVAL OVEN OVER PACE PACK PAGE PAID PAIL PAIN PAIR PALE PALM PANE PARK PART PASS PAST PATH PAVE PAWN PEAK PEAR PECK PEEL PEER PERK PEST PICK PIER PILE PILL PINE PINK PIPE PLAN PLAY PLEA PLOT PLOW PLUG PLUS POEM POET POKE POLE POLL POND PONY POOL POOR PORE PORK PORT POSE POST POUR PRAY PREY PROP PULL PUMP PURE PUSH QUIT QUIZ RACE RACK RAFT RAGE RAID RAIL RAIN RAKE RAMP RANG RANK RARE RASH RATE RAVE READ REAL REAR REEF REEL RENT REST RICE RICH RIDE RIM RING RIPE RISE RISK ROAD ROAM ROAR ROBE ROCK RODE ROLE ROLL ROOF ROOM ROOT ROPE ROSE RUDE RUIN RULE RUNG RUSH RUST SAFE SAGE SAID SAIL SALE SALT SAME SAND SANE SANG SANK SAVE SCAN SCAR SEAL SEAM SEAT SEED SEEK SEEM SEEN SELF SELL SEND SENT SHED SHIN SHIP SHOE SHOP SHOT SHOW SHUT SICK SIDE SIGH SIGN SILK SING SINK SITE SIZE SKIN SKIP SLAB SLAM SLAP SLED SLID SLIM SLIP SLOT SLOW SNAP SNOW SOAK SOAP SOAR SOCK SODA SOFA SOFT SOIL SOLD SOLE SOME SONG SOON SORE SORT SOUL SOUP SOUR SPAN SPIN SPOT SPUN STAB STAR STAY STEM STEP STEW STIR STOP STUB SUCH SUIT SUNG SUNK SURE SWAM SWAN SWAP SWAY SWIM TACK TAIL TAKE TALE TALK TALL TAME TANK TAPE TART TASK TEAM TEAR TELL TEND TENT TERM TEST THAN THAT THAW THEM THEN THEY THIN THIS TIDE TIDY TIED TILE TILL TILT TIME TINY TIRE TOAD TOLD TOLL TOMB TONE TOOK TOOL TORE TORN TOSS TOUR TOWN TRAP TRAY TREE TRIM TRIO TRIP TRUE TUBE TUCK TUNA TUNE TURF TURN TWIG TWIN TYPE UGLY UNDO UNIT UPON URGE USED USER VAIN VASE VAST VEIL VEIN VERB VERY VEST VIEW VINE VOID VOTE WADE WAGE WAIT WAKE WALK WALL WAND WANT WARD WARM WARN WART WASH WASP WAVE WAYS WEAK WEAR WEED WEEK WEEP WELD WELL WENT WERE WEST WHAT WHEN WHIP WHOM WIDE WIFE WILD WILL WIND WINE WING WINK WIPE WIRE WISE WISH WITH WOKE WOLF WOOD WOOL WORD WORE WORK WORM WORN WRAP YARD YARN YAWN YEAR YELL ZERO ZINC ZONE " +
+"ABOUT ABOVE ACTOR ADMIT ADOPT AGENT AGREE AHEAD ALARM ALBUM ALERT ALIKE ALIVE ALLOW ALONE ALONG ALOUD ANGEL ANGER ANGLE ANGRY ANKLE APART APPLE APPLY ARENA ARGUE ARISE ARMOR AROSE ARRAY ASIDE ASSET AVOID AWAKE AWARD AWARE BADGE BADLY BAKER BASIC BATCH BEACH BEARD BEAST BEGAN BEGIN BEGUN BEING BELLY BELOW BENCH BERRY BIRTH BLACK BLADE BLAME BLAND BLANK BLAST BLAZE BLEED BLEND BLESS BLIND BLINK BLOCK BLOOD BLOOM BLOWN BLUNT BOARD BONUS BOOST BOOTH BOUND BRAIN BRAKE BRAND BRAVE BREAD BREAK BRICK BRIDE BRIEF BRING BROAD BROKE BROOK BROOM BROWN BRUSH BUILD BUILT BUNCH BURNT BURST CABIN CABLE CANDY CARGO CARRY CATCH CAUSE CEASE CHAIN CHAIR CHALK CHARM CHART CHASE CHEAP CHEAT CHECK CHEEK CHEER CHESS CHEST CHIEF CHILD CHILL CHOIR CHOSE CIVIC CIVIL CLAIM CLASS CLEAN CLEAR CLERK CLICK CLIFF CLIMB CLOCK CLOSE CLOTH CLOUD COACH COAST COLOR COMET COMIC CORAL COUCH COUGH COULD COUNT COURT COVER CRACK CRAFT CRANE CRASH CRAWL CRAZY CREAM CREEK CREPT CRIME CRISP CROSS CROWD CROWN CRUDE CRUEL CRUSH CURVE CYCLE DAILY DAIRY DANCE DEALT DEATH DEBUT DECAY DELAY DENSE DEPTH DEVIL DIARY DIRTY DITCH DODGE DOING DONOR DOUBT DOUGH DOZEN DRAFT DRAIN DRAMA DRANK DRAWN DREAM DRESS DRIED DRIFT DRILL DRINK DRIVE DROVE DROWN DRUNK DYING EAGER EAGLE EARLY EARTH EIGHT ELBOW ELDER EMPTY ENEMY ENJOY ENTER ENTRY EQUAL ERROR EVENT EVERY EXACT EXIST EXTRA FAINT FAIRY FAITH FALSE FANCY FATAL FAULT FAVOR FEAST FENCE FERRY FEVER FIBER FIELD FIFTH FIFTY FIGHT FINAL FIRST FLAME FLASH FLEET FLESH FLOAT FLOCK FLOOD FLOOR FLOUR FLUID FLUSH FOCUS FORCE FORGE FORTH FORTY FORUM FOUND FRAME FRANK FRAUD FRESH FRONT FROST FROWN FROZE FRUIT FUNNY GHOST GIANT GIVEN GLASS GLOBE GLORY GLOVE GOING GOOSE GRACE GRADE GRAIN GRAND GRANT GRAPE GRASP GRASS GRAVE GREAT GREED GREEN GREET GRIEF GRIND GROAN GROUP GROVE GROWN GUARD GUESS GUEST GUIDE GUILT HABIT HAPPY HARSH HASTE HATCH HAVEN HEART HEAVY HEDGE HELLO HENCE HOBBY HONEY HONOR HORSE HOTEL HOUSE HUMAN HUMOR HURRY IDEAL IMAGE IMPLY INDEX INNER INPUT ISSUE JOINT JOLLY JUDGE JUICE KNEEL KNIFE KNOCK KNOWN LABEL LABOR LARGE LASER LATER LAUGH LAYER LEARN LEASE LEAST LEAVE LEGAL LEMON LEVEL LIGHT LIMIT LINEN LIVER LOCAL LODGE LOGIC LOOSE LORRY LOSER LOVER LOWER LOYAL LUCKY LUNCH LYING MAGIC MAJOR MAKER MAPLE MARCH MARRY MATCH MAYBE MAYOR MEANT MEDAL MEDIA MELON MERCY MERGE MERIT MERRY METAL METER MIDST MIGHT MINOR MINUS MIXED MODEL MONEY MONTH MORAL MOTOR MOUNT MOUSE MOUTH MOVIE MUSIC NAKED NASTY NERVE NEVER NEWLY NIGHT NOBLE NOISE NORTH NOTED NOVEL NURSE OCCUR OCEAN OFFER OFTEN OLIVE ONION ORBIT ORDER OTHER OUGHT OUNCE OUTER OWNER PAINT PANEL PANIC PAPER PARTY PASTE PATCH PAUSE PEACE PEACH PEARL PENNY PHASE PHONE PHOTO PIANO PIECE PILOT PINCH PITCH PIZZA PLACE PLAIN PLANE PLANT PLATE PLAZA POINT POLAR PORCH POUND POWER PRESS PRICE PRIDE PRIME PRINT PRIOR PRIZE PROOF PROUD PROVE PUPIL QUEEN QUEST QUEUE QUICK QUIET QUITE QUOTE RADIO RAISE RALLY RANCH RANGE RAPID RATIO REACH REACT READY REALM REBEL REFER REIGN RELAX REPLY RHYME RIDGE RIFLE RIGHT RIGID RISEN RIVAL RIVER ROAST ROBIN ROCKY ROGUE ROMAN ROUGH ROUND ROUTE ROYAL RURAL SADLY SAINT SALAD SALES SAUCE SCALE SCARE SCARF SCENE SCENT SCOPE SCORE SCOUT SCRAP SCREW SENSE SERVE SEVEN SHADE SHAKE SHALL SHAME SHAPE SHARE SHARK SHARP SHEEP SHEET SHELF SHELL SHIFT SHINE SHINY SHIRT SHOCK SHONE SHOOK SHOOT SHORE SHORT SHOUT SHOWN SIGHT SILLY SINCE SIXTH SIXTY SKILL SKIRT SKULL SLAVE SLEEP SLEPT SLICE SLIDE SLOPE SMALL SMART SMELL SMILE SMOKE SNACK SNAKE SOLAR SOLID SOLVE SORRY SOUND SOUTH SPACE SPARE SPARK SPEAK SPEED SPELL SPEND SPENT SPICE SPILL SPINE SPLIT SPOKE SPORT SPRAY STAFF STAGE STAIR STAKE STAMP STAND STARE START STATE STEAK STEAL STEAM STEEL STEEP STEER STICK STIFF STILL STING STOCK STOLE STONE STOOD STOOL STORE STORM STORY STOVE STRAP STRAW STRIP STUCK STUDY STUFF STYLE SUGAR SUITE SUNNY SUPER SWEAR SWEAT SWEEP SWEET SWEPT SWIFT SWING SWORD TABLE TAKEN TASTE TAUGHT TEACH TEETH TEMPO TENSE TENTH THANK THEFT THEIR THEME THERE THESE THICK THIEF THING THINK THIRD THORN THOSE THREE THREW THROW THUMB TIGER TIGHT TIMER TITLE TODAY TOKEN TOOTH TOPIC TORCH TOTAL TOUCH TOUGH TOWEL TOWER TOXIC TRACE TRACK TRADE TRAIL TRAIN TRAIT TRASH TREAT TREND TRIAL TRIBE TRICK TRIED TRUCK TRULY TRUNK TRUST TRUTH TWICE TWIST UNCLE UNDER UNION UNITE UNITY UNTIL UPPER UPSET URBAN USAGE USUAL VAGUE VALID VALUE VAPOR VAULT VENUE VERSE VIDEO VILLA VIRUS VISIT VITAL VIVID VOCAL VOICE WAGON WAIST WASTE WATCH WATER WEAVE WEIGH WEIRD WHALE WHEAT WHEEL WHERE WHICH WHILE WHITE WHOLE WHOSE WIDOW WIDTH WOMAN WOMEN WORLD WORRY WORSE WORST WORTH WOULD WOUND WOVEN WRECK WRIST WRITE WRONG WROTE YIELD YOUNG YOUTH").split(/\s+/);
 
-/* Free edition: levels 1–5. PRO adds 6–12, each faster; 7+ drops garbage rows. */
+/* 18+ Edition: explicit words become playable and score DOUBLE. */
+const ADULT_WORDS = ("ASS ARSE TIT CUM BUM POO FUK SEX GAY HOE SHIT SHITE SHITS CRAP CRAPS DAMN HELL FUCK FUCKS FUCKED FUCKER CUNT CUNTS BITCH TWAT TWATS COCK COCKS DICK DICKS PISS PISSED KNOB SLUT SLUTS WANK WANKS WANKER TITS BOOB BOOBS BUTT BUTTS FART FARTS TURD TURDS PORN PORNO SEXY NUDE JIZZ PUBE PUBES BONER MINGE SKANK QUEEF DILDO BALLS SCREW SHAG SHAGS HORNY KINKY MOIST THONG BOOTY").split(/\s+/);
+
+const CLEAN_LINES = ["NICE WORD!","WORDSMITH!","SPELLBOUND!","CLEARED!","SHARP!","BRAINY!"];
+const ADULT_LINES = ["FILTHY GENIUS!","POTTY MOUTH PAYS!","ABSOLUTELY FILTHY!","YOUR MOTHER WOULD BE PROUD!","DIRTY DOUBLE POINTS!","FOUL AND FABULOUS!"];
+const MAGIC_LINES_FREE = ["✨ MAGIC! ✨"];
+const MAGIC_LINES_PRO  = ["✨ POOF, BITCHES! ✨","✨ FUCKING MAGIC! ✨","✨ ABRACA-FUCKING-DABRA! ✨"];
+const ADULT_OVER = ["Well, fuck.","Buried in gibberish, bitch.","That pile came faster than you did.","Spell better, shithead."];
+
+const LETTER_POINTS = {A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10};
+const LETTER_BAG =
+  "EEEEEEEEEEEEAAAAAAAAAIIIIIIIIIOOOOOOOONNNNNNRRRRRRTTTTTTLLLLSSSSUUUUDDDDGGGBBCCMMPPFFHHVVWWYYKJXQZ";
+const ADULT_BAG_BOOST = "CKUFTHSIB"; // nudges the letters the fun words need
+
 const LEVELS = [
   {n:1,  name:"1 · Warm-Up",      speed:1.00, pro:false},
-  {n:2,  name:"2 · Rookie",       speed:1.25, pro:false},
-  {n:3,  name:"3 · Steady",       speed:1.55, pro:false},
-  {n:4,  name:"4 · Brisk",        speed:1.90, pro:false},
-  {n:5,  name:"5 · Rush Hour",    speed:2.30, pro:false},
-  {n:6,  name:"6 · Turbo",        speed:2.80, pro:true},
-  {n:7,  name:"7 · Landslide",    speed:3.30, pro:true,  garbage:26},
-  {n:8,  name:"8 · Avalanche",    speed:3.90, pro:true,  garbage:20},
-  {n:9,  name:"9 · Earthquake",   speed:4.60, pro:true,  garbage:15},
-  {n:10, name:"10 · Meltdown",    speed:5.40, pro:true,  garbage:12},
-  {n:11, name:"11 · Apocalypse",  speed:6.30, pro:true,  garbage:9},
-  {n:12, name:"12 · PILEUP HELL",speed:7.50, pro:true,  garbage:7},
-];
-
-const SHAPES = [
-  [[1,1,1,1]],            // I
-  [[1,1],[1,1]],          // O
-  [[0,1,0],[1,1,1]],      // T
-  [[0,1,1],[1,1,0]],      // S
-  [[1,1,0],[0,1,1]],      // Z
-  [[1,0,0],[1,1,1]],      // J
-  [[0,0,1],[1,1,1]],      // L
+  {n:2,  name:"2 · Rookie",       speed:1.20, pro:false},
+  {n:3,  name:"3 · Steady",       speed:1.45, pro:false},
+  {n:4,  name:"4 · Brisk",        speed:1.75, pro:false},
+  {n:5,  name:"5 · Rush Hour",    speed:2.10, pro:false},
+  {n:6,  name:"6 · Turbo",        speed:2.50, pro:true},
+  {n:7,  name:"7 · Landslide",    speed:2.95, pro:true,  garbage:30},
+  {n:8,  name:"8 · Avalanche",    speed:3.45, pro:true,  garbage:24},
+  {n:9,  name:"9 · Earthquake",   speed:4.00, pro:true,  garbage:19},
+  {n:10, name:"10 · Meltdown",    speed:4.60, pro:true,  garbage:15},
+  {n:11, name:"11 · Apocalypse",  speed:5.30, pro:true,  garbage:12},
+  {n:12, name:"12 · PILEUP HELL", speed:6.10, pro:true,  garbage:9},
 ];
 
 /* ============================== STATE ============================== */
@@ -265,18 +264,20 @@ const store = {
   set custom(v){ localStorage.setItem("pu_custom", JSON.stringify(v)); },
 };
 
-let board, piece, nextPiece, score, lines, levelIdx, over, paused, running=false;
+const DICT = new Set(COMMON_WORDS);
+const ADULT = new Set(ADULT_WORDS);
+
+let board, piece, queue, score, wordCount, levelIdx, over, paused, running=false;
 let charges=0, lastTier=0, dropTimer=0, garbageTimer=0, lastTime=0;
 let colors = TEAM_PALETTES[store.scheme] || TEAM_PALETTES["Classic (default)"];
 let speedMult = 1.0;
 let particles = [];
 
-/* ============================== DOM ============================== */
 const $ = id => document.getElementById(id);
 const ctx = $("board").getContext("2d");
 const nctx = $("next").getContext("2d");
 
-/* ============================== AUDIO (PRO) ============================== */
+/* ============================== AUDIO (18+) ============================== */
 let actx = null;
 function beep(freq, dur=0.08, type="square", vol=0.16){
   if(!store.pro || !$("soundOn").checked) return;
@@ -292,9 +293,10 @@ function beep(freq, dur=0.08, type="square", vol=0.16){
 }
 const sfx = {
   move: () => beep(220, .04, "square", .08),
-  rotate: () => beep(330, .05, "square", .1),
+  swap: () => beep(330, .05, "square", .1),
   drop: () => beep(140, .09, "triangle", .2),
-  clear: () => { beep(523,.09); setTimeout(()=>beep(659,.09),70); setTimeout(()=>beep(784,.12),140); },
+  word: () => { beep(523,.09); setTimeout(()=>beep(659,.09),70); setTimeout(()=>beep(784,.12),140); },
+  adult: () => { beep(392,.08,"sawtooth",.12); setTimeout(()=>beep(523,.08,"sawtooth",.12),80); setTimeout(()=>beep(659,.08,"sawtooth",.12),160); setTimeout(()=>beep(880,.16,"sawtooth",.14),240); },
   magic: () => { beep(880,.1,"sine",.2); setTimeout(()=>beep(1175,.1,"sine",.2),90); setTimeout(()=>beep(1568,.18,"sine",.2),180); },
   levelup: () => { beep(392,.1); setTimeout(()=>beep(523,.1),90); setTimeout(()=>beep(659,.16),180); },
   gameover: () => { beep(330,.2,"sawtooth",.15); setTimeout(()=>beep(220,.25,"sawtooth",.15),180); setTimeout(()=>beep(147,.4,"sawtooth",.15),380); },
@@ -302,58 +304,113 @@ const sfx = {
 };
 
 /* ============================== GAME CORE ============================== */
-function newBoard(){ return Array.from({length:ROWS}, () => Array(COLS).fill(0)); }
+function newBoard(){ return Array.from({length:ROWS}, () => Array(COLS).fill(null)); }
 
-function randomPiece(){
-  const t = Math.floor(Math.random()*SHAPES.length);
-  const shape = SHAPES[t].map(r=>r.slice());
-  return { t, shape, x: Math.floor((COLS - shape[0].length)/2), y: -shape.length+1 };
+function randomLetter(){
+  const bag = store.pro ? LETTER_BAG + ADULT_BAG_BOOST : LETTER_BAG;
+  return bag[Math.floor(Math.random()*bag.length)];
 }
 
-function collides(p, dx=0, dy=0, shape=p.shape){
-  for(let y=0;y<shape.length;y++) for(let x=0;x<shape[y].length;x++){
-    if(!shape[y][x]) continue;
-    const nx=p.x+x+dx, ny=p.y+y+dy;
-    if(nx<0||nx>=COLS||ny>=ROWS) return true;
-    if(ny>=0 && board[ny][nx]) return true;
-  }
-  return false;
+function spawnPiece(){
+  piece = { ch: queue.shift(), x: Math.floor(COLS/2), y: 0 };
+  queue.push(randomLetter());
+  if(board[0][piece.x]) return gameOver();
 }
 
-function rotate(shape){
-  return shape[0].map((_,i)=>shape.map(r=>r[i]).reverse());
+function cellBlocked(x,y){
+  return x<0 || x>=COLS || y>=ROWS || (y>=0 && board[y][x]);
+}
+
+function isValidWord(w){
+  return DICT.has(w) || (store.pro && ADULT.has(w));
 }
 
 function lockPiece(){
-  piece.shape.forEach((row,y)=>row.forEach((v,x)=>{
-    if(v && piece.y+y>=0) board[piece.y+y][piece.x+x] = piece.t+1;
-  }));
+  board[piece.y][piece.x] = piece.ch;
   sfx.drop();
-  const cleared = sweep();
-  piece = nextPiece; nextPiece = randomPiece();
-  if(collides(piece)) return gameOver();
-  if(!cleared) addScore(1); // small survival trickle so magic tiers stay reachable
+  const cleared = resolveWords();
+  if(!cleared) addScore(1); // survival trickle keeps magic tiers reachable
+  spawnPiece();
 }
 
-function sweep(){
-  let cleared = 0;
-  for(let y=ROWS-1;y>=0;y--){
-    if(board[y].every(v=>v)){
-      spawnParticles(y);
-      board.splice(y,1);
-      board.unshift(Array(COLS).fill(0));
-      cleared++; y++;
-    }
+function findWords(){
+  const found = [];
+  const lineWords = (cells) => {
+    // cells: array of {x,y,ch|null} along one row or column
+    let run = [];
+    const flush = () => {
+      if(run.length>=3){
+        const s = run.map(c=>c.ch).join("");
+        for(let len=Math.min(run.length,7); len>=3; len--){
+          for(let i=0; i+len<=run.length; i++){
+            const w = s.substr(i,len);
+            if(isValidWord(w)) found.push({word:w, cells:run.slice(i,i+len)});
+          }
+        }
+      }
+      run = [];
+    };
+    for(const c of cells){ if(c.ch) run.push(c); else flush(); }
+    flush();
+  };
+  for(let y=0;y<ROWS;y++)
+    lineWords(Array.from({length:COLS},(_,x)=>({x,y,ch:board[y][x]})));
+  for(let x=0;x<COLS;x++)
+    lineWords(Array.from({length:ROWS},(_,y)=>({x,y,ch:board[y][x]})));
+  // prefer longest words; a cell clears once per pass
+  found.sort((a,b)=>b.word.length-a.word.length);
+  const used = new Set(), picked = [];
+  for(const f of found){
+    if(f.cells.some(c=>used.has(c.y*COLS+c.x))) continue;
+    f.cells.forEach(c=>used.add(c.y*COLS+c.x));
+    picked.push(f);
   }
-  if(cleared){
-    const lvl = LEVELS[levelIdx].n;
-    addScore([0,40,100,300,1200][cleared] * lvl);
-    lines += cleared;
-    celebrate(pick(store.pro ? ADULT_LINES : CLEAN_LINES), cleared>=3 ? "#ff8a3d" : "#7dffa8");
-    sfx.clear();
+  return picked;
+}
+
+function wordScore(w){
+  let pts = 0;
+  for(const ch of w) pts += LETTER_POINTS[ch] || 1;
+  pts = Math.round(pts * (1 + (w.length-3)*0.5));
+  return ADULT.has(w) ? pts*2 : pts; // filthy words pay double
+}
+
+function resolveWords(){
+  let combo = 0, lastWords = [];
+  for(;;){
+    const words = findWords();
+    if(!words.length) break;
+    combo++;
+    for(const {word, cells} of words){
+      const naughty = ADULT.has(word);
+      const pts = wordScore(word) * combo;
+      addScore(pts);
+      wordCount++;
+      lastWords.push(word + " +" + pts);
+      cells.forEach(c=>{ spawnParticles(c.x, c.y, naughty); board[c.y][c.x] = null; });
+      if(naughty){
+        celebrate(word + "! " + pick(ADULT_LINES), "#ff5c8a");
+        sfx.adult();
+      } else {
+        celebrate(word + "! " + (combo>1 ? "CHAIN ×"+combo : pick(CLEAN_LINES)), combo>1 ? "#ff8a3d" : "#7dffa8");
+        sfx.word();
+      }
+    }
+    collapse();
+  }
+  if(lastWords.length){
+    $("lastWord").textContent = lastWords.join("  ·  ");
     maybeLevelUp();
   }
-  return cleared;
+  return lastWords.length;
+}
+
+function collapse(){
+  for(let x=0;x<COLS;x++){
+    const col = [];
+    for(let y=ROWS-1;y>=0;y--) if(board[y][x]) col.push(board[y][x]);
+    for(let y=ROWS-1;y>=0;y--) board[y][x] = col[ROWS-1-y] || null;
+  }
 }
 
 function addScore(pts){
@@ -370,7 +427,7 @@ function addScore(pts){
 
 function maybeLevelUp(){
   const maxIdx = store.pro ? LEVELS.length-1 : 4;
-  const targetIdx = Math.min(Math.floor(lines/10), maxIdx);
+  const targetIdx = Math.min(Math.floor(wordCount/8), maxIdx);
   if(targetIdx > levelIdx){
     levelIdx = targetIdx;
     celebrate("LEVEL UP → " + LEVELS[levelIdx].name, "#ffcf40");
@@ -386,10 +443,10 @@ function magicClick(){
   let removed = 0;
   for(let y=ROWS-1; y>=0 && removed<2; y--){
     if(board[y].some(v=>v)){
-      spawnParticles(y, true);
+      for(let x=0;x<COLS;x++) if(board[y][x]) spawnParticles(x, y, true);
       board.splice(y,1);
-      board.unshift(Array(COLS).fill(0));
-      removed++; y++; // recheck same index after splice
+      board.unshift(Array(COLS).fill(null));
+      removed++; y++;
     }
   }
   if(removed){
@@ -401,36 +458,38 @@ function magicClick(){
 }
 
 function pushGarbage(){
-  const hole = Math.floor(Math.random()*COLS);
-  const row = Array.from({length:COLS}, (_,x)=> x===hole ? 0 : 1 + Math.floor(Math.random()*7));
+  const row = Array.from({length:COLS}, ()=> Math.random()<0.75 ? randomLetter() : null);
   board.shift(); board.push(row);
-  if(collides(piece)) piece.y--;
-  celebrate("⚠ GARBAGE!", "#e57373");
+  celebrate("⚠ LETTER AVALANCHE!", "#e57373");
   beep(110,.12,"sawtooth",.14);
+  resolveWords(); // avalanches can accidentally spell things — that's the fun
 }
 
 function gameOver(){
   over = true; running = false;
   sfx.gameover();
   $("overlayMsg").textContent = (store.pro ? pick(ADULT_OVER) + " " : "") +
-    `Final score ${score} · ${lines} lines · reached ${LEVELS[levelIdx].name}`;
+    `Final score ${score} · ${wordCount} words · reached ${LEVELS[levelIdx].name}`;
   $("overlay").querySelector("h2").textContent = "GAME OVER";
   $("startBtn").textContent = "↻ Play Again";
   $("overlay").classList.remove("hidden");
 }
 
 function startGame(){
-  board = newBoard(); piece = randomPiece(); nextPiece = randomPiece();
-  score = 0; lines = 0; levelIdx = 0; charges = 0; lastTier = 0;
+  board = newBoard();
+  queue = [randomLetter(), randomLetter(), randomLetter()];
+  score = 0; wordCount = 0; levelIdx = 0; charges = 0; lastTier = 0;
   over = false; paused = false; running = true;
   dropTimer = 0; garbageTimer = 0; particles = [];
+  $("lastWord").textContent = "—";
   $("overlay").classList.add("hidden");
+  spawnPiece();
   renderLevelList(); updateHUD();
 }
 
 /* ============================== LOOP ============================== */
 function gravityMs(){
-  return Math.max(45, 800 / (LEVELS[levelIdx].speed * speedMult));
+  return Math.max(70, 950 / (LEVELS[levelIdx].speed * speedMult));
 }
 
 function tick(time){
@@ -440,7 +499,7 @@ function tick(time){
     dropTimer += dt;
     if(dropTimer > gravityMs()){
       dropTimer = 0;
-      if(!collides(piece,0,1)) piece.y++;
+      if(!cellBlocked(piece.x, piece.y+1)) piece.y++;
       else lockPiece();
     }
     const g = LEVELS[levelIdx].garbage;
@@ -453,38 +512,45 @@ function tick(time){
 }
 
 /* ============================== RENDER ============================== */
-function drawCell(c, x, y, colorIdx, ghost=false){
-  const col = colors[(colorIdx-1) % colors.length];
-  const px = x*CELL, py = y*CELL;
-  if(ghost){
-    c.strokeStyle = col; c.globalAlpha = .35;
-    c.strokeRect(px+2, py+2, CELL-4, CELL-4);
-    c.globalAlpha = 1;
-    return;
-  }
+function tileColor(ch){
+  return colors[(ch.charCodeAt(0)-65) % colors.length];
+}
+function drawTile(c, x, y, ch, px, py, size){
+  const col = tileColor(ch);
+  const X = px!==undefined ? px : x*CELL, Y = py!==undefined ? py : y*CELL, S = size||CELL;
   c.fillStyle = col;
-  c.fillRect(px+1, py+1, CELL-2, CELL-2);
-  c.fillStyle = "rgba(255,255,255,.25)";
-  c.fillRect(px+1, py+1, CELL-2, 5);
+  c.fillRect(X+2, Y+2, S-4, S-4);
+  c.fillStyle = "rgba(255,255,255,.22)";
+  c.fillRect(X+2, Y+2, S-4, 5);
   c.fillStyle = "rgba(0,0,0,.28)";
-  c.fillRect(px+1, py+CELL-6, CELL-2, 5);
+  c.fillRect(X+2, Y+S-7, S-4, 5);
+  // letter — pick dark or light ink for contrast
+  const n = parseInt(col.slice(1),16);
+  const lum = 0.299*((n>>16)&255) + 0.587*((n>>8)&255) + 0.114*(n&255);
+  c.fillStyle = lum > 140 ? "#1a1408" : "#f7f7fb";
+  c.font = `bold ${Math.floor(S*0.52)}px "Segoe UI", system-ui, sans-serif`;
+  c.textAlign = "center"; c.textBaseline = "middle";
+  c.fillText(ch, X+S/2, Y+S/2+1);
+  c.fillStyle = lum > 140 ? "rgba(26,20,8,.75)" : "rgba(247,247,251,.75)";
+  c.font = `bold ${Math.floor(S*0.2)}px "Segoe UI", system-ui, sans-serif`;
+  c.fillText(String(LETTER_POINTS[ch]||1), X+S-8, Y+S-8);
 }
 
 function draw(dt){
   ctx.clearRect(0,0,COLS*CELL,ROWS*CELL);
   ctx.strokeStyle = "rgba(255,255,255,.04)";
   for(let x=1;x<COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,ROWS*CELL); ctx.stroke(); }
-  board?.forEach((row,y)=>row.forEach((v,x)=>{ if(v) drawCell(ctx,x,y,v); }));
+  board?.forEach((row,y)=>row.forEach((ch,x)=>{ if(ch) drawTile(ctx,x,y,ch); }));
   if(piece && running && !over){
-    let gy = 0; while(!collides(piece,0,gy+1)) gy++;
-    piece.shape.forEach((row,y)=>row.forEach((v,x)=>{
-      if(v && piece.y+y+gy>=0) drawCell(ctx, piece.x+x, piece.y+y+gy, piece.t+1, true);
-    }));
-    piece.shape.forEach((row,y)=>row.forEach((v,x)=>{
-      if(v && piece.y+y>=0) drawCell(ctx, piece.x+x, piece.y+y, piece.t+1);
-    }));
+    let gy = piece.y; while(!cellBlocked(piece.x, gy+1)) gy++;
+    if(gy !== piece.y){
+      ctx.globalAlpha = .3;
+      ctx.strokeStyle = tileColor(piece.ch);
+      ctx.strokeRect(piece.x*CELL+3, gy*CELL+3, CELL-6, CELL-6);
+      ctx.globalAlpha = 1;
+    }
+    drawTile(ctx, piece.x, piece.y, piece.ch);
   }
-  // particles
   particles = particles.filter(p=>p.life>0);
   particles.forEach(p=>{
     p.x += p.vx*dt/16; p.y += p.vy*dt/16; p.vy += .12*dt/16; p.life -= dt;
@@ -493,22 +559,16 @@ function draw(dt){
     ctx.fillRect(p.x, p.y, p.s, p.s);
     ctx.globalAlpha = 1;
   });
-  // next preview
-  nctx.clearRect(0,0,96,96);
-  if(nextPiece && running){
-    const s = nextPiece.shape, off = 16;
-    s.forEach((row,y)=>row.forEach((v,x)=>{
-      if(!v) return;
-      nctx.fillStyle = colors[nextPiece.t % colors.length];
-      nctx.fillRect(off+x*20, off+y*20, 18, 18);
-    }));
+  nctx.clearRect(0,0,150,54);
+  if(queue && running){
+    queue.slice(0,3).forEach((ch,i)=> drawTile(nctx, 0, 0, ch, 6+i*48, 6, 42));
   }
 }
 
-function spawnParticles(rowY, magic=false){
-  for(let i=0;i<26;i++){
+function spawnParticles(cx, cy, magic=false){
+  for(let i=0;i<10;i++){
     particles.push({
-      x: Math.random()*COLS*CELL, y: rowY*CELL + CELL/2,
+      x: cx*CELL + CELL/2, y: cy*CELL + CELL/2,
       vx: (Math.random()-.5)*5, vy: -Math.random()*4-1,
       s: magic ? 5 : 3, life: 600,
       col: magic ? "#b57bff" : colors[Math.floor(Math.random()*colors.length)],
@@ -519,9 +579,9 @@ function spawnParticles(rowY, magic=false){
 function celebrate(text, color="#7dffa8"){
   const el = document.createElement("div");
   el.className = "floater"; el.textContent = text; el.style.color = color;
-  el.style.top = (ROWS*CELL*(0.25 + Math.random()*0.35)) + "px";
+  el.style.top = (ROWS*CELL*(0.2 + Math.random()*0.4)) + "px";
   $("floaters").appendChild(el);
-  setTimeout(()=>el.remove(), 1400);
+  setTimeout(()=>el.remove(), 1500);
 }
 
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
@@ -529,7 +589,7 @@ function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 /* ============================== HUD / SETTINGS ============================== */
 function updateHUD(){
   $("score").textContent = score ?? 0;
-  $("lines").textContent = lines ?? 0;
+  $("words").textContent = wordCount ?? 0;
   $("levelName").textContent = LEVELS[levelIdx ?? 0].name;
   $("tier").textContent = ((lastTier??0)+1)*100;
   $("charges").textContent = charges ?? 0;
@@ -549,7 +609,7 @@ function renderLevelList(){
 
 function applyProUI(){
   const pro = store.pro;
-  $("edition").textContent = pro ? "PRO 🎉" : "Free";
+  $("edition").textContent = pro ? "18+ 🔥" : "Free";
   $("proBadge").style.display = pro ? "" : "none";
   $("proBtn").style.display = pro ? "none" : "";
   $("proControls").classList.toggle("locked", !pro);
@@ -599,15 +659,10 @@ function buildSwatches(){
 }
 
 /* ============================== INPUT ============================== */
-function move(dx){ if(!collides(piece,dx,0)){ piece.x+=dx; sfx.move(); } }
-function softDrop(){ if(!collides(piece,0,1)){ piece.y++; addScore(1); } }
-function hardDrop(){ while(!collides(piece,0,1)) piece.y++; lockPiece(); }
-function doRotate(){
-  const r = rotate(piece.shape);
-  for(const kick of [0,-1,1,-2,2]){
-    if(!collides(piece,kick,0,r)){ piece.shape=r; piece.x+=kick; sfx.rotate(); return; }
-  }
-}
+function move(dx){ if(!cellBlocked(piece.x+dx, piece.y)){ piece.x+=dx; sfx.move(); } }
+function softDrop(){ if(!cellBlocked(piece.x, piece.y+1)){ piece.y++; addScore(1); } }
+function hardDrop(){ while(!cellBlocked(piece.x, piece.y+1)) piece.y++; lockPiece(); }
+function swapNext(){ const t = piece.ch; piece.ch = queue[0]; queue[0] = t; sfx.swap(); }
 function togglePause(){
   if(!running || over) return;
   paused = !paused;
@@ -623,7 +678,7 @@ document.addEventListener("keydown", e=>{
     case "ArrowLeft": case "a": move(-1); break;
     case "ArrowRight": case "d": move(1); break;
     case "ArrowDown": case "s": softDrop(); break;
-    case "ArrowUp": case "w": doRotate(); break;
+    case "ArrowUp": case "w": swapNext(); break;
     case " ": e.preventDefault(); hardDrop(); break;
   }
 });
@@ -631,13 +686,13 @@ document.addEventListener("keydown", e=>{
 $("tLeft").onclick = ()=>running&&!paused&&move(-1);
 $("tRight").onclick = ()=>running&&!paused&&move(1);
 $("tDown").onclick = ()=>running&&!paused&&softDrop();
-$("tRot").onclick = ()=>running&&!paused&&doRotate();
+$("tSwap").onclick = ()=>running&&!paused&&swapNext();
 $("tDrop").onclick = ()=>running&&!paused&&hardDrop();
 $("magicBtn").onclick = magicClick;
 $("pauseBtn").onclick = togglePause;
 $("startBtn").onclick = startGame;
 
-/* PRO contains explicit content, so unlocking requires the 18+ gate. */
+/* 18+ Edition contains explicit words, so unlocking requires the age gate. */
 $("proBtn").onclick = ()=>{
   $("ageGate").classList.remove("hidden");
   if(running && !paused) togglePause();
@@ -646,7 +701,7 @@ $("ageYes").onclick = ()=>{
   $("ageGate").classList.add("hidden");
   store.pro = true;
   applyProUI();
-  celebrate(pick(ADULT_LINES), "#ffcf40");
+  celebrate("18+ UNLOCKED — SPELL SOMETHING FILTHY", "#ffcf40");
   sfx.levelup();
 };
 $("ageNo").onclick = ()=> $("ageGate").classList.add("hidden");
