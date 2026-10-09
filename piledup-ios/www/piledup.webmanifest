@@ -1,7 +1,7 @@
 {
   "name": "PileUp",
   "short_name": "PileUp",
-  "description": "Stack it. Clear it. Don't get piled up.",
+  "description": "Drop letters. Spell words. Don't get piled up.",
   "start_url": "/piledup.html",
   "display": "standalone",
   "orientation": "portrait",
