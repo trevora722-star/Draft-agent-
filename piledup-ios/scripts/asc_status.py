@@ -52,7 +52,7 @@ print(f"App: {app_name} ({BUNDLE_ID}, id {app_id})")
 
 r = requests.get(f"{API}/builds", headers=H, timeout=60,
                  params={"filter[app]": app_id, "sort": "-uploadedDate",
-                         "limit": 5,
+                         "limit": 20,
                          "fields[builds]": "version,processingState,"
                          "uploadedDate,expired,usesNonExemptEncryption"})
 r.raise_for_status()
@@ -68,6 +68,40 @@ for b in builds:
           f" (uploaded {a['uploadedDate']},"
           f" compliance={'UNANSWERED' if a['usesNonExemptEncryption'] is None else a['usesNonExemptEncryption']},"
           f" expired={a['expired']})")
+
+# When TARGET_BUILDS is set (space/comma-separated version numbers), add
+# those specific builds to every beta group instead of the latest build —
+# used to hand older builds (e.g. the original game) back to testers.
+targets = [t for t in re.split(r"[\s,]+", os.environ.get("TARGET_BUILDS", "")) if t]
+if targets:
+    r = requests.get(f"{API}/betaGroups", headers=H, timeout=60,
+                     params={"filter[app]": app_id, "limit": 50})
+    r.raise_for_status()
+    groups = r.json()["data"]
+    for t in targets:
+        match = [b for b in builds if b["attributes"]["version"] == t]
+        if not match:
+            print(f"::error::No build with version {t} found among recent builds.")
+            continue
+        b = match[0]
+        if b["attributes"]["expired"]:
+            print(f"::error::Build {t} is EXPIRED on TestFlight and can no "
+                  "longer be installed.")
+            continue
+        if b["attributes"]["usesNonExemptEncryption"] is None:
+            pr = requests.patch(f"{API}/builds/{b['id']}", headers=JH, timeout=60,
+                                json={"data": {"type": "builds", "id": b["id"],
+                                      "attributes": {"usesNonExemptEncryption": False}}})
+            print(f"Build {t}: set export compliance: HTTP {pr.status_code}")
+        for g in groups:
+            ar = requests.post(f"{API}/betaGroups/{g['id']}/relationships/builds",
+                               headers=JH, timeout=60,
+                               json={"data": [{"type": "builds", "id": b["id"]}]})
+            print(f"Added build {t} to group '{g['attributes']['name']}': "
+                  f"HTTP {ar.status_code} {'' if ar.status_code < 400 else ar.text[:200]}")
+    print("\nRESULT: target builds distributed. Testers can pick them under "
+          "Previous Builds in TestFlight.")
+    sys.exit(0)
 
 latest = builds[0]
 lid = latest["id"]

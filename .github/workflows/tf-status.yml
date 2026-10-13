@@ -26,6 +26,9 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
+          # Optional: piledup-ios/scripts/target_builds.txt lists specific
+          # build numbers to distribute instead of the latest build.
+          export TARGET_BUILDS="$(cat piledup-ios/scripts/target_builds.txt 2>/dev/null || true)"
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet pyjwt cryptography requests
           "$RUNNER_TEMP/venv/bin/python" piledup-ios/scripts/asc_status.py
